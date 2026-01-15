@@ -44,6 +44,7 @@ public class PostService {
         post.setContent(postRequest.getContent());
         post.setCoverUrl(postRequest.getCoverUrl() != null ? postRequest.getCoverUrl() : "https://via.placeholder.com/300x400?text=No+Image");
         post.setUser(user);
+        post.setUserId(user.getId());
 
         if (postRequest.getTags() != null) {
             Set<Tag> tags = new HashSet<>();
@@ -65,7 +66,14 @@ public class PostService {
     }
 
     public java.util.List<Post> getAllPosts() {
-        return postMapper.selectList(null);
+        java.util.List<Post> posts = postMapper.selectList(null);
+        posts.forEach(post -> {
+             if (post.getUserId() != null) {
+                 User user = userMapper.selectById(post.getUserId());
+                 post.setUser(user);
+             }
+        });
+        return posts;
     }
 
     public Post getPostById(Long id) {

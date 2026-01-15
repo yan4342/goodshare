@@ -5,17 +5,17 @@
     </div>
     
     <div class="menu-items">
-      <div class="menu-item active">
+      <div class="menu-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
         <el-icon :size="24"><Compass /></el-icon>
         <span class="label">发现</span>
       </div>
       
-      <div class="menu-item">
+      <div class="menu-item" :class="{ active: $route.path === '/publish' }" @click="$router.push('/publish')">
         <el-icon :size="24"><Plus /></el-icon>
         <span class="label">发布</span>
       </div>
       
-      <div class="menu-item">
+      <div class="menu-item" :class="{ active: $route.path === '/notifications' }" @click="$router.push('/notifications')">
         <el-icon :size="24"><Bell /></el-icon>
         <span class="label">通知</span>
       </div>
