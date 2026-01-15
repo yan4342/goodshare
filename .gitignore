@@ -1,6 +1,6 @@
 HELP.md
 target/
-.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -31,3 +31,24 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Application Specific ###
+uploads/
+logs/
+*.log
+
+### OS Files ###
+.DS_Store
+Thumbs.db
+
+### Frontend (goodshare-web) ###
+goodshare-web/node_modules/
+goodshare-web/dist/
+goodshare-web/npm-debug.log*
+goodshare-web/yarn-debug.log*
+goodshare-web/yarn-error.log*
+goodshare-web/pnpm-debug.log*
+goodshare-web/.env.local
+goodshare-web/.env.*.local
+goodshare-web/.eslintcache
+goodshare-web/*.local

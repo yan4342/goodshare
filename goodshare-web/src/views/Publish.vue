@@ -1,5 +1,6 @@
 <template>
   <div class="publish-container">
+    <Sidebar />
     <div class="publish-card">
       <h2 class="page-title">发布笔记</h2>
       
@@ -53,6 +54,7 @@ import { Plus } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import Sidebar from '../components/Sidebar.vue'
 
 const router = useRouter()
 const loading = ref(false)

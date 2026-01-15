@@ -1,5 +1,6 @@
 <template>
   <div class="notifications-container">
+    <Sidebar />
     <div class="notifications-card">
       <h2>消息通知</h2>
       
@@ -34,6 +35,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import Sidebar from "../components/Sidebar.vue";
 
 const activeTab = ref('likes')
 </script>

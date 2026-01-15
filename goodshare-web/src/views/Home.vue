@@ -12,7 +12,7 @@
         <span class="tag">彩妆</span>
         <span class="tag">影视</span>
         <span class="tag">职场</span>
-        <span class="tag">情感</span>
+        <span class="tag">数码</span>
         <span class="tag">家居</span>
         <span class="tag">游戏</span>
         <span class="tag">旅行</span>
