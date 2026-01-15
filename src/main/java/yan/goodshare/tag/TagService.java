@@ -1,34 +1,37 @@
 package yan.goodshare.tag;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.stereotype.Service;
+import yan.goodshare.mapper.TagMapper;
+import yan.goodshare.entity.Tag;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TagService {
 
-    private final TagRepository tagRepository;
+    private final TagMapper tagMapper;
 
-    public TagService(TagRepository tagRepository) {
-        this.tagRepository = tagRepository;
+    public TagService(TagMapper tagMapper) {
+        this.tagMapper = tagMapper;
     }
 
     public Tag createTag(String name) {
-        Optional<Tag> existingTag = tagRepository.findByName(name);
-        if (existingTag.isPresent()) {
+        Tag existingTag = tagMapper.selectOne(new QueryWrapper<Tag>().eq("name", name));
+        if (existingTag != null) {
             throw new RuntimeException("Tag already exists");
         }
         Tag tag = new Tag();
         tag.setName(name);
-        return tagRepository.save(tag);
+        tagMapper.insert(tag);
+        return tag;
     }
 
     public List<Tag> getAllTags() {
-        return tagRepository.findAll();
+        return tagMapper.selectList(null);
     }
 
     public void deleteTag(Long id) {
-        tagRepository.deleteById(id);
+        tagMapper.deleteById(id);
     }
 }

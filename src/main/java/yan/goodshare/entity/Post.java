@@ -1,41 +1,35 @@
-package yan.goodshare.post;
+package yan.goodshare.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import jakarta.validation.constraints.NotEmpty;
-import org.hibernate.annotations.CreationTimestamp;
-import yan.goodshare.tag.Tag;
-import yan.goodshare.user.User;
+import yan.goodshare.entity.Tag;
+import yan.goodshare.entity.User;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-@Entity
-@Table(name = "posts")
+@TableName("posts")
 public class Post {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @NotEmpty
     private String title;
 
-    @Lob
     @NotEmpty
     private String content;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    private String coverUrl;
+
+    @TableField(exist = false)
     private User user;
 
-    @CreationTimestamp
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
-    @JoinTable(name = "post_tags",
-            joinColumns = { @JoinColumn(name = "post_id") },
-            inverseJoinColumns = { @JoinColumn(name = "tag_id") })
+    @TableField(exist = false)
     private Set<Tag> tags = new HashSet<>();
 
     // Getters and Setters
@@ -64,6 +58,14 @@ public class Post {
         this.content = content;
     }
 
+    public String getCoverUrl() {
+        return coverUrl;
+    }
+
+    public void setCoverUrl(String coverUrl) {
+        this.coverUrl = coverUrl;
+    }
+
     public User getUser() {
         return user;
     }
@@ -78,5 +80,13 @@ public class Post {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Set<Tag> getTags() {
+        return tags;
+    }
+
+    public void setTags(Set<Tag> tags) {
+        this.tags = tags;
     }
 }

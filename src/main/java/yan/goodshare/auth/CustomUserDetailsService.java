@@ -6,8 +6,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import yan.goodshare.user.User;
-import yan.goodshare.user.UserRepository;
+import yan.goodshare.entity.User;
+import yan.goodshare.mapper.UserMapper;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -15,21 +15,19 @@ import java.util.stream.Collectors;
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public CustomUserDetailsService(UserMapper userMapper) {
+        this.userMapper = userMapper;
     }
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
-
-        Set<GrantedAuthority> authorities = user.getRoles().stream()
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toSet());
-
+        User user = userMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found with username: " + username);
+        }
+        Set<GrantedAuthority> authorities = java.util.Arrays.stream(user.getRole().split(",")).map(SimpleGrantedAuthority::new).collect(Collectors.toSet());
         return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), authorities);
     }
 }

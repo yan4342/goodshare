@@ -1,5 +1,6 @@
 package yan.goodshare.tag;
 
+import yan.goodshare.entity.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

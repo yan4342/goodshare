@@ -1,14 +1,15 @@
-package yan.goodshare.product;
+package yan.goodshare.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
 
-@Entity
-@Table(name = "prices")
+@TableName("prices")
 public class Price {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     private String platform;
@@ -17,11 +18,20 @@ public class Price {
 
     private String url;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    private Long product_id;
+
+    @TableField(exist = false)
     private Product product;
 
     // Getters and Setters
+
+    public Long getProduct_id() {
+        return product_id;
+    }
+
+    public void setProduct_id(Long product_id) {
+        this.product_id = product_id;
+    }
 
     public Long getId() {
         return id;

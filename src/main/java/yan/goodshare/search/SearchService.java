@@ -4,8 +4,9 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.query.StringQuery;
+import yan.goodshare.entity.Post;
 import org.springframework.stereotype.Service;
-import yan.goodshare.post.Post;
+//
 
 @Service
 public class SearchService {

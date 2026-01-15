@@ -1,0 +1,31 @@
+package yan.goodshare.entity;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+//@AllArgsConstructor
+public class UserProfile {
+    private Long id;
+    private String username;
+    private String email;
+    private String bio;
+    private String avatarUrl;
+    private int postCount;
+    private int followerCount;
+    private int followingCount;
+
+    // Manual All-Args Constructor
+    public UserProfile(Long id, String username, String email, String bio, String avatarUrl, int postCount, int followerCount, int followingCount) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.bio = bio;
+        this.avatarUrl = avatarUrl;
+        this.postCount = postCount;
+        this.followerCount = followerCount;
+        this.followingCount = followingCount;
+    }
+}

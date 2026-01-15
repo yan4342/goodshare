@@ -1,5 +1,6 @@
 package yan.goodshare.post;
 
+import yan.goodshare.entity.Favorite;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

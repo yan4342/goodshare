@@ -1,6 +1,7 @@
 package yan.goodshare.post;
 
 import jakarta.validation.Valid;
+import yan.goodshare.entity.Comment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

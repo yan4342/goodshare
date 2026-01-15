@@ -1,39 +1,50 @@
 package yan.goodshare.product;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.stereotype.Service;
-import yan.goodshare.post.Post;
-import yan.goodshare.post.PostRepository;
+import yan.goodshare.mapper.PostMapper;
+import yan.goodshare.mapper.PriceMapper;
+import yan.goodshare.mapper.ProductMapper;
+import yan.goodshare.entity.Post;
+import yan.goodshare.entity.Price;
+import yan.goodshare.entity.Product;
 
 import java.util.List;
 
 @Service
 public class ProductService {
 
-    private final ProductRepository productRepository;
-    private final PriceRepository priceRepository;
-    private final PostRepository postRepository;
+    private final ProductMapper productMapper;
+    private final PriceMapper priceMapper;
+    private final PostMapper postMapper;
 
-    public ProductService(ProductRepository productRepository, PriceRepository priceRepository, PostRepository postRepository) {
-        this.productRepository = productRepository;
-        this.priceRepository = priceRepository;
-        this.postRepository = postRepository;
+    public ProductService(ProductMapper productMapper, PriceMapper priceMapper, PostMapper postMapper) {
+        this.productMapper = productMapper;
+        this.priceMapper = priceMapper;
+        this.postMapper = postMapper;
     }
 
     public Product addProductToPost(Long postId, Product product) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
-        product.setPost(post);
-        return productRepository.save(product);
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new RuntimeException("Post not found");
+        }
+        product.setPost_id(postId);
+        productMapper.insert(product);
+        return product;
     }
 
     public Price addPriceToProduct(Long productId, Price price) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        price.setProduct(product);
-        return priceRepository.save(price);
+        Product product = productMapper.selectById(productId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
+        price.setProduct_id(productId);
+        priceMapper.insert(price);
+        return price;
     }
 
     public List<Product> getProductsByPost(Long postId) {
-        return productRepository.findByPostId(postId);
+        return productMapper.selectList(new QueryWrapper<Product>().eq("post_id", postId));
     }
 }

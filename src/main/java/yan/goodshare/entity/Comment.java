@@ -1,35 +1,51 @@
-package yan.goodshare.post;
+package yan.goodshare.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import jakarta.validation.constraints.NotEmpty;
-import org.hibernate.annotations.CreationTimestamp;
-import yan.goodshare.user.User;
+import yan.goodshare.entity.Post;
+import yan.goodshare.entity.User;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "comments")
+@TableName("comments")
 public class Comment {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @NotEmpty
     private String content;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "post_id", nullable = false)
+    private Long post_id;
+
+    private Long user_id;
+
+    @TableField(exist = false)
     private Post post;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @TableField(exist = false)
     private User user;
 
-    @CreationTimestamp
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
     // Getters and Setters
+
+    public Long getPost_id() {
+        return post_id;
+    }
+
+    public void setPost_id(Long post_id) {
+        this.post_id = post_id;
+    }
+
+    public Long getUser_id() {
+        return user_id;
+    }
+
+    public void setUser_id(Long user_id) {
+        this.user_id = user_id;
+    }
 
     public Long getId() {
         return id;

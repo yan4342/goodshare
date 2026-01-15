@@ -1,69 +1,86 @@
 package yan.goodshare.post;
 
+import yan.goodshare.entity.Favorite;
+import yan.goodshare.entity.Post;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
-import yan.goodshare.user.User;
-import yan.goodshare.user.UserRepository;
+import yan.goodshare.mapper.FavoriteMapper;
+import yan.goodshare.mapper.PostMapper;
+import yan.goodshare.mapper.UserMapper;
+import yan.goodshare.entity.User;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class FavoriteService {
 
-    private final FavoriteRepository favoriteRepository;
-    private final PostRepository postRepository;
-    private final UserRepository userRepository;
+    private final FavoriteMapper favoriteMapper;
+    private final PostMapper postMapper;
+    private final UserMapper userMapper;
 
-    public FavoriteService(FavoriteRepository favoriteRepository, PostRepository postRepository, UserRepository userRepository) {
-        this.favoriteRepository = favoriteRepository;
-        this.postRepository = postRepository;
-        this.userRepository = userRepository;
+    public FavoriteService(FavoriteMapper favoriteMapper, PostMapper postMapper, UserMapper userMapper) {
+        this.favoriteMapper = favoriteMapper;
+        this.postMapper = postMapper;
+        this.userMapper = userMapper;
     }
 
     public void favoritePost(Long postId) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new RuntimeException("Post not found");
+        }
 
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
 
-        Optional<Favorite> existingFavorite = favoriteRepository.findByUserIdAndPostId(user.getId(), postId);
-        if (existingFavorite.isPresent()) {
+        Favorite existingFavorite = favoriteMapper.selectOne(new QueryWrapper<Favorite>()
+                .eq("user_id", user.getId())
+                .eq("post_id", postId));
+        if (existingFavorite != null) {
             throw new RuntimeException("You have already favorited this post");
         }
 
         Favorite favorite = new Favorite();
-        favorite.setUser(user);
-        favorite.setPost(post);
+        favorite.setUser_id(user.getId());
+        favorite.setPost_id(postId);
 
-        favoriteRepository.save(favorite);
+        favoriteMapper.insert(favorite);
     }
 
     public void unfavoritePost(Long postId) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
 
-        Favorite favorite = favoriteRepository.findByUserIdAndPostId(user.getId(), postId)
-                .orElseThrow(() -> new RuntimeException("You have not favorited this post"));
+        int deleted = favoriteMapper.delete(new QueryWrapper<Favorite>()
+                .eq("user_id", user.getId())
+                .eq("post_id", postId));
 
-        favoriteRepository.delete(favorite);
+        if (deleted == 0) {
+            throw new RuntimeException("You have not favorited this post");
+        }
     }
 
     public List<Favorite> getUserFavorites() {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
 
-        return favoriteRepository.findByUserId(user.getId());
+        return favoriteMapper.selectList(new QueryWrapper<Favorite>().eq("user_id", user.getId()));
     }
 }

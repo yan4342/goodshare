@@ -1,5 +1,7 @@
 package yan.goodshare.product;
 
+import yan.goodshare.entity.Price;
+import yan.goodshare.entity.Product;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

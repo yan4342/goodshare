@@ -1,13 +1,12 @@
 package yan.goodshare.admin;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import yan.goodshare.user.User;
-import yan.goodshare.user.UserRepository;
+import yan.goodshare.mapper.UserMapper;
+import yan.goodshare.entity.User;
 
 import java.util.List;
 
@@ -16,11 +15,14 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserMapper userMapper;
+
+    public AdminController(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
 
     @GetMapping("/users")
     public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userRepository.findAll());
+        return ResponseEntity.ok(userMapper.selectList(null));
     }
 }

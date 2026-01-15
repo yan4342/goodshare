@@ -1,12 +1,14 @@
 package yan.goodshare.auth;
 
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import yan.goodshare.user.User;
+import yan.goodshare.entity.User;
 
 import java.util.Set;
 
@@ -15,18 +17,20 @@ import java.util.Set;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthenticationManager authenticationManager;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthenticationManager authenticationManager) {
         this.authService = authService;
+        this.authenticationManager = authenticationManager;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         try {
-            String jwt = authService.login(loginRequest.getUsername(), loginRequest.getPassword());
+            String jwt = authService.login(loginRequest.getUsername(), loginRequest.getPassword(), authenticationManager);
             return ResponseEntity.ok(new AuthResponse(jwt));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Invalid username or password");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication failed: " + e.getMessage());
         }
     }
 
@@ -39,7 +43,7 @@ public class AuthController {
             user.setEmail(registerRequest.getEmail());
             user.setRoles(Set.of("USER")); // Default role
 
-            User registeredUser = authService.register(user);
+            authService.register(user);
             return ResponseEntity.ok("User registered successfully");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

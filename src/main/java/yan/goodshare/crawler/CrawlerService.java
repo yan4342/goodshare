@@ -3,7 +3,7 @@ package yan.goodshare.crawler;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
-import yan.goodshare.product.Product;
+import yan.goodshare.entity.Product;
 
 import java.io.IOException;
 

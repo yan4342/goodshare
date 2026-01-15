@@ -1,5 +1,6 @@
 package yan.goodshare.follow;
 
+import yan.goodshare.entity.Follow;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
