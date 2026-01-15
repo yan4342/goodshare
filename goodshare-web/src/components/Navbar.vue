@@ -1,8 +1,8 @@
 <template>
   <div class="navbar">
     <div class="navbar-content">
-      <div v-if="showLogo" class="logo" @click="$router.push('/')">GoodShare</div>
-      <div class="search-bar" :class="{ 'full-width': !showLogo }">
+      <div class="logo" @click="$router.push('/')">GoodShare</div>
+      <div class="search-bar">
         <el-input
           v-model="searchQuery"
           placeholder="搜索你感兴趣的内容..."
@@ -19,7 +19,7 @@
              <el-button type="primary" round class="login-btn" @click="$router.push('/login')">登录</el-button>
         </template>
         <div v-else class="user-actions">
-           <el-button type="primary" round class="publish-btn" @click="$router.push('/publish')">发布</el-button>
+           <el-button type="primary" round class="publish-btn">发布</el-button>
            <el-dropdown trigger="click" @command="handleCommand">
             <div class="avatar-wrapper">
                 <el-avatar :size="32" icon="UserFilled" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
@@ -40,13 +40,6 @@
 import { ref, computed } from 'vue'
 import { Search, UserFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-
-const props = defineProps({
-  showLogo: {
-    type: Boolean,
-    default: true
-  }
-})
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -95,9 +88,6 @@ const handleCommand = (command) => {
   flex: 1;
   max-width: 500px;
   margin: 0 40px;
-}
-.search-bar.full-width {
-    margin-left: 0;
 }
 .search-input :deep(.el-input__wrapper) {
   border-radius: 20px;

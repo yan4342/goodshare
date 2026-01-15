@@ -1,10 +1,8 @@
 <template>
   <div class="home-container">
-    <Sidebar />
-    <div class="content-wrapper">
-      <Navbar :show-logo="false" />
-      <div class="main-content">
-        <!-- Tag Filter (Mock) -->
+    <Navbar />
+    <div class="main-content">
+      <!-- Tag Filter (Mock) -->
       <div class="tags-bar">
         <span class="tag active">推荐</span>
         <span class="tag">穿搭</span>
@@ -21,7 +19,7 @@
 
       <!-- Waterfall Grid -->
       <div class="masonry-grid">
-        <div v-for="post in posts" :key="post.id" class="post-card" @click="$router.push(`/post/${post.id}`)">
+        <div v-for="post in posts" :key="post.id" class="post-card" @click="openPost(post)">
           <div class="cover-image" :style="{ backgroundImage: `url(${post.coverUrl || 'https://via.placeholder.com/300x400?text=No+Image'})` }"></div>
           <div class="card-info">
             <h3 class="post-title">{{ post.title }}</h3>
@@ -43,13 +41,11 @@
           <el-empty description="暂无内容" />
       </div>
     </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
-import Sidebar from '../components/Sidebar.vue'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { Star, UserFilled } from '@element-plus/icons-vue'
@@ -82,12 +78,6 @@ const openPost = (post) => {
 .home-container {
   min-height: 100vh;
   background-color: #fff;
-  display: flex;
-}
-.content-wrapper {
-  flex: 1;
-  margin-left: 240px; /* Width of Sidebar */
-  width: calc(100% - 240px);
 }
 .main-content {
   max-width: 1600px;

@@ -23,8 +23,6 @@ public class Post {
 
     private String coverUrl;
 
-    private Long userId;
-
     @TableField(exist = false)
     private User user;
 
@@ -66,14 +64,6 @@ public class Post {
 
     public void setCoverUrl(String coverUrl) {
         this.coverUrl = coverUrl;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
     }
 
     public User getUser() {
