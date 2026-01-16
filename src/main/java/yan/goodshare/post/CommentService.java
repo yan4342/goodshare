@@ -50,6 +50,6 @@ public class CommentService {
     }
 
     public List<Comment> getCommentsByPostId(Long postId) {
-        return commentMapper.selectList(new QueryWrapper<Comment>().eq("post_id", postId));
+        return commentMapper.selectCommentsWithUser(postId);
     }
 }

@@ -1,10 +1,13 @@
 <template>
   <div class="home-container">
-    <Navbar />
-    <div class="main-content">
-      <!-- Tag Filter (Mock) -->
-      <div class="tags-bar">
-        <span class="tag active">推荐</span>
+    <Sidebar v-if="isAuthenticated" />
+    <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }">
+      <Navbar />
+      
+      <div class="content-body">
+        <!-- Tag Filter (Mock) -->
+        <div class="tags-bar">
+          <span class="tag active">推荐</span>
         <span class="tag">穿搭</span>
         <span class="tag">美食</span>
         <span class="tag">彩妆</span>
@@ -25,7 +28,7 @@
             <h3 class="post-title">{{ post.title }}</h3>
             <div class="post-meta">
               <div class="author">
-                <el-avatar :size="20" icon="UserFilled" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+                <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
                 <span class="author-name">{{ post.user?.username || '用户' }}</span>
               </div>
               <div class="likes">
@@ -41,20 +44,26 @@
           <el-empty description="暂无内容" />
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import Sidebar from '../components/Sidebar.vue'
+import { ref, onMounted, computed } from 'vue'
+import request from '../utils/request'
 import { Star, UserFilled } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import authStore from '../stores/auth'
 
+const router = useRouter()
 const posts = ref([])
+const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 
 onMounted(async () => {
   try {
-    const res = await axios.get('/api/posts')
+    const res = await request.get('/posts')
     posts.value = res.data
   } catch (err) {
     console.error('Failed to fetch posts', err)
@@ -69,8 +78,7 @@ onMounted(async () => {
 })
 
 const openPost = (post) => {
-  console.log('Open post', post.id)
-  // Can implement modal detail view here
+  router.push(`/post/${post.id}`)
 }
 </script>
 
@@ -80,9 +88,17 @@ const openPost = (post) => {
   background-color: #fff;
 }
 .main-content {
-  max-width: 1600px;
   margin: 0 auto;
-  padding: 10px 24px;
+  transition: margin-left 0.3s, width 0.3s;
+}
+.main-content.with-sidebar {
+    margin-left: 240px;
+    width: calc(100% - 240px);
+}
+.content-body {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 10px 24px;
 }
 .tags-bar {
   display: flex;
@@ -98,11 +114,6 @@ const openPost = (post) => {
   white-space: nowrap;
   padding: 6px 12px;
   border-radius: 20px;
-  transition: all 0.3s;
-}
-.tag:hover {
-    background-color: #f5f5f5;
-    color: #333;
 }
 .tag.active {
   color: #333;
@@ -111,43 +122,26 @@ const openPost = (post) => {
 }
 .masonry-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr); /* 5 columns for large screens */
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 20px;
 }
-@media (max-width: 1400px) {
-    .masonry-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-@media (max-width: 1100px) {
-    .masonry-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-@media (max-width: 800px) {
-    .masonry-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
 .post-card {
-  break-inside: avoid;
-  border-radius: 12px; /* More rounded */
-  overflow: hidden;
   cursor: pointer;
+  break-inside: avoid;
+  margin-bottom: 20px;
   transition: transform 0.2s;
-  background: #fff;
 }
 .post-card:hover {
-  /* transform: translateY(-2px); */
+  transform: translateY(-4px);
 }
 .cover-image {
   width: 100%;
   padding-bottom: 133%; /* 3:4 Aspect Ratio */
   background-size: cover;
   background-position: center;
-  background-color: #f8f8f8;
-  border-radius: 12px; /* Rounded images */
+  border-radius: 16px;
+  margin-bottom: 12px;
+  background-color: #f0f0f0;
   position: relative;
 }
 /* Optional: Add a dark overlay on hover */
@@ -163,15 +157,14 @@ const openPost = (post) => {
 .post-card:hover .cover-image::after {
     opacity: 1;
 }
-
 .card-info {
-  padding: 12px 4px;
+  padding: 0 4px;
 }
 .post-title {
-  font-size: 15px;
+  font-size: 14px;
   color: #333;
-  margin: 0 0 8px;
   line-height: 1.4;
+  margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -183,7 +176,7 @@ const openPost = (post) => {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #888;
+  color: #999;
 }
 .author {
   display: flex;
@@ -191,18 +184,14 @@ const openPost = (post) => {
   gap: 6px;
 }
 .author-name {
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .likes {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-.empty-state {
-    padding: 50px 0;
-    text-align: center;
 }
 </style>

@@ -46,6 +46,9 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+        if (role != null && !role.isEmpty()) {
+            this.roles = new HashSet<>(java.util.Arrays.asList(role.split(",")));
+        }
     }
 
     public Long getId() {
@@ -102,5 +105,10 @@ public class User {
 
     public void setRoles(Set<String> roles) {
         this.roles = roles;
+        if (roles != null && !roles.isEmpty()) {
+            this.role = String.join(",", roles);
+        } else {
+            this.role = null;
+        }
     }
 }

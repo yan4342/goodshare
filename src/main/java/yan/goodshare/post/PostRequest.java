@@ -14,6 +14,8 @@ public class PostRequest {
 
     private String coverUrl;
 
+    private java.util.List<String> imageUrls;
+
     private Set<String> tags;
 
     // Getters and Setters
@@ -40,6 +42,14 @@ public class PostRequest {
 
     public void setCoverUrl(String coverUrl) {
         this.coverUrl = coverUrl;
+    }
+
+    public java.util.List<String> getImageUrls() {
+        return imageUrls;
+    }
+
+    public void setImageUrls(java.util.List<String> imageUrls) {
+        this.imageUrls = imageUrls;
     }
 
     public Set<String> getTags() {

@@ -27,7 +27,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (user == null) {
             throw new UsernameNotFoundException("User not found with username: " + username);
         }
-        Set<GrantedAuthority> authorities = java.util.Arrays.stream(user.getRole().split(",")).map(SimpleGrantedAuthority::new).collect(Collectors.toSet());
+        String roles = user.getRole();
+        if (roles == null || roles.isEmpty()) {
+            roles = "USER"; // Default role
+        }
+        Set<GrantedAuthority> authorities = java.util.Arrays.stream(roles.split(",")).map(SimpleGrantedAuthority::new).collect(Collectors.toSet());
         return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), authorities);
     }
 }

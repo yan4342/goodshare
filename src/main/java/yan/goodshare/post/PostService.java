@@ -1,6 +1,7 @@
 package yan.goodshare.post;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import yan.goodshare.entity.Post;
@@ -13,6 +14,7 @@ import yan.goodshare.entity.Tag;
 import yan.goodshare.entity.User;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -42,8 +44,27 @@ public class PostService {
         Post post = new Post();
         post.setTitle(postRequest.getTitle());
         post.setContent(postRequest.getContent());
-        post.setCoverUrl(postRequest.getCoverUrl() != null ? postRequest.getCoverUrl() : "https://via.placeholder.com/300x400?text=No+Image");
+        
+        // Handle images
+        if (postRequest.getImageUrls() != null && !postRequest.getImageUrls().isEmpty()) {
+            try {
+                post.setImages(new ObjectMapper().writeValueAsString(postRequest.getImageUrls()));
+            } catch (Exception e) {
+                throw new RuntimeException("Error processing images", e);
+            }
+        }
+
+        // Handle coverUrl
+        if (postRequest.getCoverUrl() != null && !postRequest.getCoverUrl().isEmpty()) {
+            post.setCoverUrl(postRequest.getCoverUrl());
+        } else if (postRequest.getImageUrls() != null && !postRequest.getImageUrls().isEmpty()) {
+            post.setCoverUrl(postRequest.getImageUrls().get(0));
+        } else {
+            post.setCoverUrl("https://via.placeholder.com/300x400?text=No+Image");
+        }
+
         post.setUser(user);
+        post.setUserId(user.getId());
 
         if (postRequest.getTags() != null) {
             Set<Tag> tags = new HashSet<>();
@@ -64,8 +85,8 @@ public class PostService {
         return post;
     }
 
-    public java.util.List<Post> getAllPosts() {
-        return postMapper.selectList(null);
+    public List<Post> getAllPosts() {
+        return postMapper.selectPostsWithUser();
     }
 
     public Post getPostById(Long id) {

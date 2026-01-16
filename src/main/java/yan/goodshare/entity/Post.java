@@ -23,8 +23,13 @@ public class Post {
 
     private String coverUrl;
 
+    private String images; // JSON array of image URLs
+
     @TableField(exist = false)
     private User user;
+
+    @TableField("user_id")
+    private Long userId;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
@@ -66,7 +71,18 @@ public class Post {
         this.coverUrl = coverUrl;
     }
 
+    public String getImages() {
+        return images;
+    }
+
+    public void setImages(String images) {
+        this.images = images;
+    }
+
     public User getUser() {
+        if (user == null) {
+            return new User();
+        }
         return user;
     }
 
@@ -88,5 +104,13 @@ public class Post {
 
     public void setTags(Set<Tag> tags) {
         this.tags = tags;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }

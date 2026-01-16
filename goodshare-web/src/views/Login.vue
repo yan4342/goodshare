@@ -1,51 +1,115 @@
 <template>
   <div class="login-container">
     <el-card class="login-card">
-      <h2 class="title">GoodShare</h2>
-      <el-form :model="loginForm" label-width="0px">
-        <el-form-item>
-          <el-input v-model="loginForm.username" placeholder="Username" :prefix-icon="User" />
+      <div class="header">
+        <h2 class="title">GoodShare</h2>
+        <p class="subtitle">发现美好，分享生活</p>
+      </div>
+      
+      <el-form 
+        ref="loginFormRef"
+        :model="loginForm" 
+        :rules="loginRules"
+        label-width="0px"
+        class="login-form"
+      >
+        <el-form-item prop="username">
+          <el-input 
+            v-model="loginForm.username" 
+            placeholder="用户名" 
+            :prefix-icon="User" 
+            size="large"
+          />
         </el-form-item>
-        <el-form-item>
-          <el-input v-model="loginForm.password" type="password" placeholder="Password" :prefix-icon="Lock" />
+        
+        <el-form-item prop="password">
+          <el-input 
+            v-model="loginForm.password" 
+            type="password" 
+            placeholder="密码" 
+            :prefix-icon="Lock" 
+            size="large"
+            show-password
+            @keyup.enter="handleLogin"
+          />
         </el-form-item>
-        <el-button type="primary" class="login-btn" @click="handleLogin" :loading="loading">登录</el-button>
+
+        <div class="form-options">
+            <el-checkbox v-model="loginForm.rememberMe">记住我</el-checkbox>
+            <el-link type="primary" :underline="false">忘记密码？</el-link>
+        </div>
+
+        <el-button 
+            type="primary" 
+            class="login-btn" 
+            @click="handleLogin" 
+            :loading="loading"
+            size="large"
+            round
+        >
+            登录
+        </el-button>
       </el-form>
+      
       <div class="footer-links">
-        <el-link type="info">注册账号</el-link>
+        <span>还没有账号？</span>
+        <el-link type="primary" @click="$router.push('/register')">立即注册</el-link>
       </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { User, Lock } from '@element-plus/icons-vue'
-import axios from 'axios'
+import request from '../utils/request'
+import authStore from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-const loginForm = ref({ username: '', password: '' })
+const loginFormRef = ref(null)
 const loading = ref(false)
 
+const loginForm = reactive({ 
+    username: '', 
+    password: '',
+    rememberMe: false
+})
+
+const loginRules = {
+    username: [
+        { required: true, message: '请输入用户名', trigger: 'blur' }
+    ],
+    password: [
+        { required: true, message: '请输入密码', trigger: 'blur' },
+        { min: 6, message: '密码长度不能小于6位', trigger: 'blur' }
+    ]
+}
+
 const handleLogin = async () => {
-  if (!loginForm.value.username || !loginForm.value.password) {
-      ElMessage.warning('请输入用户名和密码')
-      return
-  }
-  loading.value = true
-  try {
-    const res = await axios.post('/api/auth/login', loginForm.value)
-    // Assuming res.data.accessToken based on AuthResponse
-    localStorage.setItem('token', res.data.accessToken)
-    ElMessage.success('登录成功')
-    router.push('/')
-  } catch (err) {
-    ElMessage.error(err.response?.data || '登录失败')
-  } finally {
-    loading.value = false
-  }
+  if (!loginFormRef.value) return
+  
+  await loginFormRef.value.validate(async (valid) => {
+      if (valid) {
+          loading.value = true
+          try {
+            const res = await request.post('/auth/login', {
+                username: loginForm.username,
+                password: loginForm.password
+            })
+            
+            // Assuming res.data.accessToken based on AuthResponse
+            authStore.setToken(res.data.accessToken, loginForm.rememberMe)
+            ElMessage.success('登录成功')
+            router.push('/')
+          } catch (err) {
+            // Error handling is done in interceptor
+          } finally {
+            loading.value = false
+          }
+      }
+  })
 }
 </script>
 
@@ -55,36 +119,71 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #fff;
-  background-image: url('https://ci.xiaohongshu.com/eb760777-62d1-4235-8664-984254b92497'); /* Optional: background image */
-  background-size: cover;
+  background-color: #f5f5f5;
+  background-image: url('../assets/background.svg');
+  background-size: contain;
+  background-position: center;
 }
+
 .login-card {
   width: 400px;
-  padding: 40px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  padding: 40px 30px;
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
 }
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
 .title {
-  text-align: center;
   color: #ff2442;
-  margin-bottom: 30px;
-  font-family: sans-serif;
+  font-size: 32px;
+  margin-bottom: 8px;
+  font-family: 'Billabong', cursive, sans-serif;
+  letter-spacing: -1px;
 }
+
+.subtitle {
+    color: #999;
+    font-size: 14px;
+}
+
+.login-form {
+    margin-bottom: 20px;
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
 .login-btn {
   width: 100%;
   background-color: #ff2442;
   border-color: #ff2442;
-  height: 40px;
+  font-weight: 600;
   font-size: 16px;
-  margin-top: 10px;
+  letter-spacing: 2px;
 }
+
 .login-btn:hover {
     background-color: #e61e3a;
     border-color: #e61e3a;
 }
+
 .footer-links {
     margin-top: 20px;
     text-align: center;
+    font-size: 14px;
+    color: #666;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
 }
 </style>

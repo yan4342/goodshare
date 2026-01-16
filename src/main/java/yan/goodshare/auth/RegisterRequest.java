@@ -20,6 +20,8 @@ public class RegisterRequest {
     @Size(min = 6)
     private String password;
 
+    private String captcha;
+
     public String getUsername() {
         return username;
     }
@@ -34,6 +36,14 @@ public class RegisterRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getCaptcha() {
+        return captcha;
+    }
+
+    public void setCaptcha(String captcha) {
+        this.captcha = captcha;
     }
 
     public String getEmail() {

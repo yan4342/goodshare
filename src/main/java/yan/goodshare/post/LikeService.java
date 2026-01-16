@@ -73,4 +73,22 @@ public class LikeService {
     public long getLikeCount(Long postId) {
         return likeMapper.selectCount(new QueryWrapper<Like>().eq("post_id", postId));
     }
+
+    public boolean hasLiked(Long postId) {
+        try {
+            UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String username = userDetails.getUsername();
+
+            User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+            if (user == null) {
+                return false;
+            }
+
+            return likeMapper.exists(new QueryWrapper<Like>()
+                    .eq("user_id", user.getId())
+                    .eq("post_id", postId));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

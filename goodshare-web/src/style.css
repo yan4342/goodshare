@@ -1,3 +1,14 @@
+:root {
+  /* Element Plus Primary Color Override - Red #ff2442 */
+  --el-color-primary: #ff2442;
+  --el-color-primary-light-3: #ff667b;
+  --el-color-primary-light-5: #ff8090;
+  --el-color-primary-light-7: #ffb3bd;
+  --el-color-primary-light-8: #ffccd3;
+  --el-color-primary-light-9: #ffe6e9;
+  --el-color-primary-dark-2: #cc1d35;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;

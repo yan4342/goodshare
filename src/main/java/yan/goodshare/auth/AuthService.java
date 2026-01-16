@@ -33,4 +33,15 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         return tokenProvider.generateToken(authentication);
     }
+    
+    public void createAdminIfNotExists() {
+        if (userService.findByUsername("admin").isEmpty()) {
+            User admin = new User();
+            admin.setUsername("admin");
+            admin.setPassword("123456"); // Will be encoded by UserService
+            admin.setEmail("admin@goodshare.com");
+            admin.setRoles(java.util.Set.of("USER", "ADMIN"));
+            userService.register(admin);
+        }
+    }
 }

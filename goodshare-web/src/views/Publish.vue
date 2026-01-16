@@ -8,18 +8,23 @@
         <!-- Image Upload -->
         <div class="upload-area">
           <el-upload
+            v-model:file-list="fileList"
             class="image-uploader"
             action="/api/upload"
-            :show-file-list="false"
+            :headers="uploadHeaders"
+            list-type="picture-card"
+            :on-preview="handlePictureCardPreview"
+            :on-remove="handleRemove"
             :on-success="handleUploadSuccess"
             :before-upload="beforeUpload"
+            multiple
           >
-            <img v-if="form.coverUrl" :src="form.coverUrl" class="uploaded-image" />
-            <div v-else class="upload-placeholder">
-              <el-icon :size="48"><Plus /></el-icon>
-              <span>上传图片</span>
-            </div>
+            <el-icon><Plus /></el-icon>
           </el-upload>
+          
+          <el-dialog v-model="dialogVisible">
+            <img w-full :src="dialogImageUrl" alt="Preview Image" style="width: 100%" />
+          </el-dialog>
         </div>
 
         <el-form-item label="标题">
@@ -27,19 +32,26 @@
         </el-form-item>
 
         <el-form-item label="正文">
-          <el-input
-            v-model="form.content"
-            type="textarea"
-            :rows="6"
-            placeholder="填写正文..."
-          />
+          <div ref="editorContainer" style="height: 300px; background: white;"></div>
         </el-form-item>
 
         <el-form-item label="标签">
-           <el-input v-model="tagsInput" placeholder="空格分隔多个标签" @blur="parseTags" />
-           <div class="tags-preview">
-               <el-tag v-for="tag in form.tags" :key="tag" class="mr-2">{{ tag }}</el-tag>
-           </div>
+           <el-select
+              v-model="form.tags"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              placeholder="请选择或输入标签"
+              style="width: 100%"
+           >
+              <el-option
+                v-for="item in availableTags"
+                :key="item.id"
+                :label="item.name"
+                :value="item.name"
+              />
+           </el-select>
         </el-form-item>
 
         <el-button type="primary" class="submit-btn" round @click="submitPost" :loading="loading">发布笔记</el-button>
@@ -49,16 +61,26 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import axios from 'axios'
+import request from '../utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Sidebar from '../components/Sidebar.vue'
 
 const router = useRouter()
 const loading = ref(false)
-const tagsInput = ref('')
+const availableTags = ref([])
+const editorContainer = ref(null)
+const fileList = ref([])
+const dialogImageUrl = ref('')
+const dialogVisible = ref(false)
+let quill = null
+
+const uploadHeaders = computed(() => {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: 'Bearer ' + token } : {}
+})
 
 const form = ref({
   title: '',
@@ -67,14 +89,85 @@ const form = ref({
   tags: []
 })
 
-const parseTags = () => {
-    if (tagsInput.value.trim()) {
-        form.value.tags = tagsInput.value.trim().split(/\s+/)
+onMounted(async () => {
+    // Helper to load external scripts
+    const loadScript = (src) => {
+        return new Promise((resolve, reject) => {
+            if (document.querySelector(`script[src^="${src}"]`)) {
+                resolve()
+                return
+            }
+            const script = document.createElement('script')
+            script.src = src + '?t=' + new Date().getTime() // Cache busting
+            script.onload = resolve
+            script.onerror = reject
+            document.head.appendChild(script)
+        })
     }
+
+    // Helper to load styles
+    const loadStyle = (href) => {
+        if (document.querySelector(`link[href^="${href}"]`)) return
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = href
+        document.head.appendChild(link)
+    }
+
+    try {
+        // Load Quill resources dynamically
+        loadStyle('/quill/quill.snow.css')
+        await loadScript('/quill/quill.min.js')
+
+        // Initialize Quill
+        if (window.Quill && editorContainer.value) {
+            quill = new window.Quill(editorContainer.value, {
+                theme: 'snow',
+                placeholder: '填写正文...',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link', 'image']
+                    ]
+                }
+            })
+            
+            quill.on('text-change', () => {
+                form.value.content = quill.root.innerHTML
+            })
+        } else {
+            console.error('Quill init failed: ', { 
+                hasQuill: !!window.Quill, 
+                hasContainer: !!editorContainer.value 
+            })
+            ElMessage.error('编辑器初始化失败')
+        }
+    } catch (error) {
+        console.error('Failed to load Quill resources', error)
+        ElMessage.error('编辑器资源加载失败')
+    }
+
+    try {
+        const res = await request.get('/tags')
+        availableTags.value = res.data
+    } catch (error) {
+        console.error('Failed to fetch tags', error)
+    }
+})
+
+const handleUploadSuccess = (response, uploadFile) => {
+  // Element Plus handles fileList update automatically
 }
 
-const handleUploadSuccess = (response) => {
-  form.value.coverUrl = response.url
+const handleRemove = (uploadFile, uploadFiles) => {
+  console.log(uploadFile, uploadFiles)
+}
+
+const handlePictureCardPreview = (uploadFile) => {
+  dialogImageUrl.value = uploadFile.url || uploadFile.response.url
+  dialogVisible.value = true
 }
 
 const beforeUpload = (file) => {
@@ -82,30 +175,42 @@ const beforeUpload = (file) => {
   if (!isJPG) {
     ElMessage.error('Avatar picture must be JPG format!')
   }
-  const isLt2M = file.size / 1024 / 1024 < 2
-  if (!isLt2M) {
-    ElMessage.error('Avatar picture size can not exceed 2MB!')
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isLt10M) {
+    ElMessage.error('Picture size can not exceed 10MB!')
   }
-  return isJPG && isLt2M
+  return isJPG && isLt10M
 }
 
 const submitPost = async () => {
-  if (!form.value.title || !form.value.coverUrl) {
-      ElMessage.warning('请填写标题并上传图片')
+  if (!form.value.title) {
+      ElMessage.warning('请填写标题')
       return
   }
   
+  // Extract URLs from fileList
+  const urls = fileList.value.map(file => {
+      if (file.response && file.response.url) {
+          return file.response.url
+      }
+      return file.url
+  }).filter(url => url)
+
+  form.value.imageUrls = urls
+  // Set first image as cover if exists
+  if (urls.length > 0) {
+      form.value.coverUrl = urls[0]
+  } else {
+      form.value.coverUrl = ''
+  }
+
   loading.value = true
-  parseTags()
-  
   try {
-    // Note: Backend expects PostRequest with tags as Set<String>
-    await axios.post('/api/posts', form.value)
-    ElMessage.success('发布成功！')
+    await request.post('/posts', form.value)
+    ElMessage.success('发布成功')
     router.push('/')
-  } catch (err) {
-    ElMessage.error('发布失败，请重试')
-    console.error(err)
+  } catch (error) {
+    // Error handled by interceptor
   } finally {
     loading.value = false
   }
@@ -117,69 +222,67 @@ const submitPost = async () => {
   display: flex;
   justify-content: center;
   padding: 40px;
-  background-color: #f9f9f9;
+  padding-left: 280px; /* 40px padding + 240px sidebar */
+  background-color: #f5f7fa;
   min-height: 100vh;
+  box-sizing: border-box;
 }
-
 .publish-card {
-  width: 800px;
-  background: white;
-  padding: 40px;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    width: 800px;
+    background: white;
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
 }
-
 .page-title {
     margin-bottom: 30px;
-    text-align: center;
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
 }
-
 .upload-area {
-    display: flex;
-    justify-content: center;
     margin-bottom: 30px;
 }
-
-.image-uploader {
-    border: 1px dashed #d9d9d9;
-    border-radius: 8px;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    width: 200px;
-    height: 266px; /* 3:4 aspect ratio */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+/* Customize Element Plus Upload Picture Card */
+.image-uploader :deep(.el-upload--picture-card) {
+    width: 148px;
+    height: 148px;
+    line-height: 148px;
 }
-
-.image-uploader:hover {
-    border-color: #ff2442;
+.image-uploader :deep(.el-upload-list--picture-card .el-upload-list__item) {
+    width: 148px;
+    height: 148px;
 }
-
-.upload-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: #8c939d;
-}
-
-.uploaded-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
 .submit-btn {
     width: 100%;
-    margin-top: 20px;
+    margin-top: 30px;
+    height: 44px;
+    font-size: 16px;
     background-color: #ff2442;
     border-color: #ff2442;
 }
-
-.tags-preview {
-    margin-top: 10px;
-    display: flex;
-    gap: 10px;
+.submit-btn:hover {
+    background-color: #e61e3a;
+    border-color: #e61e3a;
+}
+/* Quill Customization */
+:deep(.ql-toolbar) {
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    border-color: #dcdfe6;
+    width: 100%;
+    box-sizing: border-box;
+}
+:deep(.ql-container) {
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    border-color: #dcdfe6;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 200px; /* Ensure content area has height */
+}
+:deep(.ql-editor) {
+    min-height: 200px;
 }
 </style>
