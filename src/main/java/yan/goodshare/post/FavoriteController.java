@@ -1,6 +1,6 @@
 package yan.goodshare.post;
 
-import yan.goodshare.entity.Favorite;
+import yan.goodshare.entity.Post;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,7 +37,12 @@ public class FavoriteController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Favorite>> getUserFavorites() {
+    public ResponseEntity<List<Post>> getUserFavorites() {
         return ResponseEntity.ok(favoriteService.getUserFavorites());
+    }
+
+    @GetMapping("/{postId}/check")
+    public ResponseEntity<Boolean> checkFavorite(@PathVariable Long postId) {
+        return ResponseEntity.ok(favoriteService.isFavorited(postId));
     }
 }

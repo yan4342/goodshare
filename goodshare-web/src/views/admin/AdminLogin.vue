@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../../utils/request'
@@ -28,6 +28,14 @@ const loading = ref(false)
 const form = ref({
   username: '',
   password: ''
+})
+
+onMounted(() => {
+    // If user is already logged in, log them out to ensure clean admin login
+    if (authStore.state.isAuthenticated) {
+        authStore.logout()
+        ElMessage.info('已自动登出当前账号，请登录管理员账号')
+    }
 })
 
 const handleLogin = async () => {

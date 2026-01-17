@@ -11,15 +11,19 @@ import yan.goodshare.entity.User;
 
 import java.util.List;
 
+import yan.goodshare.service.NotificationService;
+
 @Service
 public class FollowService {
 
     private final FollowMapper followMapper;
     private final UserMapper userMapper;
+    private final NotificationService notificationService;
 
-    public FollowService(FollowMapper followMapper, UserMapper userMapper) {
+    public FollowService(FollowMapper followMapper, UserMapper userMapper, NotificationService notificationService) {
         this.followMapper = followMapper;
         this.userMapper = userMapper;
+        this.notificationService = notificationService;
     }
 
     public void followUser(Long followedId) {
@@ -52,6 +56,9 @@ public class FollowService {
         follow.setFollowedId(followed.getId());
 
         followMapper.insert(follow);
+        
+        // Create notification
+        notificationService.createNotification(followed.getId(), follower.getId(), "FOLLOW", null);
     }
 
     public void unfollowUser(Long followedId) {

@@ -43,6 +43,12 @@ const routes = [
     component: PostDetail
   },
   {
+    path: '/me',
+    name: 'Me',
+    component: () => import('../views/Me.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin/login',
     name: 'AdminLogin',
     component: () => import('../views/admin/AdminLogin.vue'),
@@ -67,7 +73,13 @@ router.beforeEach((to, from, next) => {
     if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login')
     } else if (to.meta.guest && isAuthenticated) {
-        next('/')
+        // If already logged in and trying to access guest page
+        // If it's admin login, allow it (will handle logout in component)
+        if (to.path === '/admin/login') {
+            next()
+        } else {
+            next('/')
+        }
     } else {
         next()
     }

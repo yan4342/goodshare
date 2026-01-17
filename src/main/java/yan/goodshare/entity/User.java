@@ -23,6 +23,9 @@ public class User {
     @Size(min = 3, max = 50)
     private String username;
 
+    @Size(max = 50)
+    private String nickname;
+
     @NotEmpty
     @Email
     private String email;
@@ -65,6 +68,14 @@ public class User {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public String getEmail() {

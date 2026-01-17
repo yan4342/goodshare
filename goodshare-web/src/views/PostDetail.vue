@@ -61,16 +61,32 @@
                     <el-icon :size="24"><StarFilled v-if="isLiked" /><Star v-else /></el-icon>
                     <span>{{ likeCount > 0 ? likeCount : '点赞' }}</span>
                 </div>
-                <div class="action-btn">
-                    <el-icon :size="24"><Collection /></el-icon>
-                    <span>收藏</span>
+                <div class="action-btn" @click="toggleFavorite" :class="{ active: isFavorited }">
+                    <el-icon :size="24"><Collection v-if="!isFavorited" /><CollectionTag v-else /></el-icon>
+                    <span>{{ isFavorited ? '已收藏' : '收藏' }}</span>
                 </div>
-                <div class="action-btn">
-                    <el-icon :size="24"><ChatDotRound /></el-icon>
-                    <span>{{ comments.length > 0 ? comments.length : '评论' }}</span>
-                </div>
+
             </div>
             <div class="comment-input-area">
+                 <el-popover
+                    placement="top"
+                    :width="300"
+                    trigger="click"
+                 >
+                    <template #reference>
+                        <el-button circle class="emoji-btn">
+                            <span style="font-size: 18px; line-height: 1;">😀</span>
+                        </el-button>
+                    </template>
+                    <div class="emoji-picker">
+                        <span 
+                            v-for="emoji in emojis" 
+                            :key="emoji" 
+                            class="emoji-item"
+                            @click="addEmoji(emoji)"
+                        >{{ emoji }}</span>
+                    </div>
+                 </el-popover>
                  <el-input 
                     v-model="newComment" 
                     placeholder="说点什么..." 
@@ -93,7 +109,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import request from '../utils/request'
-import { Close, Star, StarFilled, Collection, ChatDotRound } from '@element-plus/icons-vue'
+import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
@@ -103,6 +119,28 @@ const newComment = ref('')
 const submitting = ref(false)
 const isLiked = ref(false)
 const likeCount = ref(0)
+const isFavorited = ref(false)
+
+const emojis = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+    '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+    '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
+    '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
+    '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮',
+    '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓',
+    '🧐', '😕', '😟', '🙁', '😮', '😯', '😲', '😳', '🥺', '😦',
+    '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞',
+    '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿',
+    '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖',
+    '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '👋',
+    '🤚', '🖐', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘',
+    '🤙', '👈', '👉', '👆', '🖕', '👇', '👍', '👎', '✊', '👊',
+    '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '💅', '💪'
+]
+
+const addEmoji = (emoji) => {
+    newComment.value += emoji
+}
 
 const imageList = computed(() => {
     if (post.value.images) {
@@ -158,6 +196,15 @@ const fetchLikeInfo = async (id) => {
     }
 }
 
+const fetchFavoriteStatus = async (id) => {
+    try {
+        const res = await request.get(`/favorites/${id}/check`)
+        isFavorited.value = res.data
+    } catch (err) {
+        console.error('Failed to load favorite status', err)
+    }
+}
+
 const toggleLike = async () => {
     if (!post.value.id) return
     try {
@@ -172,6 +219,22 @@ const toggleLike = async () => {
         }
     } catch (err) {
         console.error('Failed to toggle like', err)
+        ElMessage.error('操作失败')
+    }
+}
+
+const toggleFavorite = async () => {
+    if (!post.value.id) return
+    try {
+        if (isFavorited.value) {
+            await request.delete(`/favorites/${post.value.id}`)
+            isFavorited.value = false
+        } else {
+            await request.post(`/favorites/${post.value.id}`)
+            isFavorited.value = true
+        }
+    } catch (err) {
+        console.error('Failed to toggle favorite', err)
         ElMessage.error('操作失败')
     }
 }
@@ -200,6 +263,7 @@ onMounted(() => {
         fetchPost(postId)
         fetchComments(postId)
         fetchLikeInfo(postId)
+        fetchFavoriteStatus(postId)
     }
 })
 </script>
@@ -393,6 +457,40 @@ onMounted(() => {
     margin-top: 2px;
 }
 .comment-input-area {
-    width: 100%;
+  padding: 16px 20px;
+  background: white;
+  border-top: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.emoji-btn {
+    border: none;
+    font-size: 20px;
+}
+
+.emoji-picker {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.emoji-item {
+    cursor: pointer;
+    font-size: 20px;
+    text-align: center;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.emoji-item:hover {
+    background-color: #f0f0f0;
+}
+
+.comment-input {
+  flex: 1;
 }
 </style>

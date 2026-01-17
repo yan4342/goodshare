@@ -1,6 +1,7 @@
 package yan.goodshare.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotEmpty;
 import yan.goodshare.entity.Tag;
 import yan.goodshare.entity.User;
@@ -32,6 +33,7 @@ public class Post {
     private Long userId;
 
     @TableField(fill = FieldFill.INSERT)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     @TableField(exist = false)
@@ -80,9 +82,6 @@ public class Post {
     }
 
     public User getUser() {
-        if (user == null) {
-            return new User();
-        }
         return user;
     }
 

@@ -13,9 +13,11 @@ import yan.goodshare.search.SearchService;
 import yan.goodshare.entity.Tag;
 import yan.goodshare.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PostService {
@@ -24,12 +26,14 @@ public class PostService {
     private final UserMapper userMapper;
     private final SearchService searchService;
     private final TagMapper tagMapper;
+    private final ObjectMapper objectMapper;
 
-    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper) {
+    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper, ObjectMapper objectMapper) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.searchService = searchService;
         this.tagMapper = tagMapper;
+        this.objectMapper = objectMapper;
     }
 
     public Post createPost(PostRequest postRequest) {
@@ -59,12 +63,13 @@ public class PostService {
             post.setCoverUrl(postRequest.getCoverUrl());
         } else if (postRequest.getImageUrls() != null && !postRequest.getImageUrls().isEmpty()) {
             post.setCoverUrl(postRequest.getImageUrls().get(0));
-        } else {
-            post.setCoverUrl("https://via.placeholder.com/300x400?text=No+Image");
         }
+        // No default placeholder
+
 
         post.setUser(user);
         post.setUserId(user.getId());
+        post.setCreatedAt(LocalDateTime.now());
 
         if (postRequest.getTags() != null) {
             Set<Tag> tags = new HashSet<>();
@@ -90,10 +95,71 @@ public class PostService {
     }
 
     public Post getPostById(Long id) {
-        Post post = postMapper.selectById(id);
+        Post post = postMapper.selectPostWithUserById(id);
         if (post == null) {
             throw new RuntimeException("Post not found");
         }
+        post.setTags(postMapper.selectTagsByPostId(id));
         return post;
+    }
+
+    public List<Post> getPostsByUserId(Long userId) {
+        return postMapper.selectPostsByUserIdWithUser(userId);
+    }
+
+    @Transactional
+    public void deletePost(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new RuntimeException("Post not found");
+        }
+
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User currentUser = userMapper.selectOne(new QueryWrapper<User>().eq("username", userDetails.getUsername()));
+        
+        if (currentUser == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        boolean isAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!post.getUserId().equals(currentUser.getId()) && !isAdmin) {
+            throw new RuntimeException("You don't have permission to delete this post");
+        }
+
+        // Delete images
+        deleteImageFile(post.getCoverUrl());
+        if (post.getImages() != null) {
+            try {
+                List<String> imageUrls = objectMapper.readValue(post.getImages(), List.class);
+                for (String url : imageUrls) {
+                    deleteImageFile(url);
+                }
+            } catch (Exception e) {
+                // Ignore parsing errors
+            }
+        }
+
+        // Delete related data
+        postMapper.deletePostTags(postId);
+        postMapper.deletePostComments(postId);
+        postMapper.deletePostLikes(postId);
+        postMapper.deletePostFavorites(postId);
+        
+        // Finally delete the post
+        postMapper.deleteById(postId);
+    }
+
+    private void deleteImageFile(String url) {
+        if (url != null && url.contains("/uploads/")) {
+            String filename = url.substring(url.lastIndexOf("/") + 1);
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get("uploads").resolve(filename);
+                java.nio.file.Files.deleteIfExists(path);
+            } catch (java.io.IOException e) {
+                // Ignore deletion errors
+            }
+        }
     }
 }

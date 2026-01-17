@@ -11,17 +11,21 @@ import yan.goodshare.mapper.PostMapper;
 import yan.goodshare.mapper.UserMapper;
 import yan.goodshare.entity.User;
 
+import yan.goodshare.service.NotificationService;
+
 @Service
 public class LikeService {
 
     private final LikeMapper likeMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final NotificationService notificationService;
 
-    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper) {
+    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService) {
         this.likeMapper = likeMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
+        this.notificationService = notificationService;
     }
 
     public void likePost(Long postId) {
@@ -50,6 +54,9 @@ public class LikeService {
         like.setPost_id(postId);
 
         likeMapper.insert(like);
+        
+        // Create notification
+        notificationService.createNotification(post.getUserId(), user.getId(), "LIKE", postId);
     }
 
     public void unlikePost(Long postId) {

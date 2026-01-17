@@ -11,7 +11,10 @@ import yan.goodshare.entity.Comment;
 import yan.goodshare.entity.Post;
 import yan.goodshare.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.List;
+
+import yan.goodshare.service.NotificationService;
 
 @Service
 public class CommentService {
@@ -19,11 +22,13 @@ public class CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final NotificationService notificationService;
 
-    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper) {
+    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
+        this.notificationService = notificationService;
     }
 
     public Comment createComment(Long postId, CommentRequest commentRequest) {
@@ -44,8 +49,13 @@ public class CommentService {
         comment.setContent(commentRequest.getContent());
         comment.setPost_id(postId);
         comment.setUser_id(user.getId());
+        comment.setCreatedAt(LocalDateTime.now());
 
         commentMapper.insert(comment);
+        
+        // Create notification
+        notificationService.createNotification(post.getUserId(), user.getId(), "COMMENT", postId);
+        
         return comment;
     }
 

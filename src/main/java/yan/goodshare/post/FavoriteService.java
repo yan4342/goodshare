@@ -72,7 +72,7 @@ public class FavoriteService {
         }
     }
 
-    public List<Favorite> getUserFavorites() {
+    public List<Post> getUserFavorites() {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
@@ -81,6 +81,21 @@ public class FavoriteService {
             throw new RuntimeException("User not found");
         }
 
-        return favoriteMapper.selectList(new QueryWrapper<Favorite>().eq("user_id", user.getId()));
+        return favoriteMapper.selectFavoritedPosts(user.getId());
+    }
+
+    public boolean isFavorited(Long postId) {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = userDetails.getUsername();
+
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            return false;
+        }
+
+        Favorite favorite = favoriteMapper.selectOne(new QueryWrapper<Favorite>()
+                .eq("user_id", user.getId())
+                .eq("post_id", postId));
+        return favorite != null;
     }
 }

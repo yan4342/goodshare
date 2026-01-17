@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 public class UserProfile {
     private Long id;
     private String username;
+    private String nickname;
     private String email;
     private String bio;
     private String avatarUrl;
@@ -18,9 +19,10 @@ public class UserProfile {
     private int followingCount;
 
     // Manual All-Args Constructor
-    public UserProfile(Long id, String username, String email, String bio, String avatarUrl, int postCount, int followerCount, int followingCount) {
+    public UserProfile(Long id, String username, String nickname, String email, String bio, String avatarUrl, int postCount, int followerCount, int followingCount) {
         this.id = id;
         this.username = username;
+        this.nickname = nickname;
         this.email = email;
         this.bio = bio;
         this.avatarUrl = avatarUrl;

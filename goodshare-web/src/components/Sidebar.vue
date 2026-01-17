@@ -19,7 +19,12 @@
         <el-icon :size="24"><Bell /></el-icon>
         <span class="label">通知</span>
       </div>
-      
+
+      <div class="menu-item" :class="{ active: route.path === '/me' }" @click="router.push('/me')">
+        <el-icon :size="24"><User /></el-icon>
+        <span class="label">我</span>
+      </div>
+
       <div class="menu-item">
         <el-icon :size="24"><MoreFilled /></el-icon>
         <span class="label">更多</span>
@@ -29,7 +34,7 @@
 </template>
 
 <script setup>
-import { Compass, Plus, Bell, MoreFilled } from '@element-plus/icons-vue'
+import { Compass, Plus, Bell, MoreFilled, User } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()

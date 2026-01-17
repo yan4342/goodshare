@@ -8,28 +8,27 @@
         <!-- Tag Filter (Mock) -->
         <div class="tags-bar">
           <span class="tag active">推荐</span>
-        <span class="tag">穿搭</span>
+        <span class="tag">服装</span>
         <span class="tag">美食</span>
         <span class="tag">彩妆</span>
-        <span class="tag">影视</span>
-        <span class="tag">职场</span>
+        <span class="tag">文具</span>
         <span class="tag">数码</span>
-        <span class="tag">家居</span>
-        <span class="tag">游戏</span>
-        <span class="tag">旅行</span>
-        <span class="tag">健身</span>
+        <span class="tag">玩具</span>
+        <span class="tag">图书</span>
+        <span class="tag">运动</span>
+        <span class="tag">家具</span>
       </div>
 
       <!-- Waterfall Grid -->
       <div class="masonry-grid">
         <div v-for="post in posts" :key="post.id" class="post-card" @click="openPost(post)">
-          <div class="cover-image" :style="{ backgroundImage: `url(${post.coverUrl || 'https://via.placeholder.com/300x400?text=No+Image'})` }"></div>
+          <div class="cover-image" :style="{ backgroundImage: `url(${post.coverUrl || 'https://placehold.co/300x400?text=No+Image'})` }"></div>
           <div class="card-info">
             <h3 class="post-title">{{ post.title }}</h3>
             <div class="post-meta">
               <div class="author">
                 <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-                <span class="author-name">{{ post.user?.username || '用户' }}</span>
+                <span class="author-name">{{ post.user?.nickname || post.user?.username || '用户' }}</span>
               </div>
               <div class="likes">
                 <el-icon><Star /></el-icon>
@@ -167,9 +166,16 @@ const openPost = (post) => {
   margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-weight: 500;
+}
+.post-card.no-image .post-title {
+    -webkit-line-clamp: 6;
+    margin-top: 8px;
+    margin-bottom: 12px;
+    font-size: 15px;
 }
 .post-meta {
   display: flex;

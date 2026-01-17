@@ -45,10 +45,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(new AntPathRequestMatcher("/api/auth/**")).permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/posts/**", HttpMethod.GET.name())).permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/posts/**", HttpMethod.GET.name()), new AntPathRequestMatcher("/api/posts", HttpMethod.GET.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/search/**", HttpMethod.GET.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/uploads/**")).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/tags/**", HttpMethod.GET.name())).permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/error")).permitAll()
                         // Allow OPTIONS requests for all endpoints to fix CORS preflight issues
                         .requestMatchers(new AntPathRequestMatcher("/**", HttpMethod.OPTIONS.name())).permitAll()
                         .anyRequest().authenticated()
