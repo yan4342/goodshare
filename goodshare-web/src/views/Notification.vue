@@ -11,7 +11,7 @@
                     <el-avatar :size="40" :src="item.sender?.avatarUrl || defaultAvatar" />
                     <div class="notification-content">
                         <span class="username">{{ item.sender?.nickname || item.sender?.username }}</span>
-                        <span class="action">赞了你的笔记</span>
+                        <span class="action">赞了你的帖子</span>
                         <span class="time">{{ formatTime(item.createdAt) }}</span>
                     </div>
                     <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url(${getCoverUrl(item.relatedPost)})` }"></div>
@@ -45,7 +45,7 @@
                     <el-avatar :size="40" :src="item.sender?.avatarUrl || defaultAvatar" />
                     <div class="notification-content">
                         <span class="username">{{ item.sender?.nickname || item.sender?.username }}</span>
-                        <span class="action">评论了你的笔记</span>
+                        <span class="action">评论了你的帖子</span>
                         <span class="time">{{ formatTime(item.createdAt) }}</span>
                     </div>
                     <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url(${getCoverUrl(item.relatedPost)})` }"></div>
@@ -125,23 +125,25 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     padding: 40px;
-    background-color: #f9f9f9;
+    background-color: var(--bg-color);
     min-height: 100vh;
+    transition: background-color 0.3s;
 }
 
 .notifications-card {
     width: 800px;
-    background: white;
+    background: var(--bg-color-overlay);
     padding: 30px;
     border-radius: 16px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    transition: background-color 0.3s;
 }
 
 .notification-item {
     display: flex;
     align-items: center;
     padding: 15px 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .notification-content {
@@ -154,15 +156,16 @@ onMounted(() => {
 .username {
     font-weight: 600;
     font-size: 14px;
+    color: var(--text-color);
 }
 
 .action {
-    color: #666;
+    color: var(--text-color-secondary);
     font-size: 14px;
 }
 
 .time {
-    color: #999;
+    color: var(--text-color-secondary);
     font-size: 12px;
     margin-top: 4px;
 }
@@ -170,7 +173,7 @@ onMounted(() => {
 .post-preview {
     width: 48px;
     height: 48px;
-    background-color: #eee;
+    background-color: var(--border-color);
     border-radius: 4px;
     background-size: cover;
     background-position: center;

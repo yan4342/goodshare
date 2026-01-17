@@ -119,10 +119,11 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: var(--bg-color);
   background-image: url('../assets/background.svg');
   background-size: contain;
   background-position: center;
+  transition: background-color 0.3s;
 }
 
 .login-card {
@@ -130,8 +131,9 @@ const handleLogin = async () => {
   padding: 40px 30px;
   border-radius: 24px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-color-overlay);
   backdrop-filter: blur(10px);
+  transition: background-color 0.3s;
 }
 
 .header {
@@ -148,7 +150,7 @@ const handleLogin = async () => {
 }
 
 .subtitle {
-    color: #999;
+    color: var(--text-color-secondary);
     font-size: 14px;
 }
 
@@ -181,7 +183,7 @@ const handleLogin = async () => {
     margin-top: 20px;
     text-align: center;
     font-size: 14px;
-    color: #666;
+    color: var(--text-color-secondary);
     display: flex;
     justify-content: center;
     gap: 5px;

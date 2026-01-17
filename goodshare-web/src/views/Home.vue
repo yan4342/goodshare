@@ -5,19 +5,23 @@
       <Navbar />
       
       <div class="content-body">
-        <!-- Tag Filter (Mock) -->
+        <!-- Tag Filter -->
         <div class="tags-bar">
-          <span class="tag active">推荐</span>
-        <span class="tag">服装</span>
-        <span class="tag">美食</span>
-        <span class="tag">彩妆</span>
-        <span class="tag">文具</span>
-        <span class="tag">数码</span>
-        <span class="tag">玩具</span>
-        <span class="tag">图书</span>
-        <span class="tag">运动</span>
-        <span class="tag">家具</span>
-      </div>
+          <span 
+            class="tag" 
+            :class="{ active: activeTag === '推荐' }" 
+            @click="selectTag('推荐')"
+          >推荐</span>
+          <span 
+            v-for="tag in tags" 
+            :key="tag.id" 
+            class="tag" 
+            :class="{ active: activeTag === tag.name }" 
+            @click="selectTag(tag.name)"
+          >
+            {{ tag.name }}
+          </span>
+        </div>
 
       <!-- Waterfall Grid -->
       <div class="masonry-grid">
@@ -58,23 +62,50 @@ import authStore from '../stores/auth'
 
 const router = useRouter()
 const posts = ref([])
+const tags = ref([])
+const activeTag = ref('推荐')
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 
-onMounted(async () => {
-  try {
-    const res = await request.get('/posts')
-    posts.value = res.data
-  } catch (err) {
-    console.error('Failed to fetch posts', err)
-    // Mock data if backend is empty or failed
-    if (posts.value.length === 0) {
-        // posts.value = [
-        //     { id: 1, title: 'Mock Post 1', coverUrl: 'https://via.placeholder.com/300x400' },
-        //     { id: 2, title: 'Mock Post 2', coverUrl: 'https://via.placeholder.com/300x500' },
-        // ]
+const fetchTags = async () => {
+    try {
+        const res = await request.get('/tags')
+        tags.value = res.data
+    } catch (err) {
+        console.error('Failed to fetch tags', err)
     }
-  }
+}
+
+const selectTag = async (tagName) => {
+    activeTag.value = tagName
+    await fetchPosts(tagName)
+}
+
+const fetchPosts = async (tag = null) => {
+    try {
+        const url = (tag && tag !== '推荐') ? `/posts?tag=${encodeURIComponent(tag)}` : '/posts'
+        const res = await request.get(url)
+        posts.value = res.data
+    } catch (err) {
+        console.error('Failed to fetch posts', err)
+        posts.value = []
+    }
+}
+
+onMounted(async () => {
+  await fetchTags()
+  await fetchPosts()
 })
+
+const getCoverUrl = (post) => {
+    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) return post.coverUrl
+    if (post.images) {
+        try {
+            const imgs = JSON.parse(post.images)
+            if (Array.isArray(imgs) && imgs.length > 0) return imgs[0]
+        } catch (e) {}
+    }
+    return null
+}
 
 const openPost = (post) => {
   router.push(`/post/${post.id}`)
@@ -84,7 +115,8 @@ const openPost = (post) => {
 <style scoped>
 .home-container {
   min-height: 100vh;
-  background-color: #fff;
+  background-color: var(--bg-color);
+  transition: background-color 0.3s;
 }
 .main-content {
   margin: 0 auto;
@@ -105,7 +137,7 @@ const openPost = (post) => {
   padding: 15px 0 25px;
   overflow-x: auto;
   font-size: 16px;
-  color: #999;
+  color: var(--text-color-secondary);
   justify-content: flex-start;
 }
 .tag {
@@ -113,11 +145,12 @@ const openPost = (post) => {
   white-space: nowrap;
   padding: 6px 12px;
   border-radius: 20px;
+  transition: color 0.3s, background-color 0.3s;
 }
 .tag.active {
-  color: #333;
+  color: var(--text-color);
   font-weight: 600;
-  background-color: #f5f5f5;
+  background-color: var(--hover-bg);
 }
 .masonry-grid {
   display: grid;
@@ -140,7 +173,7 @@ const openPost = (post) => {
   background-position: center;
   border-radius: 16px;
   margin-bottom: 12px;
-  background-color: #f0f0f0;
+  background-color: var(--border-color);
   position: relative;
 }
 /* Optional: Add a dark overlay on hover */
@@ -161,43 +194,66 @@ const openPost = (post) => {
 }
 .post-title {
   font-size: 14px;
-  color: #333;
+  color: var(--text-color);
   line-height: 1.4;
   margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-weight: 500;
-}
-.post-card.no-image .post-title {
-    -webkit-line-clamp: 6;
-    margin-top: 8px;
-    margin-bottom: 12px;
-    font-size: 15px;
 }
 .post-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #999;
+  color: var(--text-color-secondary);
 }
 .author {
   display: flex;
   align-items: center;
   gap: 6px;
+  overflow: hidden;
 }
 .author-name {
-    max-width: 100px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 100px;
 }
 .likes {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+.empty-state {
+    padding: 100px 0;
+    display: flex;
+    justify-content: center;
+}
+
+/* Text-only post styling */
+.post-card.no-image .cover-image {
+  display: none;
+}
+
+.post-card.no-image {
+  background-color: var(--bg-color-overlay);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  height: auto;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.post-card.no-image .post-title {
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-line-clamp: 4; /* Show more lines for text-only posts */
+  margin-bottom: 12px;
+  flex: 1;
 }
 </style>

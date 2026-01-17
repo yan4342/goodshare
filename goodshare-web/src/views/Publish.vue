@@ -32,7 +32,7 @@
         </el-form-item>
 
         <el-form-item label="正文">
-          <div ref="editorContainer" style="height: 300px; background: white;"></div>
+          <div ref="editorContainer" style="height: 300px;"></div>
         </el-form-item>
 
         <el-form-item label="标签">
@@ -196,6 +196,13 @@ const submitPost = async () => {
       return file.url
   }).filter(url => url)
 
+  // Validate that there is either content or images
+  const isContentEmpty = !form.value.content || form.value.content === '<p><br></p>' || form.value.content.trim() === '';
+  if (isContentEmpty && urls.length === 0) {
+      ElMessage.warning('请填写正文或上传图片')
+      return
+  }
+
   form.value.imageUrls = urls
   // Set first image as cover if exists
   if (urls.length > 0) {
@@ -223,22 +230,24 @@ const submitPost = async () => {
   justify-content: center;
   padding: 40px;
   padding-left: 280px; /* 40px padding + 240px sidebar */
-  background-color: #f5f7fa;
+  background-color: var(--bg-color);
   min-height: 100vh;
   box-sizing: border-box;
+  transition: background-color 0.3s;
 }
 .publish-card {
     width: 800px;
-    background: white;
+    background: var(--bg-color-overlay);
     padding: 40px;
     border-radius: 8px;
     box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+    transition: background-color 0.3s;
 }
 .page-title {
     margin-bottom: 30px;
     font-size: 24px;
     font-weight: 600;
-    color: #333;
+    color: var(--text-color);
 }
 .upload-area {
     margin-bottom: 30px;
@@ -269,20 +278,57 @@ const submitPost = async () => {
 :deep(.ql-toolbar) {
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
-    border-color: #dcdfe6;
+    border-color: var(--border-color);
     width: 100%;
     box-sizing: border-box;
+    background-color: var(--bg-color-overlay);
 }
 :deep(.ql-container) {
     border-bottom-left-radius: 4px;
     border-bottom-right-radius: 4px;
-    border-color: #dcdfe6;
+    border-color: var(--border-color);
     font-size: 16px;
     width: 100%;
     box-sizing: border-box;
     min-height: 200px; /* Ensure content area has height */
+    background-color: var(--bg-color-overlay);
+    color: var(--text-color);
 }
 :deep(.ql-editor) {
     min-height: 200px;
+}
+:deep(.ql-snow .ql-stroke) {
+    stroke: var(--text-color);
+}
+:deep(.ql-snow .ql-fill) {
+    fill: var(--text-color);
+}
+:deep(.ql-snow .ql-picker) {
+    color: var(--text-color);
+}
+:deep(.ql-editor.ql-blank::before) {
+    color: var(--text-color-secondary) !important;
+    font-style: normal;
+}
+:deep(.ql-snow .ql-picker-options) {
+    background-color: var(--bg-color-overlay) !important;
+    border-color: var(--border-color) !important;
+}
+:deep(.ql-snow .ql-picker-item) {
+    color: var(--text-color);
+}
+:deep(.ql-snow .ql-picker-label::before) {
+    color: var(--text-color);
+}
+:deep(.ql-snow .ql-tooltip) {
+    background-color: var(--bg-color-overlay) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+}
+:deep(.ql-snow .ql-tooltip input[type=text]) {
+    background-color: var(--bg-color) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
 }
 </style>

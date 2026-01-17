@@ -19,7 +19,6 @@ public class Post {
     @NotEmpty
     private String title;
 
-    @NotEmpty
     private String content;
 
     private String coverUrl;

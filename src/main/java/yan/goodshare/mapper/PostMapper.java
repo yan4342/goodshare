@@ -34,6 +34,14 @@ public interface PostMapper extends BaseMapper<Post> {
     })
     Post selectPostWithUserById(Long id);
 
+    @Select("SELECT p.*, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} ORDER BY p.created_at DESC")
+    @Results({
+            @Result(property = "user.username", column = "username"),
+            @Result(property = "user.nickname", column = "nickname"),
+            @Result(property = "user.avatarUrl", column = "avatar_url")
+    })
+    List<Post> selectPostsByTagName(String tagName);
+
     @Insert("INSERT INTO post_tags (post_id, tag_id) VALUES (#{postId}, #{tagId})")
     void insertPostTag(@Param("postId") Long postId, @Param("tagId") Long tagId);
 

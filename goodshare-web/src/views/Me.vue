@@ -287,12 +287,13 @@ onMounted(() => {
 }
 
 .profile-header {
-    background: #fff;
+    background: var(--bg-color-overlay);
     padding: 30px;
     border-radius: 12px;
     margin-bottom: 20px;
     display: flex;
     justify-content: center;
+    transition: background-color 0.3s;
 }
 
 .profile-info {
@@ -335,10 +336,11 @@ onMounted(() => {
     font-size: 24px;
     font-weight: 600;
     margin: 0 0 10px 0;
+    color: var(--text-color);
 }
 
 .bio {
-    color: #666;
+    color: var(--text-color-secondary);
     font-size: 14px;
     margin-bottom: 20px;
     white-space: pre-wrap;
@@ -358,11 +360,12 @@ onMounted(() => {
     display: block;
     font-size: 18px;
     font-weight: 600;
+    color: var(--text-color);
 }
 
 .stat-item .label {
     font-size: 12px;
-    color: #999;
+    color: var(--text-color-secondary);
 }
 
 .actions {
@@ -371,10 +374,11 @@ onMounted(() => {
 }
 
 .content-tabs {
-    background: #fff;
+    background: var(--bg-color-overlay);
     padding: 20px;
     border-radius: 12px;
     min-height: 500px;
+    transition: background-color 0.3s;
 }
 
 /* Masonry Grid (Reused) */
@@ -385,14 +389,14 @@ onMounted(() => {
 
 .post-card {
     break-inside: avoid;
-    background: #fff;
+    background: var(--bg-color-overlay);
     border-radius: 12px;
     overflow: hidden;
     margin-bottom: 20px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    transition: transform 0.2s;
+    transition: transform 0.2s, background-color 0.3s;
     cursor: pointer;
-    border: 1px solid #eee;
+    border: 1px solid var(--border-color);
 }
 
 .post-card:hover {
@@ -446,6 +450,7 @@ onMounted(() => {
      line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    color: var(--text-color);
 }
 
 .post-card.no-image .card-title {
@@ -459,7 +464,7 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
     font-size: 12px;
-    color: #999;
+    color: var(--text-color-secondary);
 }
 
 .author {

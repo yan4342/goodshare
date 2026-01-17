@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import org.springframework.web.bind.annotation.RequestParam;
+
 @RestController
 @RequestMapping("/api/posts")
 public class PostController {
@@ -36,8 +38,8 @@ public class PostController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Post>> getAllPosts() {
-        return ResponseEntity.ok(postService.getAllPosts());
+    public ResponseEntity<List<Post>> getAllPosts(@RequestParam(required = false) String tag) {
+        return ResponseEntity.ok(postService.getAllPosts(tag));
     }
 
     @GetMapping("/{id}")

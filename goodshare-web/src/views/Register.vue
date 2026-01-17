@@ -241,10 +241,11 @@ const handleRegister = async () => {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: var(--bg-color);
   background-image: url('https://ci.xiaohongshu.com/eb760777-62d1-4235-8664-984254b92497');
   background-size: cover;
   background-position: center;
+  transition: background-color 0.3s;
 }
 
 .register-card {
@@ -252,8 +253,9 @@ const handleRegister = async () => {
   padding: 40px 30px;
   border-radius: 24px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-color-overlay);
   backdrop-filter: blur(10px);
+  transition: background-color 0.3s;
 }
 
 .header {
@@ -270,7 +272,7 @@ const handleRegister = async () => {
 }
 
 .subtitle {
-    color: #999;
+    color: var(--text-color-secondary);
     font-size: 14px;
 }
 
@@ -306,7 +308,7 @@ const handleRegister = async () => {
     margin-top: 20px;
     text-align: center;
     font-size: 14px;
-    color: #666;
+    color: var(--text-color-secondary);
     display: flex;
     justify-content: center;
     gap: 5px;
@@ -323,7 +325,7 @@ const handleRegister = async () => {
 .meter-bar {
     flex: 1;
     height: 4px;
-    background-color: #eee;
+    background-color: var(--border-color);
     border-radius: 2px;
     overflow: hidden;
 }
@@ -337,7 +339,7 @@ const handleRegister = async () => {
 
 .strength-text {
     font-size: 12px;
-    color: #999;
+    color: var(--text-color-secondary);
     width: 20px;
 }
 </style>

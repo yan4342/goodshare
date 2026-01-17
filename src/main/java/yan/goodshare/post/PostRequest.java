@@ -9,7 +9,6 @@ public class PostRequest {
     @NotEmpty
     private String title;
 
-    @NotEmpty
     private String content;
 
     private String coverUrl;

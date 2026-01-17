@@ -292,10 +292,11 @@ onMounted(() => {
   position: relative;
   width: 900px;
   height: 85vh;
-  background: white;
+  background: var(--bg-color-overlay);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
+  transition: background-color 0.3s;
 }
 .close-btn {
   position: absolute;
@@ -343,8 +344,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   padding: 24px;
-  background: white;
+  background: var(--bg-color-overlay);
   max-width: 50%; /* Default if image exists */
+  transition: background-color 0.3s;
 }
 .info-section.full-width {
     flex: 1;
@@ -359,6 +361,7 @@ onMounted(() => {
   margin-left: 12px;
   font-weight: 600;
   flex: 1;
+  color: var(--text-color);
 }
 .scrollable-content {
   flex: 1;
@@ -368,10 +371,11 @@ onMounted(() => {
 .post-title {
   font-size: 18px;
   margin-bottom: 8px;
+  color: var(--text-color);
 }
 .post-text {
   font-size: 14px;
-  color: #333;
+  color: var(--text-color);
   line-height: 1.6;
   white-space: pre-wrap;
   margin-bottom: 20px;
@@ -387,25 +391,25 @@ onMounted(() => {
   gap: 8px;
 }
 .tag {
-  color: #13386c;
+  color: var(--el-color-primary); /* Use primary color for tags */
   cursor: pointer;
 }
 .date {
   margin-top: 10px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-color-secondary);
 }
 .comments-section {
     margin-top: 20px;
 }
 .comment-count {
     font-size: 14px;
-    color: #666;
+    color: var(--text-color-secondary);
     margin-bottom: 12px;
 }
 .no-comments {
     text-align: center;
-    color: #999;
+    color: var(--text-color-secondary);
     padding: 20px 0;
     font-size: 13px;
 }
@@ -419,21 +423,21 @@ onMounted(() => {
 }
 .comment-user {
     font-size: 13px;
-    color: #999;
+    color: var(--text-color-secondary);
     margin-bottom: 2px;
 }
 .comment-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text-color);
     line-height: 1.4;
 }
 .comment-date {
     font-size: 11px;
-    color: #ccc;
+    color: var(--text-color-secondary);
     margin-top: 2px;
 }
 .bottom-actions {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
   padding-top: 12px;
   margin-top: 12px;
 }
@@ -447,7 +451,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   cursor: pointer;
-  color: #333;
+  color: var(--text-color);
 }
 .action-btn.active {
     color: #ff2442;
@@ -458,11 +462,12 @@ onMounted(() => {
 }
 .comment-input-area {
   padding: 16px 20px;
-  background: white;
-  border-top: 1px solid #eee;
+  background: var(--bg-color-overlay);
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 10px;
+  transition: background-color 0.3s, border-color 0.3s;
 }
 
 .emoji-btn {
@@ -484,10 +489,11 @@ onMounted(() => {
     text-align: center;
     padding: 5px;
     border-radius: 4px;
+    color: var(--text-color);
 }
 
 .emoji-item:hover {
-    background-color: #f0f0f0;
+    background-color: var(--hover-bg);
 }
 
 .comment-input {

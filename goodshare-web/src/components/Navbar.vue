@@ -62,12 +62,13 @@ const handleCommand = (command) => {
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: white;
+  background: var(--bg-color-overlay);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.3s;
 }
 .navbar-content {
   width: 100%;
@@ -95,9 +96,10 @@ const handleCommand = (command) => {
 }
 .search-input :deep(.el-input__wrapper) {
   border-radius: 20px;
-  background-color: #f5f5f5;
+  background-color: var(--bg-color);
   box-shadow: none;
   padding-left: 15px;
+  transition: background-color 0.3s;
 }
 .search-input :deep(.el-input__inner) {
     height: 40px;

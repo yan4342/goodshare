@@ -140,7 +140,8 @@ const addTag = async () => {
   if (!newTag.value.trim()) return
   
   try {
-    await request.post('/tags', newTag.value.trim())
+    // Send object with name property instead of raw string
+    await request.post('/tags', { name: newTag.value.trim() })
     ElMessage.success('添加成功')
     newTag.value = ''
     fetchTags()

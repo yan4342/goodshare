@@ -47,7 +47,7 @@ public class PostService {
 
         Post post = new Post();
         post.setTitle(postRequest.getTitle());
-        post.setContent(postRequest.getContent());
+        post.setContent(postRequest.getContent() != null ? postRequest.getContent() : "");
         
         // Handle images
         if (postRequest.getImageUrls() != null && !postRequest.getImageUrls().isEmpty()) {
@@ -86,12 +86,30 @@ public class PostService {
         }
 
         postMapper.insert(post);
+        
+        if (post.getTags() != null) {
+            for (Tag tag : post.getTags()) {
+                try {
+                    postMapper.insertPostTag(post.getId(), tag.getId());
+                } catch (Exception e) {
+                    // Ignore duplicate key errors if any
+                }
+            }
+        }
+
         searchService.indexPost(post);
         return post;
     }
 
-    public List<Post> getAllPosts() {
+    public List<Post> getAllPosts(String tag) {
+        if (tag != null && !tag.isEmpty()) {
+            return postMapper.selectPostsByTagName(tag);
+        }
         return postMapper.selectPostsWithUser();
+    }
+
+    public List<Post> getAllPosts() {
+        return getAllPosts(null);
     }
 
     public Post getPostById(Long id) {

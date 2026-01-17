@@ -17,9 +17,9 @@ public class TagController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createTag(@RequestBody String name) {
+    public ResponseEntity<?> createTag(@RequestBody Tag tag) {
         try {
-            Tag createdTag = tagService.createTag(name);
+            Tag createdTag = tagService.createTag(tag.getName());
             return ResponseEntity.ok(createdTag);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
