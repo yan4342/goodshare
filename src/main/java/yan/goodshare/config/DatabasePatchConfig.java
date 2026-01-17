@@ -76,6 +76,14 @@ public class DatabasePatchConfig {
             } catch (Exception e) {
                 System.err.println("Error creating notifications table: " + e.getMessage());
             }
+
+            // 6. Increase images column size to LONGTEXT
+            try {
+                jdbcTemplate.execute("ALTER TABLE posts MODIFY COLUMN images LONGTEXT");
+                System.out.println("Modified images column in posts table to LONGTEXT.");
+            } catch (Exception e) {
+                System.err.println("Error modifying images column: " + e.getMessage());
+            }
         };
     }
 }

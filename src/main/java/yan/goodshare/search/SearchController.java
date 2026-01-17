@@ -7,6 +7,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.data.elasticsearch.core.SearchHit;
+
 @RestController
 @RequestMapping("/api/search")
 public class SearchController {
@@ -18,7 +22,11 @@ public class SearchController {
     }
 
     @GetMapping
-    public ResponseEntity<SearchHits<PostDocument>> searchPosts(@RequestParam String query) {
-        return ResponseEntity.ok(searchService.searchPosts(query));
+    public ResponseEntity<List<PostDocument>> searchPosts(@RequestParam String query) {
+        return ResponseEntity.ok(
+            searchService.searchPosts(query).stream()
+                .map(SearchHit::getContent)
+                .collect(Collectors.toList())
+        );
     }
 }

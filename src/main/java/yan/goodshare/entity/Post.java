@@ -38,7 +38,18 @@ public class Post {
     @TableField(exist = false)
     private Set<Tag> tags = new HashSet<>();
 
+    @TableField(exist = false)
+    private Integer likeCount = 0;
+
     // Getters and Setters
+
+    public Integer getLikeCount() {
+        return likeCount;
+    }
+
+    public void setLikeCount(Integer likeCount) {
+        this.likeCount = likeCount;
+    }
 
     public Long getId() {
         return id;

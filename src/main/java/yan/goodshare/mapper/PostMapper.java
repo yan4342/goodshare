@@ -10,35 +10,39 @@ import java.util.Set;
 
 public interface PostMapper extends BaseMapper<Post> {
 
-    @Select("SELECT p.*, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
-            @Result(property = "user.avatarUrl", column = "avatar_url")
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count")
     })
     List<Post> selectPostsWithUser();
 
-    @Select("SELECT p.*, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
-            @Result(property = "user.avatarUrl", column = "avatar_url")
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count")
     })
     List<Post> selectPostsByUserIdWithUser(Long userId);
 
-    @Select("SELECT p.*, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id}")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id}")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
-            @Result(property = "user.avatarUrl", column = "avatar_url")
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count")
     })
     Post selectPostWithUserById(Long id);
 
-    @Select("SELECT p.*, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
-            @Result(property = "user.avatarUrl", column = "avatar_url")
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count")
     })
     List<Post> selectPostsByTagName(String tagName);
 

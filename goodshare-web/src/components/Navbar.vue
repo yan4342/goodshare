@@ -46,7 +46,9 @@ const searchQuery = ref('')
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 
 const handleSearch = () => {
-  console.log('Searching for:', searchQuery.value)
+  if (searchQuery.value.trim()) {
+    router.push({ path: '/search', query: { q: searchQuery.value } })
+  }
 }
 
 const handleCommand = (command) => {

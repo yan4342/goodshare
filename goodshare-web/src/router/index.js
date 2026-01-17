@@ -43,6 +43,16 @@ const routes = [
     component: PostDetail
   },
   {
+    path: '/search',
+    name: 'Search',
+    component: () => import('../views/Search.vue')
+  },
+  {
+    path: '/price-compare',
+    name: 'PriceCompare',
+    component: () => import('../views/PriceCompare.vue')
+  },
+  {
     path: '/me',
     name: 'Me',
     component: () => import('../views/Me.vue'),

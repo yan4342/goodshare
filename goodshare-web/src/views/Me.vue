@@ -6,12 +6,12 @@
       <div class="profile-info">
         <div class="avatar-wrapper">
           <el-upload
+            ref="uploadRef"
             class="avatar-uploader"
-            action="/api/uploads"
+            action=""
             :show-file-list="false"
-            :on-success="handleAvatarSuccess"
-            :before-upload="beforeAvatarUpload"
-            :headers="uploadHeaders"
+            :auto-upload="false"
+            :on-change="handleFileChange"
           >
             <el-avatar :size="100" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
             <div class="avatar-mask">
@@ -120,6 +120,19 @@
             </span>
         </template>
     </el-dialog>
+
+    <!-- Cropper Dialog -->
+    <el-dialog v-model="showCropper" title="裁剪头像" width="600px" append-to-body destroy-on-close>
+        <div class="cropper-content">
+            <vue-cropper ref="cropper" v-bind="cropperOption" />
+        </div>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="showCropper = false">取消</el-button>
+                <el-button type="primary" @click="confirmCrop">确认</el-button>
+            </span>
+        </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -130,6 +143,8 @@ import authStore from '../stores/auth'
 import { Camera, Setting, Star, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sidebar from "../components/Sidebar.vue";
+import { VueCropper } from 'vue-cropper'
+import 'vue-cropper/dist/index.css'
 
 
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
@@ -139,6 +154,28 @@ const favorites = ref([])
 const activeTab = ref('posts')
 const showEditProfile = ref(false)
 const totalLikes = ref(0) // Need backend support or calc from posts
+const showCropper = ref(false)
+const cropperImg = ref('')
+const cropper = ref(null)
+const uploadRef = ref(null)
+const cropperOption = reactive({
+    img: '',
+    outputSize: 0.8,
+    outputType: 'jpeg',
+    info: true,
+    full: false,
+    canMove: true,
+    canMoveBox: true,
+    fixedBox: false,
+    original: false,
+    autoCrop: true,
+    autoCropWidth: 200,
+    autoCropHeight: 200,
+    centerBox: false,
+    high: true,
+    maxImgSize: 2000
+})
+const tempFile = ref(null)
 
 const editForm = reactive({
     username: '',
@@ -187,13 +224,101 @@ const fetchMyFavorites = async () => {
     }
 }
 
+const handleFileChange = (file) => {
+    console.log('handleFileChange triggered', file)
+    if (!file || !file.raw) {
+        console.error('No file raw data')
+        return
+    }
+    const rawFile = file.raw
+    console.log('File type:', rawFile.type)
+    
+    const isJPG = rawFile.type === 'image/jpeg' || rawFile.type === 'image/jpg'
+    const isPNG = rawFile.type === 'image/png'
+
+    if (!isJPG && !isPNG) {
+        ElMessage.error('头像必须是 JPG 或 PNG 格式!')
+        return
+    }
+
+    // Read file and open cropper
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        console.log('File read success')
+        cropperOption.img = e.target.result
+        tempFile.value = rawFile
+        showCropper.value = true
+        console.log('showCropper set to true')
+    }
+    reader.onerror = (e) => {
+        console.error('File read error', e)
+        ElMessage.error('读取文件失败')
+    }
+    reader.readAsDataURL(rawFile)
+}
+
+const confirmCrop = () => {
+    console.log('confirmCrop clicked')
+    if (!cropper.value) {
+        console.error('Cropper instance not found')
+        return
+    }
+    cropper.value.getCropBlob(async (blob) => {
+        console.log('Blob obtained', blob)
+        try {
+            // Compress if needed
+            let finalBlob = blob;
+            if (blob.size / 1024 / 1024 > 2) {
+                ElMessage.info('图片较大，正在压缩...')
+                // Convert Blob to File for compressImage
+                const file = new File([blob], tempFile.value.name, { type: blob.type })
+                const compressedFile = await compressImage(file)
+                finalBlob = compressedFile
+            }
+            
+            // Upload
+            const formData = new FormData()
+            // Ensure filename has extension
+            let filename = tempFile.value.name
+            if (!filename.endsWith('.jpg') && !filename.endsWith('.png')) {
+                filename += '.jpg'
+            }
+            formData.append('file', finalBlob, filename)
+            
+            const res = await request.post('/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            })
+            
+            // Handle success
+            const url = res.data.url || res.data // Adjust based on actual response structure
+            userProfile.value.avatarUrl = url
+            
+            // Update profile
+             await request.put('/profile', {
+                avatarUrl: url,
+                bio: userProfile.value.bio,
+                email: userProfile.value.email
+            })
+            
+            ElMessage.success('头像更新成功')
+            showCropper.value = false
+        } catch (err) {
+            console.error('Upload failed', err)
+            ElMessage.error('头像上传失败')
+        }
+    })
+}
+
 const handleAvatarSuccess = async (response, uploadFile) => {
-    // response is the URL string
-    userProfile.value.avatarUrl = response
+    // response might be { url: "..." } or just string
+    const url = response.url || response
+    userProfile.value.avatarUrl = url
     // Update backend immediately
     try {
         await request.put('/profile', {
-            avatarUrl: response,
+            avatarUrl: url,
             bio: userProfile.value.bio,
             email: userProfile.value.email
         })
@@ -203,14 +328,92 @@ const handleAvatarSuccess = async (response, uploadFile) => {
     }
 }
 
-const beforeAvatarUpload = (rawFile) => {
-    if (rawFile.type !== 'image/jpeg' && rawFile.type !== 'image/png') {
-        ElMessage.error('Avatar picture must be JPG format!')
-        return false
-    } else if (rawFile.size / 1024 / 1024 > 2) {
-        ElMessage.error('Avatar picture size can not exceed 2MB!')
+const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // Max dimensions for avatar (500x500 is sufficient for display)
+                const MAX_WIDTH = 500;
+                const MAX_HEIGHT = 500;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Convert to JPEG for better compression
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        // Rename to .jpg
+                        const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                        const newFile = new File([blob], newName, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now(),
+                        });
+                        resolve(newFile);
+                    } else {
+                        reject(new Error('Canvas to Blob failed'));
+                    }
+                }, 'image/jpeg', 0.8);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
+const beforeAvatarUpload = async (rawFile) => {
+    const isJPG = rawFile.type === 'image/jpeg' || rawFile.type === 'image/jpg';
+    const isPNG = rawFile.type === 'image/png';
+
+    if (!isJPG && !isPNG) {
+        ElMessage.error('头像必须是 JPG 或 PNG 格式!')
         return false
     }
+
+    // Check if file is larger than 2MB, if so try to compress
+    if (rawFile.size / 1024 / 1024 > 2) {
+        try {
+            ElMessage.info('图片较大，正在自动压缩...')
+            const compressedFile = await compressImage(rawFile);
+            
+            // Check compressed size
+            if (compressedFile.size / 1024 / 1024 > 2) {
+                 ElMessage.error('图片压缩后仍然超过 2MB，请更换图片');
+                 return false;
+            }
+            return compressedFile;
+        } catch (e) {
+            console.error('Compression failed', e);
+            ElMessage.error('图片处理失败');
+            return false;
+        }
+    }
+    
+    // Even if < 2MB, we can optionally resize to optimize if it's still somewhat large (e.g. > 500KB)
+    // but strict requirement was "fit limits". 
+    // Let's stick to the limit logic to be safe.
+    
     return true
 }
 
@@ -504,5 +707,10 @@ onMounted(() => {
     .stats {
         justify-content: center;
     }
+}
+
+.cropper-content {
+    height: 400px;
+    width: 100%;
 }
 </style>

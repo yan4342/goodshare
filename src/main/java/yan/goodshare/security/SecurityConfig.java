@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(new AntPathRequestMatcher("/api/search/**", HttpMethod.GET.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/uploads/**")).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/tags/**", HttpMethod.GET.name())).permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/crawler/**")).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/error")).permitAll()
                         // Allow OPTIONS requests for all endpoints to fix CORS preflight issues
                         .requestMatchers(new AntPathRequestMatcher("/**", HttpMethod.OPTIONS.name())).permitAll()

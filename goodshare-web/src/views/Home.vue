@@ -36,7 +36,7 @@
               </div>
               <div class="likes">
                 <el-icon><Star /></el-icon>
-                <span>{{ Math.floor(Math.random() * 1000) }}</span>
+                <span>{{ post.likeCount || 0 }}</span>
               </div>
             </div>
           </div>

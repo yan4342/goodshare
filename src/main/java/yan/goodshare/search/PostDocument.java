@@ -17,6 +17,24 @@ public class PostDocument {
     @Field(type = FieldType.Text, name = "content")
     private String content;
 
+    @Field(type = FieldType.Keyword, name = "coverUrl")
+    private String coverUrl;
+
+    @Field(type = FieldType.Long, name = "userId")
+    private Long userId;
+
+    @Field(type = FieldType.Text, name = "username")
+    private String username;
+
+    @Field(type = FieldType.Text, name = "nickname")
+    private String nickname;
+
+    @Field(type = FieldType.Keyword, name = "avatarUrl")
+    private String avatarUrl;
+
+    @Field(type = FieldType.Integer, name = "likeCount")
+    private Integer likeCount;
+
     // Getters and Setters
 
     public String getId() {
@@ -41,5 +59,53 @@ public class PostDocument {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getCoverUrl() {
+        return coverUrl;
+    }
+
+    public void setCoverUrl(String coverUrl) {
+        this.coverUrl = coverUrl;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public Integer getLikeCount() {
+        return likeCount;
+    }
+
+    public void setLikeCount(Integer likeCount) {
+        this.likeCount = likeCount;
     }
 }

@@ -19,6 +19,11 @@
         <el-icon :size="32"><Bell /></el-icon>
         <span class="label">通知</span>
       </div>
+      
+      <div class="menu-item" :class="{ active: route.path === '/price-compare' }" @click="router.push('/price-compare')">
+        <el-icon :size="32"><Goods /></el-icon>
+        <span class="label">比价</span>
+      </div>
 
       <div class="menu-item" :class="{ active: route.path === '/me' }" @click="router.push('/me')">
         <el-icon :size="32"><User /></el-icon>

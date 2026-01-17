@@ -10,6 +10,7 @@ import yan.goodshare.mapper.LikeMapper;
 import yan.goodshare.mapper.PostMapper;
 import yan.goodshare.mapper.UserMapper;
 import yan.goodshare.entity.User;
+import yan.goodshare.search.SearchService;
 
 import yan.goodshare.service.NotificationService;
 
@@ -20,12 +21,14 @@ public class LikeService {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
+    private final SearchService searchService;
 
-    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService) {
+    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, SearchService searchService) {
         this.likeMapper = likeMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
+        this.searchService = searchService;
     }
 
     public void likePost(Long postId) {
@@ -57,6 +60,9 @@ public class LikeService {
         
         // Create notification
         notificationService.createNotification(post.getUserId(), user.getId(), "LIKE", postId);
+        
+        // Update ES index
+        searchService.updateLikeCount(postId, (int) getLikeCount(postId));
     }
 
     public void unlikePost(Long postId) {
@@ -75,6 +81,9 @@ public class LikeService {
         if (deleted == 0) {
             throw new RuntimeException("You have not liked this post");
         }
+        
+        // Update ES index
+        searchService.updateLikeCount(postId, (int) getLikeCount(postId));
     }
 
     public long getLikeCount(Long postId) {
