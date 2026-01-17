@@ -6,34 +6,36 @@
     
     <div class="menu-items">
       <div class="menu-item" :class="{ active: route.path === '/' }" @click="router.push('/')">
-        <el-icon :size="24"><Compass /></el-icon>
+        <el-icon :size="32"><Compass /></el-icon>
         <span class="label">发现</span>
       </div>
       
       <div class="menu-item" :class="{ active: route.path === '/publish' }" @click="router.push('/publish')">
-        <el-icon :size="24"><Plus /></el-icon>
+        <el-icon :size="32"><Plus /></el-icon>
         <span class="label">发布</span>
       </div>
       
       <div class="menu-item" :class="{ active: route.path === '/notification' }" @click="router.push('/notification')">
-        <el-icon :size="24"><Bell /></el-icon>
+        <el-icon :size="32"><Bell /></el-icon>
         <span class="label">通知</span>
       </div>
 
       <div class="menu-item" :class="{ active: route.path === '/me' }" @click="router.push('/me')">
-        <el-icon :size="24"><User /></el-icon>
+        <el-icon :size="32"><User /></el-icon>
         <span class="label">我</span>
       </div>
+    </div>
 
+    <div class="bottom-menu">
       <el-popover
         placement="right-end"
-        :width="200"
+        :width="240"
         trigger="click"
         popper-class="more-popover"
       >
         <template #reference>
           <div class="menu-item">
-            <el-icon :size="24"><MoreFilled /></el-icon>
+            <el-icon :size="32"><MoreFilled /></el-icon>
             <span class="label">更多</span>
           </div>
         </template>
@@ -99,32 +101,34 @@ const handleLogout = () => {
 
 <style scoped>
 .sidebar {
-  width: 240px; /* Or narrower like XHS */
+  width: var(--sidebar-width);
   height: 100vh;
   background-color: var(--sidebar-bg);
-  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  padding: 0 16px;
+  padding: 0 24px;
   position: fixed;
   left: 0;
   top: 0;
   z-index: 1001;
-  transition: background-color 0.3s, border-color 0.3s;
+  transition: width 0.3s, background-color 0.3s, border-color 0.3s;
+  overflow: hidden; /* Hide overflow content when resizing */
+  box-sizing: border-box;
 }
 
 .logo-container {
-  height: 72px;
+  height: 90px;
   display: flex;
   align-items: center;
   padding-left: 12px;
   margin-bottom: 20px;
+  white-space: nowrap; /* Prevent text wrapping */
 }
 
 .logo-text {
   color: #ff2442;
-  font-size: 30px; /* Slightly larger */
-  font-family: 'Billabong', cursive, sans-serif; /* Mocking the font style */
+  font-size: 40px; 
+  font-family: 'Billabong', cursive, sans-serif;
   font-weight: 900;
   letter-spacing: -1px;
 }
@@ -138,15 +142,50 @@ const handleLogout = () => {
 .menu-item {
   display: flex;
   align-items: center;
-  height: 48px;
-  padding: 0 12px;
-  border-radius: 24px;
+  height: 64px;
+  padding: 0 16px;
+  border-radius: 32px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, padding 0.3s;
   color: var(--text-color);
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
+  white-space: nowrap;
 }
+
+.bottom-menu {
+  margin-top: auto;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sidebar {
+    padding: 0 12px;
+  }
+  .logo-container {
+    padding-left: 0;
+    justify-content: center;
+  }
+  .logo-text {
+    display: none; /* Hide logo text on small screens */
+  }
+  .menu-item {
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    width: 56px; /* Icon size + padding roughly */
+    margin: 0 auto;
+  }
+  .menu-item .label {
+    display: none; /* Hide labels */
+  }
+  .menu-item .el-icon {
+    margin-right: 0;
+  }
+}
+
 
 .menu-item:hover {
   background-color: var(--hover-bg);
@@ -164,6 +203,7 @@ const handleLogout = () => {
 /* Popover styles */
 .more-menu {
   padding: 4px 0;
+ 
 }
 
 .menu-option {

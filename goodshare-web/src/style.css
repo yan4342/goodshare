@@ -16,6 +16,21 @@
   --el-color-primary-light-8: #ffccd3;
   --el-color-primary-light-9: #ffe6e9;
   --el-color-primary-dark-2: #cc1d35;
+  
+  /* Sidebar Width Variable */
+  --sidebar-width: 340px;
+}
+
+@media (max-width: 1200px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 80px;
+  }
 }
 
 html.dark {
@@ -27,7 +42,14 @@ html.dark {
   --sidebar-bg: #141414;
   --hover-bg: #1f1f1f;
   
-  /* Dark mode overrides for Element Plus are handled by element-plus/theme-chalk/dark/css-vars.css */
+  /* Element Plus Primary Color Override for Dark Mode */
+  --el-color-primary: #ff2442;
+  --el-color-primary-light-3: #ff667b;
+  --el-color-primary-light-5: #ff8090;
+  --el-color-primary-light-7: #ffb3bd;
+  --el-color-primary-light-8: #ffccd3;
+  --el-color-primary-light-9: #ffe6e9;
+  --el-color-primary-dark-2: #cc1d35;
 }
 
 body {

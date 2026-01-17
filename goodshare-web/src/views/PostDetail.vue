@@ -1,12 +1,11 @@
 <template>
   <div class="post-detail-container">
-    <div class="overlay" @click="$router.back()"></div>
-    <div class="modal-content">
-      <div class="close-btn" @click="$router.back()">
-        <el-icon><Close /></el-icon>
-      </div>
-      
-      <div class="content-flex">
+    <transition name="fade">
+      <div v-if="visible" class="overlay" @click="handleClose"></div>
+    </transition>
+    <transition name="zoom">
+      <div v-if="visible" class="modal-content">
+        <div class="content-flex">
         <!-- Left: Image Section -->
         <div v-if="imageList.length > 0" class="image-section">
           <el-carousel v-if="imageList.length > 1" trigger="click" height="100%" :autoplay="false" arrow="always">
@@ -101,18 +100,21 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
 import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
+const router = useRouter()
+const visible = ref(false)
 const post = ref({})
 const comments = ref([])
 const newComment = ref('')
@@ -258,6 +260,7 @@ const submitComment = async () => {
 }
 
 onMounted(() => {
+    visible.value = true
     const postId = route.params.id
     if (postId) {
         fetchPost(postId)
@@ -266,6 +269,13 @@ onMounted(() => {
         fetchFavoriteStatus(postId)
     }
 })
+
+const handleClose = () => {
+    visible.value = false
+    setTimeout(() => {
+        router.back()
+    }, 300)
+}
 </script>
 
 <style scoped>
@@ -301,7 +311,7 @@ onMounted(() => {
 .close-btn {
   position: absolute;
   top: 20px;
-  left: 20px;
+  right: 20px; /* Changed from left to right to avoid overlap with avatar */
   z-index: 2001;
   background: rgba(0,0,0,0.1);
   border-radius: 50%;
@@ -311,8 +321,8 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  color: white;
-  transition: background 0.3s;
+  color: var(--text-color); /* Changed from white to adapt to both themes/backgrounds */
+  transition: background 0.3s, color 0.3s;
 }
 .close-btn:hover {
     background: rgba(0,0,0,0.3);
@@ -498,5 +508,26 @@ onMounted(() => {
 
 .comment-input {
   flex: 1;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.zoom-enter-active,
+.zoom-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.zoom-enter-from,
+.zoom-leave-to {
+  transform: scale(0.9);
+  opacity: 0;
 }
 </style>

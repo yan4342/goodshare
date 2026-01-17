@@ -115,7 +115,7 @@ const openPost = (post) => {
 <style scoped>
 .home-container {
   min-height: 100vh;
-  background-color: var(--bg-color);
+  background-color: var(--bg-color-overlay);
   transition: background-color 0.3s;
 }
 .main-content {
@@ -123,28 +123,28 @@ const openPost = (post) => {
   transition: margin-left 0.3s, width 0.3s;
 }
 .main-content.with-sidebar {
-    margin-left: 240px;
-    width: calc(100% - 240px);
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
 }
 .content-body {
-    max-width: 1600px;
+    max-width: 1800px;
     margin: 0 auto;
-    padding: 10px 24px;
+    padding: 20px 32px;
 }
 .tags-bar {
   display: flex;
   gap: 30px;
-  padding: 15px 0 25px;
+  padding: 20px 0 30px;
   overflow-x: auto;
-  font-size: 16px;
+  font-size: 20px;
   color: var(--text-color-secondary);
   justify-content: flex-start;
 }
 .tag {
   cursor: pointer;
   white-space: nowrap;
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 24px;
   transition: color 0.3s, background-color 0.3s;
 }
 .tag.active {
@@ -154,13 +154,13 @@ const openPost = (post) => {
 }
 .masonry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
 }
 .post-card {
   cursor: pointer;
   break-inside: avoid;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   transition: transform 0.2s;
 }
 .post-card:hover {
@@ -171,8 +171,8 @@ const openPost = (post) => {
   padding-bottom: 133%; /* 3:4 Aspect Ratio */
   background-size: cover;
   background-position: center;
-  border-radius: 16px;
-  margin-bottom: 12px;
+  border-radius: 20px;
+  margin-bottom: 14px;
   background-color: var(--border-color);
   position: relative;
 }
@@ -184,19 +184,19 @@ const openPost = (post) => {
     background: rgba(0,0,0,0.03);
     opacity: 0;
     transition: opacity 0.2s;
-    border-radius: 12px;
+    border-radius: 20px;
 }
 .post-card:hover .cover-image::after {
     opacity: 1;
 }
 .card-info {
-  padding: 0 4px;
+  padding: 0 6px;
 }
 .post-title {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text-color);
   line-height: 1.4;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -206,7 +206,7 @@ const openPost = (post) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-color-secondary);
 }
 .author {

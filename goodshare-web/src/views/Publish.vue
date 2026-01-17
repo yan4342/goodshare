@@ -229,11 +229,11 @@ const submitPost = async () => {
   display: flex;
   justify-content: center;
   padding: 40px;
-  padding-left: 280px; /* 40px padding + 240px sidebar */
+  padding-left: calc(40px + var(--sidebar-width));
   background-color: var(--bg-color);
   min-height: 100vh;
   box-sizing: border-box;
-  transition: background-color 0.3s;
+  transition: background-color 0.3s, padding-left 0.3s;
 }
 .publish-card {
     width: 800px;

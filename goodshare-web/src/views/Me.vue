@@ -281,9 +281,18 @@ onMounted(() => {
 
 <style scoped>
 .me-container {
-    max-width: 960px;
-    margin: 0 auto;
+    width: 100%;
     padding: 20px;
+    padding-left: calc(20px + var(--sidebar-width));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.profile-header, .content-tabs {
+    width: 100%;
+    max-width: 960px;
 }
 
 .profile-header {

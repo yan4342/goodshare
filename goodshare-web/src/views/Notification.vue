@@ -125,9 +125,11 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     padding: 40px;
+    padding-left: calc(40px + var(--sidebar-width));
     background-color: var(--bg-color);
     min-height: 100vh;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, padding-left 0.3s;
+    box-sizing: border-box;
 }
 
 .notifications-card {

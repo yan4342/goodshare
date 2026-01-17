@@ -21,7 +21,7 @@
         <div v-else class="user-actions">
            <el-dropdown trigger="click" @command="handleCommand">
             <div class="avatar-wrapper">
-                <el-avatar :size="32" icon="UserFilled" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+                <el-avatar :size="60" icon="UserFilled" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
             </div>
             <template #dropdown>
                 <el-dropdown-menu>
@@ -63,8 +63,7 @@ const handleCommand = (command) => {
   top: 0;
   z-index: 1000;
   background: var(--bg-color-overlay);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  height: 72px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -88,21 +87,25 @@ const handleCommand = (command) => {
 .search-bar {
   flex: 1;
   max-width: 500px;
-  margin: 0 40px;
+    margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .search-bar.full-width {
-    margin: 0 0; /* Remove left margin if logo is gone */
+    margin: 0 auto; /* Remove left margin if logo is gone */
     max-width: 600px; /* Maybe wider */
 }
 .search-input :deep(.el-input__wrapper) {
-  border-radius: 20px;
+  border-radius: 25px;
   background-color: var(--bg-color);
   box-shadow: none;
   padding-left: 15px;
   transition: background-color 0.3s;
 }
 .search-input :deep(.el-input__inner) {
-    height: 40px;
+    height: 50px;
+    font-size: 16px;
 }
 .login-btn, .publish-btn {
   background-color: #ff2442;
