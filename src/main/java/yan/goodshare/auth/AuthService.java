@@ -40,7 +40,7 @@ public class AuthService {
             admin.setUsername("admin");
             admin.setPassword("123456"); // Will be encoded by UserService
             admin.setEmail("admin@goodshare.com");
-            admin.setRoles(java.util.Set.of("USER", "ADMIN"));
+            admin.setRoles(java.util.Set.of("ROLE_USER", "ROLE_ADMIN"));
             userService.register(admin);
         }
     }

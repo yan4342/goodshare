@@ -18,19 +18,19 @@ public class Price {
 
     private String url;
 
-    private Long product_id;
+    private Long productId;
 
     @TableField(exist = false)
     private Product product;
 
     // Getters and Setters
 
-    public Long getProduct_id() {
-        return product_id;
+    public Long getProductId() {
+        return productId;
     }
 
-    public void setProduct_id(Long product_id) {
-        this.product_id = product_id;
+    public void setProductId(Long productId) {
+        this.productId = productId;
     }
 
     public Long getId() {

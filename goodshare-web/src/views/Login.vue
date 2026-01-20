@@ -101,6 +101,7 @@ const handleLogin = async () => {
             
             // Assuming res.data.accessToken based on AuthResponse
             authStore.setToken(res.data.accessToken, loginForm.rememberMe)
+            await authStore.fetchUser()
             ElMessage.success('登录成功')
             router.push('/')
           } catch (err) {

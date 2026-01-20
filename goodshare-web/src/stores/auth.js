@@ -1,4 +1,5 @@
 import { reactive, readonly } from 'vue'
+import request from '../utils/request'
 
 const state = reactive({
   user: null,
@@ -25,9 +26,21 @@ const logout = () => {
     setUser(null)
 }
 
+const fetchUser = async () => {
+    if (!state.token) return
+    try {
+        const res = await request.get('/profile')
+        setUser(res.data)
+    } catch (err) {
+        console.error('Failed to fetch user profile', err)
+        // Optionally logout if token is invalid, but interceptor handles 401
+    }
+}
+
 export default {
   state: readonly(state),
   setUser,
   setToken,
-  logout
+  logout,
+  fetchUser
 }

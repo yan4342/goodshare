@@ -53,8 +53,20 @@ const routes = [
     component: () => import('../views/PriceCompare.vue')
   },
   {
+    path: '/chat',
+    name: 'Chat',
+    component: () => import('../views/Chat.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/me',
     name: 'Me',
+    component: () => import('../views/Me.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/:id',
+    name: 'UserDetail',
     component: () => import('../views/Me.vue'),
     meta: { requiresAuth: true }
   },
@@ -68,25 +80,36 @@ const routes = [
     path: '/admin/tags',
     name: 'AdminTags',
     component: () => import('../views/admin/AdminTagManager.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAdmin: true }
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/'),
   routes
 })
 
 router.beforeEach((to, from, next) => {
     const isAuthenticated = authStore.state.isAuthenticated
+    const isAdminAuthenticated = !!localStorage.getItem('admin_token')
     
-    if (to.meta.requiresAuth && !isAuthenticated) {
+    if (to.meta.requiresAdmin) {
+        if (!isAdminAuthenticated) {
+            next('/admin/login')
+        } else {
+            next()
+        }
+    } else if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login')
     } else if (to.meta.guest && isAuthenticated) {
         // If already logged in and trying to access guest page
         // If it's admin login, allow it (will handle logout in component)
         if (to.path === '/admin/login') {
-            next()
+            if (isAdminAuthenticated) {
+                next('/admin/tags')
+            } else {
+                next()
+            }
         } else {
             next('/')
         }

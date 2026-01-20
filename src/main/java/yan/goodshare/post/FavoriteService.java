@@ -48,8 +48,8 @@ public class FavoriteService {
         }
 
         Favorite favorite = new Favorite();
-        favorite.setUser_id(user.getId());
-        favorite.setPost_id(postId);
+        favorite.setUserId(user.getId());
+        favorite.setPostId(postId);
 
         favoriteMapper.insert(favorite);
     }

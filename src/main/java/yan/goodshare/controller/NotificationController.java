@@ -23,10 +23,14 @@ public class NotificationController {
     private UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<Notification>> getNotifications(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<?> getNotifications(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String type) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return ResponseEntity.ok(notificationService.getUserNotifications(user.getId()));
+        return ResponseEntity.ok(notificationService.getUserNotifications(user.getId(), page, size, type));
     }
 
     @PutMapping("/{id}/read")

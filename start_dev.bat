@@ -45,17 +45,17 @@ if %errorLevel% neq 0 (
     echo [SUCCESS] Redis Service started.
 )
 
-@REM :: 4. Start Frontend
-@REM echo [STEP 4] Starting Frontend (npm run dev)...
-@REM cd /d "%~dp0goodshare-web"
-@REM if exist package.json (
-@REM     echo Starting npm run dev in %CD%
-@REM     start "Frontend - Goodshare" npm run dev
-@REM     echo [SUCCESS] Frontend launched in a new window.
-@REM ) else (
-@REM     echo [ERROR] package.json not found in goodshare-web!
-@REM     echo Current directory: %CD%
-@REM )
+:: 4. Start Frontend
+echo [STEP 4] Starting Frontend (npm run dev)...
+cd /d "%~dp0goodshare-web"
+if exist package.json (
+    echo Starting npm run dev in %CD%
+    start "Frontend - Goodshare" npm run dev
+    echo [SUCCESS] Frontend launched in a new window.
+) else (
+    echo [ERROR] package.json not found in goodshare-web!
+    echo Current directory: %CD%
+)
 
 echo ==================================================
 echo All startup tasks initiated.

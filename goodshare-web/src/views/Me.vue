@@ -6,6 +6,7 @@
       <div class="profile-info">
         <div class="avatar-wrapper">
           <el-upload
+            v-if="isCurrentUser"
             ref="uploadRef"
             class="avatar-uploader"
             action=""
@@ -18,16 +19,17 @@
               <el-icon><Camera /></el-icon>
             </div>
           </el-upload>
+          <el-avatar v-else :size="100" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
         </div>
         <div class="user-details">
           <h1 class="username">{{ userProfile.nickname || userProfile.username }}</h1>
           <p class="bio">{{ userProfile.bio || '这个人很懒，什么都没有写~' }}</p>
           <div class="stats">
-            <div class="stat-item">
+            <div class="stat-item" @click="showFollowingList = true">
               <span class="count">{{ userProfile.followingCount || 0 }}</span>
               <span class="label">关注</span>
             </div>
-            <div class="stat-item">
+            <div class="stat-item" @click="showFollowerList = true">
               <span class="count">{{ userProfile.followerCount || 0 }}</span>
               <span class="label">粉丝</span>
             </div>
@@ -38,8 +40,20 @@
           </div>
         </div>
         <div class="actions">
-            <el-button round @click="showEditProfile = true">编辑资料</el-button>
-            <el-button circle><el-icon><Setting /></el-icon></el-button>
+            <template v-if="isCurrentUser">
+                <el-button round @click="showEditProfile = true">编辑资料</el-button>
+                <el-button circle @click="openSettings"><el-icon><Setting /></el-icon></el-button>
+            </template>
+            <template v-else>
+                <el-button 
+                    :type="isFollowing ? 'default' : 'primary'" 
+                    round 
+                    @click="toggleFollow"
+                >
+                    {{ isFollowing ? '已关注' : '关注' }}
+                </el-button>
+                <el-button circle @click="goToChat"><el-icon><ChatDotRound /></el-icon></el-button>
+            </template>
         </div>
       </div>
     </div>
@@ -52,18 +66,22 @@
                 <el-empty description="还没有发布过笔记哦" />
             </div>
             <div v-else class="masonry-grid">
-                <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="$router.push(`/post/${post.id}`)">
-                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url(${getCoverUrl(post)})` }">
+                <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post)">
+                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }">
+                        <div v-if="post.status === 2" class="status-badge rejected">未通过</div>
+                        <div v-if="post.status === 0" class="status-badge pending">审核中</div>
                         <div class="delete-btn" @click.stop="handleDelete(post)">
                             <el-icon><Delete /></el-icon>
                         </div>
                     </div>
                     <div class="card-content">
+                        <div v-if="!getCoverUrl(post) && post.status === 2" class="status-badge-inline rejected">未通过</div>
+                        <div v-if="!getCoverUrl(post) && post.status === 0" class="status-badge-inline pending">审核中</div>
                         <h3 class="card-title">{{ post.title }}</h3>
                         <div class="card-footer">
                             <div class="author">
-                                <el-avatar :size="20" :src="post.user?.avatarUrl || defaultAvatar" />
-                                <span>{{ post.user?.username }}</span>
+                                <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
+                                <span>{{ userProfile.nickname || userProfile.username }}</span>
                             </div>
                             <div class="likes">
                                 <el-icon><Star /></el-icon>
@@ -74,20 +92,20 @@
                 </div>
             </div>
         </el-tab-pane>
-        <el-tab-pane label="收藏" name="favorites">
+        <el-tab-pane label="收藏" name="favorites" v-if="isCurrentUser">
             <div v-if="favorites.length === 0" class="empty-state">
                 <el-empty description="还没有收藏过笔记哦" />
             </div>
             <div v-else class="masonry-grid">
-                <div v-for="post in favorites" :key="post.id" class="post-card" @click="$router.push(`/post/${post.id}`)">
-                    <div class="card-image" :style="{ backgroundImage: `url(${getCoverUrl(post)})` }"></div>
+                <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="$router.push(`/post/${post.id}`)">
+                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
                     <div class="card-content">
                         <h3 class="card-title">{{ post.title }}</h3>
                         <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="20" :src="post.user?.avatarUrl || defaultAvatar" />
-                                <span>{{ post.user?.username }}</span>
-                            </div>
+                    <div class="author">
+                        <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                        <span>{{ post.user?.username }}</span>
+                    </div>
                             <div class="likes">
                                 <el-icon><Star /></el-icon>
                                 <span>{{ post.likeCount || 0 }}</span>
@@ -97,11 +115,55 @@
                 </div>
             </div>
         </el-tab-pane>
-        <el-tab-pane label="赞过" name="likes">
-            <el-empty description="开发中..." />
+        <el-tab-pane label="赞过" name="likes" v-if="isCurrentUser">
+            <div v-if="likedPosts.length === 0" class="empty-state">
+                <el-empty description="还没有赞过笔记哦" />
+            </div>
+            <div v-else class="masonry-grid">
+                <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="$router.push(`/post/${post.id}`)">
+                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                    <div class="card-content">
+                        <h3 class="card-title">{{ post.title }}</h3>
+                        <div class="card-footer">
+                    <div class="author">
+                        <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                        <span>{{ post.user?.username }}</span>
+                    </div>
+                            <div class="likes">
+                                <el-icon><Star /></el-icon>
+                                <span>{{ post.likeCount || 0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </el-tab-pane>
       </el-tabs>
     </div>
+
+    <!-- Settings Dialog -->
+    <el-dialog v-model="showSettings" title="推荐权重设置" width="500px">
+        <div class="settings-section">
+            <div v-if="loadingWeights" class="loading-state">
+               <div style="text-align:center; padding: 20px;">加载中...</div>
+            </div>
+            <div v-else-if="tagWeights.length === 0" class="empty-state">
+              <el-empty description="还没有设置推荐权重哦" />
+            </div>
+            <div v-else class="weight-list">
+              <div v-for="weight in tagWeights" :key="weight.tagId" class="weight-item">
+                <span class="tag-name">{{ weight.tagName }}</span>
+                <el-slider v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
+                <span class="weight-value">{{ weight.weight.toFixed(1) }}</span>
+              </div>
+            </div>
+        </div>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="showSettings = false">关闭</el-button>
+            </span>
+        </template>
+    </el-dialog>
 
     <!-- Edit Profile Dialog -->
     <el-dialog v-model="showEditProfile" title="编辑资料" width="500px">
@@ -133,28 +195,72 @@
             </span>
         </template>
     </el-dialog>
+
+    <!-- Following List Dialog -->
+    <el-dialog v-model="showFollowingList" title="关注列表" width="400px">
+        <div v-if="followingList.length === 0" class="empty-state">
+            <el-empty description="还没有关注任何人" />
+        </div>
+        <div v-else class="user-list">
+            <div v-for="user in followingList" :key="user.id" class="user-list-item" @click="goToUser(user.id)">
+                <el-avatar :size="40" :src="user.avatarUrl || defaultAvatar" />
+                <span class="list-username">{{ user.nickname || user.username }}</span>
+            </div>
+        </div>
+    </el-dialog>
+
+    <!-- Follower List Dialog -->
+    <el-dialog v-model="showFollowerList" title="粉丝列表" width="400px">
+        <div v-if="followerList.length === 0" class="empty-state">
+            <el-empty description="还没有粉丝" />
+        </div>
+        <div v-else class="user-list">
+            <div v-for="user in followerList" :key="user.id" class="user-list-item" @click="goToUser(user.id)">
+                <el-avatar :size="40" :src="user.avatarUrl || defaultAvatar" />
+                <span class="list-username">{{ user.nickname || user.username }}</span>
+            </div>
+        </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
 import authStore from '../stores/auth'
-import { Camera, Setting, Star, Delete } from '@element-plus/icons-vue'
+import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sidebar from "../components/Sidebar.vue";
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
+import { getThumbnailUrl } from '../utils/image'
 
 
+const router = useRouter()
+const route = useRoute()
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
 const userProfile = ref({})
 const posts = ref([])
 const favorites = ref([])
+const likedPosts = ref([])
+const tagWeights = ref([])
+const loadingWeights = ref(false)
 const activeTab = ref('posts')
 const showEditProfile = ref(false)
-const totalLikes = ref(0) // Need backend support or calc from posts
+const showSettings = ref(false)
+const totalLikes = ref(0)
 const showCropper = ref(false)
+const isFollowing = ref(false)
+const showFollowingList = ref(false)
+const showFollowerList = ref(false)
+const followingList = ref([])
+const followerList = ref([])
+
+const isCurrentUser = computed(() => {
+    return !route.params.id || (authStore.state.user && route.params.id == authStore.state.user.id)
+})
+
 const cropperImg = ref('')
 const cropper = ref(null)
 const uploadRef = ref(null)
@@ -189,22 +295,125 @@ const uploadHeaders = computed(() => ({
 
 const fetchUserProfile = async () => {
     try {
-        const res = await request.get('/profile')
+        const userId = route.params.id
+        let res
+        
+        if (userId && userId != authStore.state.user?.id) {
+             res = await request.get(`/users/${userId}`)
+             // Check follow status if logged in
+             if (authStore.state.isAuthenticated) {
+                 checkFollowStatus(userId)
+             }
+        } else {
+            res = await request.get('/profile')
+            authStore.setUser(res.data)
+             editForm.username = res.data.username
+            editForm.nickname = res.data.nickname
+            editForm.bio = res.data.bio
+        }
+        
         userProfile.value = res.data
-        editForm.username = res.data.username
-        editForm.nickname = res.data.nickname
-        editForm.bio = res.data.bio
         
         // Fetch posts after profile to use ID
         if (res.data.id) {
             fetchMyPosts(res.data.id)
-            fetchMyFavorites()
+            if (isCurrentUser.value) {
+                fetchMyFavorites()
+                fetchLikedPosts()
+            }
         }
     } catch (err) {
         console.error('Failed to load profile', err)
-        ElMessage.error('加载个人信息失败')
+        ElMessage.error('加载用户信息失败')
     }
 }
+
+const checkFollowStatus = async (userId) => {
+    try {
+        const res = await request.get(`/users/${userId}/is-following`)
+        isFollowing.value = res.data
+    } catch (error) {
+        console.error('Failed to check follow status', error)
+    }
+}
+
+const toggleFollow = async () => {
+    if (!authStore.state.isAuthenticated) {
+        router.push('/login')
+        return
+    }
+    
+    try {
+        if (isFollowing.value) {
+            await request.post(`/users/${userProfile.value.id}/unfollow`)
+            isFollowing.value = false
+            userProfile.value.followerCount = Math.max(0, (userProfile.value.followerCount || 0) - 1)
+            ElMessage.success('已取消关注')
+        } else {
+            await request.post(`/users/${userProfile.value.id}/follow`)
+            isFollowing.value = true
+            userProfile.value.followerCount = (userProfile.value.followerCount || 0) + 1
+            ElMessage.success('关注成功')
+        }
+    } catch (error) {
+        console.error('Follow action failed', error)
+        ElMessage.error('操作失败')
+    }
+}
+
+const goToChat = () => {
+    if (!authStore.state.isAuthenticated) {
+        router.push('/login')
+        return
+    }
+    router.push({
+        path: '/chat',
+        query: { userId: userProfile.value.id }
+    })
+}
+
+watch(() => route.params.id, () => {
+    fetchUserProfile()
+})
+
+watch(showFollowingList, (val) => {
+    if (val) fetchFollowing()
+})
+
+watch(showFollowerList, (val) => {
+    if (val) fetchFollowers()
+})
+
+const fetchFollowing = async () => {
+    try {
+        const userId = userProfile.value.id
+        const res = await request.get(`/users/${userId}/following`)
+        followingList.value = res.data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const fetchFollowers = async () => {
+    try {
+        const userId = userProfile.value.id
+        const res = await request.get(`/users/${userId}/followers`)
+        followerList.value = res.data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const goToUser = (id) => {
+    showFollowingList.value = false
+    showFollowerList.value = false
+    if (authStore.state.user && id == authStore.state.user.id) {
+        router.push('/me')
+    } else {
+        router.push(`/user/${id}`)
+    }
+}
+
 
 const fetchMyPosts = async (userId) => {
     try {
@@ -221,6 +430,47 @@ const fetchMyFavorites = async () => {
         favorites.value = res.data
     } catch (err) {
         console.error('Failed to load favorites', err)
+    }
+}
+
+const fetchLikedPosts = async () => {
+    try {
+        const res = await request.get('/likes')
+        likedPosts.value = res.data
+    } catch (err) {
+        console.error('Failed to load liked posts', err)
+    }
+}
+
+const openSettings = () => {
+    showSettings.value = true
+    fetchTagWeights()
+}
+
+const fetchTagWeights = async () => {
+    loadingWeights.value = true
+    try {
+        const res = await request.get('/user/weights')
+        tagWeights.value = res.data
+    } catch (err) {
+        console.error('Failed to load tag weights', err)
+        ElMessage.error('加载推荐权重失败')
+    } finally {
+        loadingWeights.value = false
+    }
+}
+
+const handleWeightChange = async (weight) => {
+    try {
+        await request.post('/user/weights', {
+            tagId: weight.tagId,
+            weight: weight.weight
+        })
+        ElMessage.success('权重更新成功')
+    } catch (error) {
+        console.error('Failed to update weight', error)
+        ElMessage.error('权重更新失败')
+        // Revert? simpler to just refresh or let it be
     }
 }
 
@@ -265,6 +515,21 @@ const confirmCrop = () => {
     }
     cropper.value.getCropBlob(async (blob) => {
         console.log('Blob obtained', blob)
+        
+        // Optimistic Update: Show new avatar immediately before upload finishes
+        const originalAvatarUrl = userProfile.value.avatarUrl
+        const localPreviewUrl = URL.createObjectURL(blob)
+        
+        // Update local state
+        userProfile.value.avatarUrl = localPreviewUrl
+        // Update global store (Navbar will update immediately)
+        if (authStore.state.user) {
+            authStore.setUser({
+                ...authStore.state.user,
+                avatarUrl: localPreviewUrl
+            })
+        }
+
         try {
             // Compress if needed
             let finalBlob = blob;
@@ -302,11 +567,32 @@ const confirmCrop = () => {
                 email: userProfile.value.email
             })
             
+            // Update auth store with real URL
+            if (authStore.state.user) {
+                authStore.setUser({
+                    ...authStore.state.user,
+                    avatarUrl: url
+                })
+            }
+
             ElMessage.success('头像更新成功')
             showCropper.value = false
+            
+            // Release object URL
+            URL.revokeObjectURL(localPreviewUrl)
+            
         } catch (err) {
             console.error('Upload failed', err)
             ElMessage.error('头像上传失败')
+            
+            // Revert on failure
+            userProfile.value.avatarUrl = originalAvatarUrl
+            if (authStore.state.user) {
+                authStore.setUser({
+                    ...authStore.state.user,
+                    avatarUrl: originalAvatarUrl
+                })
+            }
         }
     })
 }
@@ -427,6 +713,16 @@ const saveProfile = async () => {
         })
         userProfile.value.bio = editForm.bio
         userProfile.value.nickname = editForm.nickname
+        
+        // Update auth store
+        if (authStore.state.user) {
+            authStore.setUser({
+                ...authStore.state.user,
+                nickname: editForm.nickname,
+                bio: editForm.bio
+            })
+        }
+
         showEditProfile.value = false
         ElMessage.success('保存成功')
     } catch (err) {
@@ -435,14 +731,26 @@ const saveProfile = async () => {
 }
 
 const getCoverUrl = (post) => {
-    if (post.coverUrl) return post.coverUrl
-    if (post.images) {
+    let url = null
+    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
+        url = post.coverUrl
+    } else if (post.images) {
         try {
-            const imgs = JSON.parse(post.images)
-            if (Array.isArray(imgs) && imgs.length > 0) return imgs[0]
+            const imgs = typeof post.images === 'string' ? JSON.parse(post.images) : post.images
+            if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
         } catch (e) {}
     }
-    return 'https://placehold.co/300x400?text=No+Image'
+    return getThumbnailUrl(url)
+}
+
+const handlePostClick = (post) => {
+    if (post.status === 2) {
+        // Rejected post, go to edit
+        router.push(`/publish?id=${post.id}`)
+    } else {
+        // Normal post, go to detail
+        router.push(`/post/${post.id}`)
+    }
 }
 
 const handleTabClick = (tab) => {
@@ -450,6 +758,8 @@ const handleTabClick = (tab) => {
         fetchMyFavorites()
     } else if (tab.props.name === 'posts' && userProfile.value.id) {
         fetchMyPosts(userProfile.value.id)
+    } else if (tab.props.name === 'likes') {
+        fetchLikedPosts()
     }
 }
 
@@ -512,6 +822,34 @@ onMounted(() => {
     display: flex;
     align-items: flex-start;
     gap: 40px;
+}
+
+.settings-section {
+    padding: 20px;
+}
+
+.weight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-width: 600px;
+}
+
+.weight-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.tag-name {
+    width: 80px;
+    font-weight: bold;
+}
+
+.weight-value {
+    width: 40px;
+    text-align: right;
+    color: var(--text-color-secondary);
 }
 
 .avatar-wrapper {
@@ -595,16 +933,15 @@ onMounted(() => {
 
 /* Masonry Grid (Reused) */
 .masonry-grid {
-    column-count: 4;
-    column-gap: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
 }
 
 .post-card {
-    break-inside: avoid;
     background: var(--bg-color-overlay);
     border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 20px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     transition: transform 0.2s, background-color 0.3s;
     cursor: pointer;
@@ -650,12 +987,12 @@ onMounted(() => {
 }
 
 .card-content {
-    padding: 12px;
+    padding: 10px;
 }
 
 .card-title {
-    font-size: 14px;
-    margin: 0 0 8px 0;
+    font-size: 13px;
+    margin: 0 0 6px 0;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -665,17 +1002,26 @@ onMounted(() => {
     color: var(--text-color);
 }
 
+.post-card.no-image {
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
 .post-card.no-image .card-title {
     -webkit-line-clamp: 6;
-    font-size: 15px;
-    margin-top: 8px;
+    line-clamp: 6;
+    font-size: 13px;
+    margin-top: 6px;
+    flex: 1;
 }
 
 .card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-color-secondary);
 }
 
@@ -691,10 +1037,16 @@ onMounted(() => {
     gap: 2px;
 }
 
+@media (max-width: 1024px) {
+    .masonry-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
 @media (max-width: 768px) {
     .masonry-grid {
-        column-count: 2;
-        column-gap: 10px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
     
     .profile-info {
@@ -712,5 +1064,67 @@ onMounted(() => {
 .cropper-content {
     height: 400px;
     width: 100%;
+}
+
+.status-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+    z-index: 2;
+}
+.status-badge.rejected {
+    background: #f56c6c;
+}
+.status-badge.pending {
+    background: #e6a23c;
+}
+
+.status-badge-inline {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: white;
+    margin-bottom: 4px;
+}
+.status-badge-inline.rejected {
+    background: #f56c6c;
+}
+.status-badge-inline.pending {
+    background: #e6a23c;
+}
+
+:deep(.el-tabs__nav-scroll) {
+    display: flex;
+    justify-content: center;
+}
+
+.user-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.user-list-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-radius: 8px;
+}
+
+.user-list-item:hover {
+    background-color: var(--bg-color);
+}
+
+.list-username {
+    margin-left: 12px;
+    font-weight: 500;
+    color: var(--text-color);
 }
 </style>

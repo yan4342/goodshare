@@ -1,5 +1,6 @@
 package yan.goodshare.post;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import jakarta.validation.Valid;
 import yan.goodshare.entity.Post;
 import org.springframework.http.ResponseEntity;
@@ -37,9 +38,23 @@ public class PostController {
         }
     }
 
+    @org.springframework.web.bind.annotation.PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> updatePost(@PathVariable Long id, @Valid @RequestBody PostRequest postRequest) {
+        try {
+            Post updatedPost = postService.updatePost(id, postRequest);
+            return ResponseEntity.ok(updatedPost);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @GetMapping
-    public ResponseEntity<List<Post>> getAllPosts(@RequestParam(required = false) String tag) {
-        return ResponseEntity.ok(postService.getAllPosts(tag));
+    public ResponseEntity<IPage<Post>> getAllPosts(
+            @RequestParam(required = false) String tag,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(postService.getAllPosts(tag, page, size));
     }
 
     @GetMapping("/{id}")
@@ -66,5 +81,26 @@ public class PostController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @PostMapping("/{id}/view")
+    public ResponseEntity<?> recordView(@PathVariable Long id) {
+        // Can be anonymous or authenticated
+        String username = null;
+        try {
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                if (auth.getPrincipal() instanceof org.springframework.security.core.userdetails.UserDetails) {
+                    username = ((org.springframework.security.core.userdetails.UserDetails) auth.getPrincipal()).getUsername();
+                } else {
+                    username = auth.getName();
+                }
+            }
+        } catch (Exception e) {
+            // Ignore auth errors, treat as anonymous
+        }
+        
+        postService.recordView(id, username);
+        return ResponseEntity.ok().build();
     }
 }

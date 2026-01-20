@@ -110,4 +110,28 @@ public class FollowService {
     public long getFollowersCount(Long userId) {
         return followMapper.selectCount(new QueryWrapper<Follow>().eq("followed_id", userId));
     }
+
+    public boolean isFollowing(Long followerId, Long followedId) {
+        return followMapper.selectCount(new QueryWrapper<Follow>()
+                .eq("follower_id", followerId)
+                .eq("followed_id", followedId)) > 0;
+    }
+
+    public List<User> getFollowingUsers(Long userId) {
+        List<Follow> follows = followMapper.selectList(new QueryWrapper<Follow>().eq("follower_id", userId));
+        List<Long> followedIds = follows.stream().map(Follow::getFollowedId).toList();
+        if (followedIds.isEmpty()) {
+            return List.of();
+        }
+        return userMapper.selectBatchIds(followedIds);
+    }
+
+    public List<User> getFollowerUsers(Long userId) {
+        List<Follow> follows = followMapper.selectList(new QueryWrapper<Follow>().eq("followed_id", userId));
+        List<Long> followerIds = follows.stream().map(Follow::getFollowerId).toList();
+        if (followerIds.isEmpty()) {
+            return List.of();
+        }
+        return userMapper.selectBatchIds(followerIds);
+    }
 }

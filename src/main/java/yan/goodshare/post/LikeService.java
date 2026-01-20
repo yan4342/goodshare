@@ -14,6 +14,8 @@ import yan.goodshare.search.SearchService;
 
 import yan.goodshare.service.NotificationService;
 
+import java.util.List;
+
 @Service
 public class LikeService {
 
@@ -53,8 +55,8 @@ public class LikeService {
         }
 
         Like like = new Like();
-        like.setUser_id(user.getId());
-        like.setPost_id(postId);
+        like.setUserId(user.getId());
+        like.setPostId(postId);
 
         likeMapper.insert(like);
         
@@ -106,5 +108,17 @@ public class LikeService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public List<Post> getUserLikedPosts() {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = userDetails.getUsername();
+
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        return likeMapper.selectLikedPosts(user.getId());
     }
 }

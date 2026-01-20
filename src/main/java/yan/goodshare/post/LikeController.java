@@ -2,9 +2,12 @@ package yan.goodshare.post;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import yan.goodshare.entity.Post;
+
+import java.util.List;
 
 @RestController
-@RequestMapping("/api/posts/{postId}/likes")
+@RequestMapping("/api")
 public class LikeController {
 
     private final LikeService likeService;
@@ -13,7 +16,7 @@ public class LikeController {
         this.likeService = likeService;
     }
 
-    @PostMapping
+    @PostMapping("/posts/{postId}/likes")
     public ResponseEntity<?> likePost(@PathVariable Long postId) {
         try {
             likeService.likePost(postId);
@@ -23,7 +26,7 @@ public class LikeController {
         }
     }
 
-    @DeleteMapping
+    @DeleteMapping("/posts/{postId}/likes")
     public ResponseEntity<?> unlikePost(@PathVariable Long postId) {
         try {
             likeService.unlikePost(postId);
@@ -33,13 +36,18 @@ public class LikeController {
         }
     }
 
-    @GetMapping("/count")
+    @GetMapping("/posts/{postId}/likes/count")
     public ResponseEntity<Long> getLikeCount(@PathVariable Long postId) {
         return ResponseEntity.ok(likeService.getLikeCount(postId));
     }
 
-    @GetMapping("/status")
+    @GetMapping("/posts/{postId}/likes/status")
     public ResponseEntity<Boolean> getLikeStatus(@PathVariable Long postId) {
         return ResponseEntity.ok(likeService.hasLiked(postId));
+    }
+
+    @GetMapping("/likes")
+    public ResponseEntity<List<Post>> getUserLikedPosts() {
+        return ResponseEntity.ok(likeService.getUserLikedPosts());
     }
 }

@@ -43,41 +43,72 @@ public class CrawlerService {
         return product;
     }
 
+    // Simple in-memory cache: Keyword -> {Timestamp, Results}
+    private static final java.util.Map<String, CacheEntry> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
+
+    private static class CacheEntry {
+        long timestamp;
+        List<ProductPriceDTO> data;
+
+        CacheEntry(List<ProductPriceDTO> data) {
+            this.timestamp = System.currentTimeMillis();
+            this.data = data;
+        }
+    }
+
     public List<ProductPriceDTO> searchProducts(String keyword) {
+        // Check Cache
+        // CacheEntry entry = CACHE.get(keyword);
+        // if (entry != null && (System.currentTimeMillis() - entry.timestamp < CACHE_DURATION_MS)) {
+        //    System.out.println("Returning cached results for: " + keyword);
+        //    return entry.data;
+        // }
+
         List<ProductPriceDTO> results = new ArrayList<>();
         
         // 1. Crawl JD
-        try {
-            System.out.println("Starting JD crawl for: " + keyword);
-            List<ProductPriceDTO> jdResults = crawlJD(keyword);
-            System.out.println("JD results count: " + jdResults.size());
-            results.addAll(jdResults);
-        } catch (Exception e) {
-            System.err.println("JD Crawl failed: " + e.getMessage());
-            e.printStackTrace();
-        }
+        // try {
+        //     System.out.println("Starting JD crawl for: " + keyword);
+        //     List<ProductPriceDTO> jdResults = crawlJD(keyword);
+        //     System.out.println("JD results count: " + jdResults.size());
+        //     results.addAll(jdResults);
+        // } catch (Exception e) {
+        //     System.err.println("JD Crawl failed: " + e.getMessage());
+        //     e.printStackTrace();
+        // }
 
-        // 2. Crawl Taobao (Best Effort)
-        try {
-            System.out.println("Starting Taobao crawl for: " + keyword);
-            List<ProductPriceDTO> taobaoResults = crawlTaobao(keyword);
-            System.out.println("Taobao results count: " + taobaoResults.size());
-            results.addAll(taobaoResults);
-        } catch (Exception e) {
-            System.err.println("Taobao Crawl failed: " + e.getMessage());
-        }
+        // 2. Crawl Taobao (Using Python Selenium)
+        // try {
+        //     System.out.println("Starting Taobao crawl for: " + keyword);
+        //     List<ProductPriceDTO> taobaoResults = crawlTaobao(keyword);
+        //     System.out.println("Taobao results count: " + taobaoResults.size());
+        //     results.addAll(taobaoResults);
+        // } catch (Exception e) {
+        //     System.err.println("Taobao Crawl failed: " + e.getMessage());
+        // }
 
         // 3. Crawl Pinduoduo (Best Effort)
+        // try {
+        //     System.out.println("Starting Pinduoduo crawl for: " + keyword);
+        //     List<ProductPriceDTO> pddResults = crawlPinduoduo(keyword);
+        //     System.out.println("Pinduoduo results count: " + pddResults.size());
+        //     results.addAll(pddResults);
+        // } catch (Exception e) {
+        //     System.err.println("Pinduoduo Crawl failed: " + e.getMessage());
+        // }
+
+        // 4. Crawl Manmanbuy (Aggregation Source)
         try {
-            System.out.println("Starting Pinduoduo crawl for: " + keyword);
-            List<ProductPriceDTO> pddResults = crawlPinduoduo(keyword);
-            System.out.println("Pinduoduo results count: " + pddResults.size());
-            results.addAll(pddResults);
+            System.out.println("Starting Manmanbuy crawl for: " + keyword);
+            List<ProductPriceDTO> mmbResults = crawlManmanbuy(keyword);
+            System.out.println("Manmanbuy results count: " + mmbResults.size());
+            results.addAll(mmbResults);
         } catch (Exception e) {
-            System.err.println("Pinduoduo Crawl failed: " + e.getMessage());
+            System.err.println("Manmanbuy Crawl failed: " + e.getMessage());
         }
 
-        // 4. Fallback to Mock Data if no results found
+        // 5. Fallback to Mock Data if no results found
         if (results.isEmpty()) {
             System.out.println("No real results found, using mock data.");
             results.addAll(getMockData(keyword));
@@ -91,7 +122,136 @@ public class CrawlerService {
             return p1.getPrice().compareTo(p2.getPrice());
         });
 
+        // Update Cache
+        if (!results.isEmpty()) {
+            CACHE.put(keyword, new CacheEntry(results));
+        }
+
         return results;
+    }
+
+    private List<ProductPriceDTO> crawlManmanbuy(String keyword) {
+        List<ProductPriceDTO> list = new ArrayList<>();
+        try {
+            // Locate the Python script
+            String projectDir = System.getProperty("user.dir");
+            String scriptPath = projectDir + "/scripts/manmanbuy_spider.py";
+            
+            // Build command: python script.py keyword limit
+            // Limit to 20 items to prevent anti-scraping blocks
+            ProcessBuilder processBuilder = new ProcessBuilder("python", scriptPath, keyword, "8");
+            processBuilder.redirectErrorStream(true); // Merge stderr to stdout for debugging
+            
+            Process process = processBuilder.start();
+            
+            // Read output
+            java.io.InputStream inputStream = process.getInputStream();
+            java.util.Scanner s = new java.util.Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+            String output = s.hasNext() ? s.next() : "";
+            
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                System.err.println("Manmanbuy Python script exited with code " + exitCode);
+                System.err.println("Output: " + output);
+                return list;
+            }
+
+            // Parse JSON output
+            int jsonStart = output.indexOf("[");
+            int jsonEnd = output.lastIndexOf("]");
+            
+            if (jsonStart != -1 && jsonEnd != -1) {
+                String jsonStr = output.substring(jsonStart, jsonEnd + 1);
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                List<java.util.Map<String, String>> items = mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<java.util.Map<String, String>>>(){});
+                
+                for (java.util.Map<String, String> item : items) {
+                    ProductPriceDTO dto = new ProductPriceDTO();
+                    dto.setPlatform(item.get("shop")); // Use shop as platform for aggregator
+                    dto.setName(item.get("title"));
+                    try {
+                        String priceStr = item.get("price").replace("¥", "").replace("￥", "").trim();
+                        dto.setPrice(new BigDecimal(priceStr));
+                    } catch (Exception e) {
+                        dto.setPrice(BigDecimal.ZERO);
+                    }
+                    dto.setProductUrl(item.get("link"));
+                    dto.setImageUrl(item.get("image"));
+                    dto.setShopName(item.get("shop"));
+                    list.add(dto);
+                }
+            } else {
+                System.err.println("No JSON found in Manmanbuy Python output: " + output);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Failed to run Manmanbuy crawler: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    private List<ProductPriceDTO> crawlTaobao(String keyword) {
+        List<ProductPriceDTO> list = new ArrayList<>();
+        try {
+            // Locate the Python script
+            String projectDir = System.getProperty("user.dir");
+            String scriptPath = projectDir + "/scripts/taobao_spider.py";
+            
+            // Build command: python script.py keyword
+            // Ensure python is in PATH or specify absolute path
+            ProcessBuilder processBuilder = new ProcessBuilder("python", scriptPath, keyword);
+            processBuilder.redirectErrorStream(true); // Merge stderr to stdout for debugging
+            
+            Process process = processBuilder.start();
+            
+            // Read output
+            java.io.InputStream inputStream = process.getInputStream();
+            java.util.Scanner s = new java.util.Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+            String output = s.hasNext() ? s.next() : "";
+            
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                System.err.println("Python script exited with code " + exitCode);
+                System.err.println("Output: " + output);
+                return list;
+            }
+
+            // Parse JSON output
+            // Find the JSON part (in case there are other logs)
+            // Assuming the script prints only JSON to stdout at the end, or we scan for [ ... ]
+            int jsonStart = output.indexOf("[");
+            int jsonEnd = output.lastIndexOf("]");
+            
+            if (jsonStart != -1 && jsonEnd != -1) {
+                String jsonStr = output.substring(jsonStart, jsonEnd + 1);
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                List<java.util.Map<String, String>> items = mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<java.util.Map<String, String>>>(){});
+                
+                for (java.util.Map<String, String> item : items) {
+                    ProductPriceDTO dto = new ProductPriceDTO();
+                    dto.setPlatform(item.get("platform"));
+                    dto.setName(item.get("title"));
+                    try {
+                        String priceStr = item.get("price").replace("¥", "").trim();
+                        dto.setPrice(new BigDecimal(priceStr));
+                    } catch (Exception e) {
+                        dto.setPrice(BigDecimal.ZERO);
+                    }
+                    dto.setProductUrl(item.get("url"));
+                    dto.setImageUrl(item.get("imageUrl"));
+                    dto.setShopName(item.get("shopName"));
+                    list.add(dto);
+                }
+            } else {
+                System.err.println("No JSON found in Python output: " + output);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Failed to run Python crawler: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return list;
     }
 
     private List<ProductPriceDTO> crawlPinduoduo(String keyword) throws IOException {
@@ -99,26 +259,25 @@ public class CrawlerService {
         // Pinduoduo Mobile Search URL
         String url = "http://mobile.yangkeduo.com/search_result.html?search_key=" + keyword;
         
-        Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
-                .timeout(5000)
-                .get();
+        try {
+            Document doc = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+                    .timeout(5000)
+                    .get();
 
-        // Pinduoduo is heavily JS rendered. Jsoup usually gets a skeleton.
-        // We try to find any embedded data or basic list items if SSR is active.
-        // Note: This is highly likely to fail or return empty without a headless browser.
-        // We look for common container classes or JSON data in scripts.
-        
-        // Attempt to find script containing window.rawData or similar
-        Elements scripts = doc.select("script");
-        for (Element script : scripts) {
-            String html = script.html();
-            if (html.contains("goods_name")) {
-                 // Very complex parsing would be needed here, simplified for this context
-                 // If we find raw data, we might be able to regex it.
-                 // For now, we assume if we can't find standard elements, we return empty.
+            // Pinduoduo is heavily JS rendered. Jsoup usually gets a skeleton.
+            // Simplified logic as placeholder
+            Elements scripts = doc.select("script");
+            for (Element script : scripts) {
+                String html = script.html();
+                if (html.contains("goods_name")) {
+                     // Parsing logic would go here
+                }
             }
+        } catch (Exception e) {
+            // Pinduoduo often fails without proper headers/cookies
+            System.err.println("PDD Jsoup error: " + e.getMessage());
         }
         
         return list;
@@ -145,7 +304,6 @@ public class CrawlerService {
                 .timeout(10000)
                 .get();
 
-        // User suggested selector: //*[@id="J_goodsList"]/ul/li
         Elements items = doc.select("#J_goodsList ul li");
         
         if (items.isEmpty()) {
@@ -155,14 +313,12 @@ public class CrawlerService {
         for (Element item : items) {
             try {
                 // Title
-                // User suggested: .//div[@class="p-name p-name-type-2"]/a/em/text()
                 String name = item.select(".p-name a em").text();
                 if (name.isEmpty()) {
                     name = item.select(".p-name em").text();
                 }
 
                 // Price
-                // User suggested: .//div[@class="p-price"]/strong/i/text()
                 String priceStr = item.select(".p-price strong i").text();
                 
                 // Image
@@ -175,8 +331,6 @@ public class CrawlerService {
                 }
                 
                 // Link
-                // User suggested extracting ID from: .//div[@class="p-commit"]/strong/a/@id
-                // id format: "J_comment_{skuId}"
                 String link = item.select(".p-img a").attr("href");
                 if (link.isEmpty()) {
                     String commentId = item.select(".p-commit strong a").attr("id");
@@ -206,56 +360,6 @@ public class CrawlerService {
                 // Ignore single item parse error
             }
             if (list.size() >= 5) break; // Limit to 5 items
-        }
-        return list;
-    }
-
-    private List<ProductPriceDTO> crawlTaobao(String keyword) throws IOException {
-        List<ProductPriceDTO> list = new ArrayList<>();
-        String url = "https://s.taobao.com/search?q=" + keyword;
-        
-        // Taobao is very strict. This simple request often redirects to login.
-        // In a real production environment, you would need Selenium or Puppeteer.
-        Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("Referer", "https://www.taobao.com/")
-                .timeout(5000)
-                .get();
-
-        // Taobao structure changes frequently and is rendered by JS. 
-        // Jsoup sees the initial HTML which might be empty or a login page.
-        // We attempt to find typical elements but expect failure without browser automation.
-        
-        // Example selector (might be outdated due to dynamic rendering):
-        var items = doc.select(".item.J_MouserOnverReq"); 
-        
-        for (var item : items) {
-            try {
-                String name = item.select(".title a").text().trim();
-                String priceStr = item.select(".price strong").text();
-                String imgUrl = item.select(".pic img").attr("data-src");
-                if (imgUrl.isEmpty()) imgUrl = item.select(".pic img").attr("src");
-                if (!imgUrl.startsWith("http")) imgUrl = "https:" + imgUrl;
-                
-                String link = item.select(".pic a").attr("href");
-                if (!link.startsWith("http")) link = "https:" + link;
-                
-                String shopName = item.select(".shop a").text().trim();
-
-                if (!name.isEmpty() && !priceStr.isEmpty()) {
-                    list.add(new ProductPriceDTO(
-                            "Taobao",
-                            name,
-                            new BigDecimal(priceStr),
-                            imgUrl,
-                            link,
-                            shopName
-                    ));
-                }
-            } catch (Exception e) {
-                // Ignore
-            }
-            if (list.size() >= 5) break;
         }
         return list;
     }
@@ -290,19 +394,6 @@ public class CrawlerService {
             ));
         }
 
-        // Mock Pinduoduo Data
-        for (int i = 0; i < 3; i++) {
-            BigDecimal price = BigDecimal.valueOf(random.nextDouble() * 800 + 20).setScale(2, BigDecimal.ROUND_HALF_UP);
-            results.add(new ProductPriceDTO(
-                    "Pinduoduo (Mock)",
-                    "PDD: " + keyword + " Group Buy " + (i + 1),
-                    price,
-                    "https://placehold.co/200x200/e02e24/ffffff?text=PDD",
-                    "https://www.pinduoduo.com",
-                    "PDD Flagship " + (i + 1)
-            ));
-        }
-        
         return results;
     }
 }

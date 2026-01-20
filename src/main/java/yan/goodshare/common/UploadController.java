@@ -8,8 +8,17 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import jakarta.annotation.PostConstruct;
+import java.io.File;
+import java.util.Iterator;
+import java.util.stream.Stream;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,6 +42,31 @@ public class UploadController {
         }
     }
 
+    @PostConstruct
+    public void init() {
+        // Scan for existing images and generate thumbnails if missing
+        try (Stream<Path> paths = Files.walk(this.fileStorageLocation)) {
+            paths.filter(Files::isRegularFile)
+                 .forEach(path -> {
+                     String filename = path.getFileName().toString();
+                     if (isImage(filename) && !filename.contains("_thumb.")) {
+                         String thumbName = getThumbFilename(filename);
+                         Path thumbPath = this.fileStorageLocation.resolve(thumbName);
+                         if (!Files.exists(thumbPath)) {
+                             try {
+                                 createThumbnail(path.toFile(), thumbPath.toFile());
+                                 System.out.println("Generated missing thumbnail: " + thumbName);
+                             } catch (Exception e) {
+                                 System.err.println("Failed to generate thumbnail for " + filename + ": " + e.getMessage());
+                             }
+                         }
+                     }
+                 });
+        } catch (IOException e) {
+            System.err.println("Failed to scan uploads directory: " + e.getMessage());
+        }
+    }
+
     @PostMapping
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
         String fileName = StringUtils.cleanPath(file.getOriginalFilename());
@@ -46,13 +80,110 @@ public class UploadController {
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
             String fileUrl = "http://localhost:8080/uploads/" + newFileName;
+            String thumbnailUrl = fileUrl;
+
+            // Generate thumbnail if image
+            if (isImage(newFileName)) {
+                try {
+                    String thumbFileName = getThumbFilename(newFileName);
+                    Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
+                    createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
+                    thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
+                } catch (Exception e) {
+                    System.err.println("Failed to generate thumbnail: " + e.getMessage());
+                    // Fallback to original URL if thumb generation fails
+                }
+            }
 
             Map<String, String> response = new HashMap<>();
             response.put("url", fileUrl);
+            response.put("thumbnailUrl", thumbnailUrl);
             
             return ResponseEntity.ok(response);
         } catch (IOException ex) {
             return ResponseEntity.internalServerError().body("Could not store file " + fileName + ". Please try again!");
         }
+    }
+
+    private boolean isImage(String filename) {
+        String lower = filename.toLowerCase();
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".gif") || lower.endsWith(".bmp") || lower.endsWith(".webp");
+    }
+
+    private String getThumbFilename(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex == -1) return filename + "_thumb";
+        return filename.substring(0, dotIndex) + "_thumb" + filename.substring(dotIndex);
+    }
+
+    private void createThumbnail(File originalFile, File thumbFile) throws IOException {
+        BufferedImage originalImage = ImageIO.read(originalFile);
+        if (originalImage == null) return; // Not a valid image file
+
+        int originalWidth = originalImage.getWidth();
+        int originalHeight = originalImage.getHeight();
+        
+        // Target max dimension increased to 800px for better quality
+        int maxDim = 800;
+        
+        if (originalWidth <= maxDim && originalHeight <= maxDim) {
+            // No need to resize, just copy
+            Files.copy(originalFile.toPath(), thumbFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            return;
+        }
+
+        int newWidth, newHeight;
+        if (originalWidth > originalHeight) {
+            newWidth = maxDim;
+            newHeight = (int) ((double) originalHeight / originalWidth * maxDim);
+        } else {
+            newHeight = maxDim;
+            newWidth = (int) ((double) originalWidth / originalHeight * maxDim);
+        }
+
+        String extension = getExtension(thumbFile.getName());
+        boolean isPng = "png".equalsIgnoreCase(extension);
+
+        // Preserve transparency for PNG, use RGB for others to avoid color issues
+        int type = isPng ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+
+        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, type);
+        Graphics2D g = resizedImage.createGraphics();
+        
+        // Improve quality with Bicubic interpolation and other hints
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
+        g.dispose();
+
+        if ("jpg".equalsIgnoreCase(extension) || "jpeg".equalsIgnoreCase(extension)) {
+             writeJpeg(resizedImage, thumbFile, 0.9f); // 90% quality
+        } else {
+             ImageIO.write(resizedImage, extension, thumbFile);
+        }
+    }
+
+    private void writeJpeg(BufferedImage image, File file, float quality) throws IOException {
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+        if (!writers.hasNext()) throw new IllegalStateException("No writers found");
+        ImageWriter writer = writers.next();
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(file)) {
+            writer.setOutput(ios);
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            if (param.canWriteCompressed()) {
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(quality);
+            }
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), param);
+        } finally {
+            writer.dispose();
+        }
+    }
+
+    private String getExtension(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        return (dotIndex == -1) ? "jpg" : filename.substring(dotIndex + 1);
     }
 }

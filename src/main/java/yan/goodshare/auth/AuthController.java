@@ -41,7 +41,7 @@ public class AuthController {
             user.setUsername(registerRequest.getUsername());
             user.setPassword(registerRequest.getPassword());
             user.setEmail(registerRequest.getEmail());
-            user.setRoles(Set.of("USER")); // Default role
+            user.setRoles(Set.of("ROLE_USER")); // Default role
 
             authService.register(user);
             return ResponseEntity.ok("User registered successfully");

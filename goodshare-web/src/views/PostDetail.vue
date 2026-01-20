@@ -10,19 +10,35 @@
         <div v-if="imageList.length > 0" class="image-section">
           <el-carousel v-if="imageList.length > 1" trigger="click" height="100%" :autoplay="false" arrow="always">
             <el-carousel-item v-for="(img, index) in imageList" :key="index">
-              <div class="image-wrapper" :style="{ backgroundImage: `url(${img})` }"></div>
+              <div class="image-wrapper" :style="{ backgroundImage: `url('${img}')` }"></div>
             </el-carousel-item>
           </el-carousel>
-          <div v-else class="image-wrapper" :style="{ backgroundImage: `url(${imageList[0]})` }"></div>
+          <div v-else class="image-wrapper" :style="{ backgroundImage: `url('${imageList[0]}')` }"></div>
         </div>
         
         <!-- Right: Info -->
         <div class="info-section" :class="{ 'full-width': !post.coverUrl }">
           <!-- Author Header -->
           <div class="author-header">
-            <el-avatar :size="40" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-            <span class="username">{{ post.user?.username || '用户' }}</span>
-            <el-button type="primary" round size="small" class="follow-btn">关注</el-button>
+            <div class="avatar-container" @click="goToUser">
+                <el-avatar 
+                    :size="40" 
+                    :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" 
+                    class="clickable-avatar"
+                />
+            </div>
+            <span class="username clickable-username" @click="goToUser">{{ post.user?.username || '用户' }}</span>
+            <el-button 
+                v-if="(post.userId || post.user?.id) !== authStore.state.user?.id"
+                :type="isFollowing ? 'default' : 'primary'"  
+                round 
+                size="small" 
+                class="follow-btn"
+                @click="toggleFollow"
+                :loading="followLoading"
+            >
+                {{ isFollowing ? '已关注' : '关注' }}
+            </el-button>
           </div>
           
           <!-- Scrollable Content -->
@@ -34,7 +50,12 @@
               <span v-for="tag in post.tags" :key="tag.id" class="tag">#{{ tag.name }}</span>
             </div>
             
-            <div class="date">{{ formatDate(post.createdAt) }}</div>
+            <div class="meta-row">
+                <div class="date">{{ formatDate(post.createdAt) }}</div>
+                <div class="view-count">
+                    <el-icon><View /></el-icon> <span>{{ post.viewCount || 0 }}</span>
+                </div>
+            </div>
             
             <el-divider />
             
@@ -109,8 +130,18 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
-import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag } from '@element-plus/icons-vue'
+import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import authStore from '../stores/auth'
+
+const props = defineProps({
+    postId: {
+        type: [String, Number],
+        default: null
+    }
+})
+
+const emit = defineEmits(['close'])
 
 const route = useRoute()
 const router = useRouter()
@@ -122,6 +153,8 @@ const submitting = ref(false)
 const isLiked = ref(false)
 const likeCount = ref(0)
 const isFavorited = ref(false)
+const isFollowing = ref(false)
+const followLoading = ref(false)
 
 const emojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -142,6 +175,25 @@ const emojis = [
 
 const addEmoji = (emoji) => {
     newComment.value += emoji
+}
+
+const goToUser = async () => {
+    try {
+        const authorId = post.value.userId || post.value.user?.id
+        
+        if (!authorId) {
+            ElMessage.warning('无法获取用户信息')
+            return
+        }
+        
+        if (authStore.state.user?.id === authorId) {
+            await router.push('/me')
+        } else {
+            await router.push(`/user/${authorId}`)
+        }
+    } catch (e) {
+        console.error('Navigation error:', e)
+    }
 }
 
 const imageList = computed(() => {
@@ -171,6 +223,10 @@ const fetchPost = async (id) => {
     try {
         const res = await request.get(`/posts/${id}`)
         post.value = res.data
+        const authorId = post.value.userId || post.value.user?.id
+        if (authorId) {
+            checkFollowStatus(authorId)
+        }
     } catch (err) {
         console.error('Failed to load post', err)
         ElMessage.error('加载帖子失败')
@@ -204,6 +260,51 @@ const fetchFavoriteStatus = async (id) => {
         isFavorited.value = res.data
     } catch (err) {
         console.error('Failed to load favorite status', err)
+    }
+}
+
+const checkFollowStatus = async (authorId) => {
+    if (!authStore.state.isAuthenticated || !authorId) return
+    if (authStore.state.user?.id === authorId) return // Don't check for self
+
+    try {
+        const res = await request.get(`/users/${authorId}/is-following`)
+        isFollowing.value = res.data.isFollowing
+    } catch (err) {
+        console.error('Failed to check follow status', err)
+    }
+}
+
+const toggleFollow = async () => {
+    if (!authStore.state.isAuthenticated) {
+        ElMessage.warning('请先登录')
+        router.push('/login')
+        return
+    }
+    
+    const authorId = post.value.userId || post.value.user?.id
+    if (!authorId) {
+        console.error('No author ID found for post:', post.value)
+        ElMessage.warning('无法获取作者信息')
+        return
+    }
+    
+    followLoading.value = true
+    try {
+        if (isFollowing.value) {
+            await request.post(`/users/${authorId}/unfollow`)
+            isFollowing.value = false
+            ElMessage.success('已取消关注')
+        } else {
+            await request.post(`/users/${authorId}/follow`)
+            isFollowing.value = true
+            ElMessage.success('关注成功')
+        }
+    } catch (err) {
+        console.error('Failed to toggle follow', err)
+        ElMessage.error('操作失败')
+    } finally {
+        followLoading.value = false
     }
 }
 
@@ -259,21 +360,35 @@ const submitComment = async () => {
     }
 }
 
+const recordView = async (id) => {
+    try {
+        await request.post(`/posts/${id}/view`)
+    } catch (err) {
+        // Ignore view record errors
+        console.error('Failed to record view', err)
+    }
+}
+
 onMounted(() => {
     visible.value = true
-    const postId = route.params.id
-    if (postId) {
-        fetchPost(postId)
-        fetchComments(postId)
-        fetchLikeInfo(postId)
-        fetchFavoriteStatus(postId)
+    const id = props.postId || route.params.id
+    if (id) {
+        recordView(id)
+        fetchPost(id)
+        fetchComments(id)
+        fetchLikeInfo(id)
+        fetchFavoriteStatus(id)
     }
 })
 
 const handleClose = () => {
     visible.value = false
     setTimeout(() => {
-        router.back()
+        if (props.postId) {
+            emit('close')
+        } else {
+            router.back()
+        }
     }, 300)
 }
 </script>
@@ -296,12 +411,14 @@ const handleClose = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: brightness(90%);
+  -webkit-backdrop-filter: brightness(90%);
 }
 .modal-content {
   position: relative;
-  width: 900px;
-  height: 85vh;
+  width: 1000px;
+  height: 90%;
   background: var(--bg-color-overlay);
   border-radius: 16px;
   overflow: hidden;
@@ -367,11 +484,24 @@ const handleClose = () => {
   align-items: center;
   margin-bottom: 20px;
 }
+.clickable-avatar {
+    cursor: pointer;
+    transition: opacity 0.3s;
+}
+.clickable-avatar:hover {
+    opacity: 0.8;
+}
 .username {
   margin-left: 12px;
   font-weight: 600;
   flex: 1;
   color: var(--text-color);
+}
+.clickable-username {
+    cursor: pointer;
+}
+.clickable-username:hover {
+    color: var(--el-color-primary);
 }
 .scrollable-content {
   flex: 1;
@@ -393,11 +523,32 @@ const handleClose = () => {
 .post-text :deep(img) {
     max-width: 100%;
     border-radius: 8px;
-}
 .tags-list {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
+}
+.tag {
+    color: var(--el-color-primary);
+    cursor: pointer;
+}
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    color: var(--text-color-secondary);
+    font-size: 12px;
+}
+.view-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.date {
+  /* color: var(--text-color-secondary); Remove if handled by meta-row */
+} flex-wrap: wrap;
   gap: 8px;
 }
 .tag {

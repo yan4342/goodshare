@@ -84,6 +84,118 @@ public class DatabasePatchConfig {
             } catch (Exception e) {
                 System.err.println("Error modifying images column: " + e.getMessage());
             }
+
+            // 7. Add view_count column to posts
+            try {
+                jdbcTemplate.execute("ALTER TABLE posts ADD COLUMN view_count INT DEFAULT 0");
+                System.out.println("Added view_count column to posts table.");
+            } catch (Exception e) {
+                // Column likely exists
+            }
+
+            // 8. Create post_views table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS post_views (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "user_id BIGINT NOT NULL," +
+                        "post_id BIGINT NOT NULL," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                        "UNIQUE KEY unique_user_post (user_id, post_id)" +
+                        ")");
+                System.out.println("Ensured post_views table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating post_views table: " + e.getMessage());
+            }
+
+            // 9. Add status column to posts
+            try {
+                jdbcTemplate.execute("ALTER TABLE posts ADD COLUMN status INT DEFAULT 0");
+                System.out.println("Added status column to posts table.");
+            } catch (Exception e) {
+                // Column likely exists
+            }
+
+            // 9. Ensure app_configs table exists and has defaults
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS app_configs (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "config_key VARCHAR(100) NOT NULL UNIQUE," +
+                        "config_value VARCHAR(255) NOT NULL," +
+                        "description VARCHAR(255)," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                        ")");
+                System.out.println("Ensured app_configs table exists.");
+
+                // Insert defaults if not exist
+                String checkSql = "SELECT count(*) FROM app_configs WHERE config_key = ?";
+                
+                // View Weight
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.view") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
+                            "weight.view", "0.5", "Weight for View interaction");
+                }
+                // Like Weight
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.like") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
+                            "weight.like", "1.0", "Weight for Like interaction");
+                }
+                // Favorite Weight
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.favorite") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
+                            "weight.favorite", "2.0", "Weight for Favorite interaction");
+                }
+                // Comment Weight
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.comment") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
+                            "weight.comment", "3.0", "Weight for Comment interaction");
+                }
+                
+                System.out.println("Ensured default app_configs values.");
+            } catch (Exception e) {
+                System.err.println("Error setting up app_configs: " + e.getMessage());
+            }
+            // 10. Create search_stats table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS search_stats (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "keyword VARCHAR(255) NOT NULL UNIQUE," +
+                        "search_count BIGINT DEFAULT 1," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                        ")");
+                System.out.println("Ensured search_stats table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating search_stats table: " + e.getMessage());
+            }
+
+            // 11. Create follows table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS follows (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "follower_id BIGINT NOT NULL," +
+                        "followed_id BIGINT NOT NULL," +
+                        "UNIQUE KEY uk_follow (follower_id, followed_id)" +
+                        ")");
+                System.out.println("Ensured follows table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating follows table: " + e.getMessage());
+            }
+
+            // 12. Create messages table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS messages (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "sender_id BIGINT NOT NULL," +
+                        "receiver_id BIGINT NOT NULL," +
+                        "content TEXT," +
+                        "is_read BOOLEAN DEFAULT FALSE," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        ")");
+                System.out.println("Ensured messages table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating messages table: " + e.getMessage());
+            }
         };
     }
 }

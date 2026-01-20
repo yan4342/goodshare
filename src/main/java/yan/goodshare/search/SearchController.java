@@ -29,4 +29,9 @@ public class SearchController {
                 .collect(Collectors.toList())
         );
     }
+
+    @GetMapping("/hot")
+    public ResponseEntity<?> getHotKeywords() {
+        return ResponseEntity.ok(searchService.getHotKeywords());
+    }
 }

@@ -16,11 +16,37 @@
       >
         <span>帖子管理</span>
       </div>
+      <div 
+        class="menu-item" 
+        :class="{ active: currentTab === 'audit' }"
+        @click="currentTab = 'audit'"
+      >
+        <span>内容审核</span>
+      </div>
+      <div 
+        class="menu-item" 
+        :class="{ active: currentTab === 'users' }"
+        @click="currentTab = 'users'"
+      >
+        <span>用户管理</span>
+      </div>
+      <div 
+        class="menu-item" 
+        :class="{ active: currentTab === 'weights' }"
+        @click="currentTab = 'weights'"
+      >
+        <span>算法权重</span>
+      </div>
     </div>
     
     <div class="admin-content">
       <div class="header">
-        <h2>{{ currentTab === 'tags' ? '标签管理' : '帖子管理' }}</h2>
+        <h2>{{ 
+            currentTab === 'tags' ? '标签管理' : 
+            currentTab === 'posts' ? '帖子管理' : 
+            currentTab === 'audit' ? '内容审核' :
+            currentTab === 'users' ? '用户管理' : '算法权重配置' 
+        }}</h2>
         <el-button type="primary" @click="logout">退出登录</el-button>
       </div>
       
@@ -53,7 +79,17 @@
 
       <!-- Posts Management -->
       <div v-if="currentTab === 'posts'">
-         <el-table :data="posts" style="width: 100%; margin-top: 20px;" v-loading="postsLoading">
+        <div class="actions">
+            <el-button 
+                type="danger" 
+                @click="deleteSelectedPosts" 
+                :disabled="selectedPosts.length === 0"
+            >
+                批量删除
+            </el-button>
+        </div>
+         <el-table :data="posts" style="width: 100%; margin-top: 20px;" v-loading="postsLoading" @selection-change="handlePostSelectionChange">
+          <el-table-column type="selection" width="55" />
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column label="封面" width="100">
              <template #default="scope">
@@ -88,6 +124,142 @@
         </el-table>
       </div>
 
+      <!-- Audit Management -->
+      <div v-if="currentTab === 'audit'">
+         <el-table :data="auditPosts" style="width: 100%; margin-top: 20px;" v-loading="auditLoading">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column label="封面" width="100">
+             <template #default="scope">
+                <el-image 
+                    v-if="getCoverUrl(scope.row)"
+                    style="width: 60px; height: 60px; border-radius: 4px;" 
+                    :src="getCoverUrl(scope.row)" 
+                    :preview-src-list="[scope.row.coverUrl]"
+                    fit="cover"
+                />
+                <div v-else style="width: 60px; height: 60px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999;">无图</div>
+             </template>
+          </el-table-column>
+          <el-table-column prop="title" label="标题" show-overflow-tooltip />
+          <el-table-column prop="content" label="内容摘要" show-overflow-tooltip />
+          <el-table-column label="作者" width="150">
+             <template #default="scope">
+                {{ scope.row.user?.nickname || scope.row.user?.username }}
+             </template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="发布时间" width="180">
+              <template #default="scope">
+                  {{ formatDate(scope.row.createdAt) }}
+              </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180">
+            <template #default="scope">
+              <el-button 
+                type="success" 
+                size="small" 
+                @click="updateStatus(scope.row.id, 1)"
+              >通过</el-button>
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click="updateStatus(scope.row.id, 2)"
+              >拒绝</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+            <el-pagination
+                v-model:current-page="auditPage"
+                v-model:page-size="auditSize"
+                :page-sizes="[10, 20, 50]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="auditTotal"
+                @size-change="handleAuditSizeChange"
+                @current-change="handleAuditCurrentChange"
+            />
+        </div>
+      </div>
+
+      <!-- Users Management -->
+      <div v-if="currentTab === 'users'">
+        <el-table :data="users" style="width: 100%; margin-top: 20px;" v-loading="usersLoading">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="username" label="用户名" width="150" />
+          <el-table-column prop="nickname" label="昵称" width="150" />
+          <el-table-column prop="email" label="邮箱" show-overflow-tooltip />
+          <el-table-column prop="role" label="角色" width="120">
+             <template #default="scope">
+                 <el-tag :type="scope.row.role.includes('ADMIN') ? 'danger' : 'info'">{{ scope.row.role }}</el-tag>
+             </template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="注册时间" width="180">
+              <template #default="scope">
+                  {{ formatDate(scope.row.createdAt) }}
+              </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120">
+            <template #default="scope">
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click="deleteUser(scope.row.id)"
+                :disabled="scope.row.role.includes('ADMIN')"
+              >删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+            <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="totalUsers"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+            />
+        </div>
+      </div>
+
+      <!-- Algorithm Weights Management -->
+      <div v-if="currentTab === 'weights'" style="margin-top: 20px; max-width: 600px;">
+          <el-card v-loading="weightsLoading">
+              <template #header>
+                  <div class="card-header">
+                      <span>推荐算法权重配置 (UserCF)</span>
+                  </div>
+              </template>
+              <el-form label-position="right" label-width="120px">
+                  <el-form-item label="浏览 (View)">
+                      <el-input-number v-model="weights['weight.view']" :step="0.1" :min="0" />
+                      <span class="help-text">用户浏览帖子的权重 (默认 0.5)</span>
+                  </el-form-item>
+                  <el-form-item label="点赞 (Like)">
+                      <el-input-number v-model="weights['weight.like']" :step="0.1" :min="0" />
+                      <span class="help-text">用户点赞帖子的权重 (默认 1.0)</span>
+                  </el-form-item>
+                  <el-form-item label="收藏 (Favorite)">
+                      <el-input-number v-model="weights['weight.favorite']" :step="0.1" :min="0" />
+                      <span class="help-text">用户收藏帖子的权重 (默认 2.0)</span>
+                  </el-form-item>
+                  <el-form-item label="评论 (Comment)">
+                      <el-input-number v-model="weights['weight.comment']" :step="0.1" :min="0" />
+                      <span class="help-text">用户评论帖子的权重 (默认 3.0)</span>
+                  </el-form-item>
+                  <el-form-item>
+                      <el-button type="primary" @click="saveWeights">保存配置</el-button>
+                  </el-form-item>
+              </el-form>
+              <div style="margin-top: 20px; color: #666; font-size: 14px;">
+                  <p>说明：</p>
+                  <p>1. 权重越高，该行为对推荐结果的影响越大。</p>
+                  <p>2. 修改后，新的推荐计算将立即使用新权重。</p>
+              </div>
+          </el-card>
+      </div>
+
     </div>
   </div>
 </template>
@@ -98,6 +270,7 @@ import request from '../../utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import authStore from '../../stores/auth'
+import { getThumbnailUrl } from '../../utils/image'
 
 const router = useRouter()
 const currentTab = ref('tags')
@@ -110,6 +283,30 @@ const loading = ref(false)
 // Posts Data
 const posts = ref([])
 const postsLoading = ref(false)
+const selectedPosts = ref([])
+
+// Users Data
+const users = ref([])
+const usersLoading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalUsers = ref(0)
+
+// Audit Data
+const auditPosts = ref([])
+const auditLoading = ref(false)
+const auditPage = ref(1)
+const auditSize = ref(10)
+const auditTotal = ref(0)
+
+// Weights Data
+const weights = ref({
+    'weight.view': 0.5,
+    'weight.like': 1.0,
+    'weight.favorite': 2.0,
+    'weight.comment': 3.0
+})
+const weightsLoading = ref(false)
 
 onMounted(() => {
   fetchTags()
@@ -120,6 +317,12 @@ watch(currentTab, (newTab) => {
         fetchPosts()
     } else if (newTab === 'tags') {
         fetchTags()
+    } else if (newTab === 'users') {
+        fetchUsers()
+    } else if (newTab === 'weights') {
+        fetchWeights()
+    } else if (newTab === 'audit') {
+        fetchAuditPosts()
     }
 })
 
@@ -127,7 +330,7 @@ watch(currentTab, (newTab) => {
 const fetchTags = async () => {
   loading.value = true
   try {
-    const res = await request.get('/tags')
+    const res = await request.get('/tags', { _isAdmin: true })
     tags.value = res.data
   } catch (error) {
     console.error('Failed to fetch tags', error)
@@ -141,7 +344,7 @@ const addTag = async () => {
   
   try {
     // Send object with name property instead of raw string
-    await request.post('/tags', { name: newTag.value.trim() })
+    await request.post('/tags', { name: newTag.value.trim() }, { _isAdmin: true })
     ElMessage.success('添加成功')
     newTag.value = ''
     fetchTags()
@@ -161,7 +364,7 @@ const deleteTag = (id) => {
     }
   ).then(async () => {
     try {
-      await request.delete(`/tags/${id}`)
+      await request.delete(`/tags/${id}`, { _isAdmin: true })
       ElMessage.success('删除成功')
       fetchTags()
     } catch (error) {
@@ -205,13 +408,161 @@ const deletePost = (id) => {
   })
 }
 
+const deleteSelectedPosts = () => {
+    ElMessageBox.confirm(
+        `确定要批量删除选中的 ${selectedPosts.value.length} 条帖子吗？此操作不可恢复。`,
+        '警告',
+        {
+            confirmButtonText: '删除',
+            cancelButtonText: '取消',
+            type: 'error',
+        }
+    ).then(async () => {
+        const ids = selectedPosts.value.map(p => p.id)
+        try {
+            await request.delete('/admin/posts', { data: { ids } })
+            ElMessage.success('批量删除成功')
+            fetchPosts()
+        } catch (error) {
+            console.error(error)
+            ElMessage.error('批量删除失败')
+        }
+    })
+}
+
+const handlePostSelectionChange = (selection) => {
+    selectedPosts.value = selection
+}
+
+// --- Audit Methods ---
+const fetchAuditPosts = async () => {
+    auditLoading.value = true
+    try {
+        const res = await request.get('/admin/posts/pending', {
+            params: {
+                page: auditPage.value,
+                size: auditSize.value
+            }
+        })
+        auditPosts.value = res.data.records
+        auditTotal.value = res.data.total
+    } catch (error) {
+        console.error('Failed to fetch pending posts', error)
+        ElMessage.error('获取待审核列表失败')
+    } finally {
+        auditLoading.value = false
+    }
+}
+
+const updateStatus = async (id, status) => {
+    try {
+        await request.put(`/admin/posts/${id}/status`, { status })
+        ElMessage.success(status === 1 ? '已通过' : '已拒绝')
+        fetchAuditPosts()
+    } catch (error) {
+        ElMessage.error('操作失败')
+    }
+}
+
+const handleAuditSizeChange = (val) => {
+    auditSize.value = val
+    fetchAuditPosts()
+}
+
+const handleAuditCurrentChange = (val) => {
+    auditPage.value = val
+    fetchAuditPosts()
+}
+
+// --- User Methods ---
+const fetchUsers = async () => {
+    usersLoading.value = true
+    try {
+        const res = await request.get('/admin/users', {
+            params: {
+                page: currentPage.value,
+                size: pageSize.value
+            },
+            _isAdmin: true
+        })
+        users.value = res.data.records
+        totalUsers.value = res.data.total
+    } catch (e) {
+        ElMessage.error('获取用户列表失败')
+    } finally {
+        usersLoading.value = false
+    }
+}
+
+const handleSizeChange = (val) => {
+    pageSize.value = val
+    fetchUsers()
+}
+
+const handleCurrentChange = (val) => {
+    currentPage.value = val
+    fetchUsers()
+}
+
+const deleteUser = (id) => {
+    ElMessageBox.confirm('确定要删除该用户吗？将同时删除其所有帖子、评论和互动数据！', '严重警告', {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'error'
+    }).then(async () => {
+        try {
+            await request.delete(`/admin/users/${id}`)
+            ElMessage.success('用户已删除')
+            fetchUsers()
+        } catch (e) {
+            ElMessage.error('删除失败')
+        }
+    })
+}
+
+// --- Weight Methods ---
+const fetchWeights = async () => {
+    weightsLoading.value = true
+    try {
+        const res = await request.get('/admin/weights')
+        weights.value = { ...weights.value, ...res.data }
+    } catch (e) {
+        ElMessage.error('获取权重配置失败')
+    } finally {
+        weightsLoading.value = false
+    }
+}
+
+const saveWeights = async () => {
+    try {
+        await request.post('/admin/weights', weights.value)
+        ElMessage.success('权重配置已保存')
+    } catch (e) {
+        ElMessage.error('保存失败')
+    }
+}
+
 const formatDate = (dateStr) => {
     if (!dateStr) return ''
-    return new Date(dateStr).toLocaleString()
+    const date = new Date(dateStr)
+    return date.toLocaleString()
+}
+
+const getCoverUrl = (post) => {
+    let url = null
+    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
+        url = post.coverUrl
+    } else if (post.images) {
+        try {
+            const imgs = typeof post.images === 'string' ? JSON.parse(post.images) : post.images
+            if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
+        } catch (e) {}
+    }
+    return getThumbnailUrl(url)
 }
 
 const logout = () => {
-    authStore.logout()
+    localStorage.removeItem('admin_token')
     router.push('/admin/login')
 }
 </script>

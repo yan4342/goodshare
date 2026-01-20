@@ -3,6 +3,14 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
+import authStore from './stores/auth'
+
+onMounted(() => {
+    if (authStore.state.isAuthenticated && !authStore.state.user) {
+        authStore.fetchUser()
+    }
+})
 </script>
 
 <style>

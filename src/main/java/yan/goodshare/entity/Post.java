@@ -41,7 +41,32 @@ public class Post {
     @TableField(exist = false)
     private Integer likeCount = 0;
 
+    @TableField("view_count")
+    private Integer viewCount = 0;
+
+    /**
+     * Status: 0=Pending (Visible), 1=Approved (Visible), 2=Rejected (Hidden)
+     */
+    @TableField("status")
+    private Integer status = 0;
+
     // Getters and Setters
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public Integer getViewCount() {
+        return viewCount;
+    }
+
+    public void setViewCount(Integer viewCount) {
+        this.viewCount = viewCount;
+    }
 
     public Integer getLikeCount() {
         return likeCount;

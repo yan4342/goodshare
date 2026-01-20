@@ -5,30 +5,51 @@
       <Navbar />
       
       <div class="content-body">
-        <h2 class="search-title">搜索结果: "{{ query }}"</h2>
+        <div class="search-layout">
+          <div class="search-results">
+            <h2 class="search-title">搜索结果: "{{ query }}"</h2>
 
-        <!-- Waterfall Grid -->
-        <div class="masonry-grid" v-if="posts.length > 0">
-          <div v-for="post in posts" :key="post.id" class="post-card" @click="openPost(post)">
-            <div class="cover-image" :style="{ backgroundImage: `url(${post.coverUrl || 'https://placehold.co/300x400?text=No+Image'})` }"></div>
-            <div class="card-info">
-              <h3 class="post-title">{{ post.title }}</h3>
-              <div class="post-meta">
-                <div class="author">
-                  <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-                  <span class="author-name">{{ post.user?.nickname || post.user?.username || '用户' }}</span>
+            <!-- Waterfall Grid -->
+            <div class="masonry-grid" v-if="posts.length > 0">
+              <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post)">
+                <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                <div class="card-info">
+                  <h3 class="post-title">{{ post.title }}</h3>
+                  <div class="post-meta">
+                    <div class="author">
+                      <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+                      <span class="author-name">{{ post.user?.nickname || post.user?.username || '用户' }}</span>
+                    </div>
+                    <div class="likes">
+                      <el-icon><Star /></el-icon>
+                      <span>{{ post.likeCount || 0 }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="likes">
-                  <el-icon><Star /></el-icon>
-                  <span>{{ post.likeCount || 0 }}</span>
+              </div>
+            </div>
+            
+            <div v-else class="empty-state">
+                <el-empty description="未找到相关内容" />
+            </div>
+          </div>
+
+          <!-- Hot Search Sidebar -->
+          <div class="search-sidebar">
+            <div class="hot-search-card">
+              <h3 class="hot-title">
+                <el-icon color="#ff2442"><Trophy /></el-icon>
+                全站热搜
+              </h3>
+              <div class="hot-list">
+                <div v-for="(item, index) in hotKeywords" :key="item.id" class="hot-item" @click="handleHotClick(item.keyword)">
+                  <span class="hot-rank" :class="{ 'top-3': index < 3 }">{{ index + 1 }}</span>
+                  <span class="hot-keyword">{{ item.keyword }}</span>
+                  <span class="hot-count">{{ formatCount(item.searchCount) }}</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div v-else class="empty-state">
-            <el-empty description="未找到相关内容" />
         </div>
       </div>
     </div>
@@ -40,13 +61,15 @@ import Navbar from '../components/Navbar.vue'
 import Sidebar from '../components/Sidebar.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import request from '../utils/request'
-import { Star, UserFilled } from '@element-plus/icons-vue'
+import { Star, UserFilled, Trophy } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
 import authStore from '../stores/auth'
+import { getThumbnailUrl } from '../utils/image'
 
 const router = useRouter()
 const route = useRoute()
 const posts = ref([])
+const hotKeywords = ref([])
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const query = computed(() => route.query.q || '')
 
@@ -80,8 +103,29 @@ const searchPosts = async () => {
     }
 }
 
+const fetchHotKeywords = async () => {
+  try {
+    const res = await request.get('/search/hot')
+    hotKeywords.value = res.data || []
+  } catch (err) {
+    console.error('Failed to fetch hot keywords', err)
+  }
+}
+
+const handleHotClick = (keyword) => {
+  router.push({ path: '/search', query: { q: keyword } })
+}
+
+const formatCount = (count) => {
+  if (count > 10000) {
+    return (count / 10000).toFixed(1) + 'w'
+  }
+  return count
+}
+
 onMounted(() => {
   searchPosts()
+  fetchHotKeywords()
 })
 
 watch(() => route.query.q, () => {
@@ -90,6 +134,14 @@ watch(() => route.query.q, () => {
 
 const openPost = (post) => {
   router.push(`/post/${post.id}`)
+}
+
+const getCoverUrl = (post) => {
+    let url = null
+    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
+        url = post.coverUrl
+    }
+    return getThumbnailUrl(url)
 }
 </script>
 
@@ -108,10 +160,75 @@ const openPost = (post) => {
     width: calc(100% - var(--sidebar-width));
 }
 .content-body {
-    max-width: 1800px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 20px 32px;
 }
+.search-layout {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+.search-results {
+  flex: 1;
+  min-width: 0; /* Prevent flex item from overflowing */
+}
+.search-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 84px; /* Navbar height + padding */
+}
+.hot-search-card {
+  background: var(--bg-color);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+.hot-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color);
+}
+.hot-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 4px;
+}
+.hot-item:hover {
+  background-color: var(--bg-color-page);
+}
+.hot-rank {
+  width: 20px;
+  font-weight: 700;
+  font-style: italic;
+  margin-right: 10px;
+  text-align: center;
+  color: #999;
+}
+.hot-rank.top-3 {
+  color: #ff2442;
+}
+.hot-keyword {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hot-count {
+  font-size: 12px;
+  color: #999;
+}
+
 .search-title {
     margin-bottom: 24px;
     font-size: 24px;
@@ -120,8 +237,8 @@ const openPost = (post) => {
 }
 .masonry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
 }
 .post-card {
   cursor: pointer;
@@ -137,8 +254,8 @@ const openPost = (post) => {
   padding-bottom: 133%; /* 3:4 Aspect Ratio */
   background-size: cover;
   background-position: center;
-  border-radius: 20px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  margin-bottom: 12px;
   background-color: var(--border-color);
   position: relative;
 }
@@ -149,24 +266,25 @@ const openPost = (post) => {
     background: rgba(0,0,0,0.03);
     opacity: 0;
     transition: opacity 0.2s;
-    border-radius: 20px;
+    border-radius: 16px;
 }
 .post-card:hover .cover-image::after {
     opacity: 1;
 }
 .card-info {
-  padding: 0 6px;
+  padding: 0 4px;
 }
 .post-title {
-  font-size: 18px;
+  font-size: 15px;
   color: var(--text-color);
   line-height: 1.4;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-weight: 500;
+  line-clamp: 2;
 }
 .post-meta {
   display: flex;
@@ -181,7 +299,7 @@ const openPost = (post) => {
   gap: 6px;
 }
 .author-name {
-    max-width: 100px;
+    max-width: 80px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -190,5 +308,30 @@ const openPost = (post) => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Text-only post styling */
+.post-card.no-image .cover-image {
+  display: none;
+}
+
+.post-card.no-image {
+  background-color: var(--bg-color-overlay);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  height: auto;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.post-card.no-image .post-title {
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-line-clamp: 4; /* Show more lines for text-only posts */
+  margin-bottom: 12px;
+  flex: 1;
 }
 </style>

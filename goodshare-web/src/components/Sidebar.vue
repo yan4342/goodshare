@@ -6,27 +6,27 @@
     
     <div class="menu-items">
       <div class="menu-item" :class="{ active: route.path === '/' }" @click="router.push('/')">
-        <el-icon :size="32"><Compass /></el-icon>
+        <el-icon :size="24"><Compass /></el-icon>
         <span class="label">发现</span>
       </div>
       
       <div class="menu-item" :class="{ active: route.path === '/publish' }" @click="router.push('/publish')">
-        <el-icon :size="32"><Plus /></el-icon>
+        <el-icon :size="24"><Plus /></el-icon>
         <span class="label">发布</span>
       </div>
       
       <div class="menu-item" :class="{ active: route.path === '/notification' }" @click="router.push('/notification')">
-        <el-icon :size="32"><Bell /></el-icon>
+        <el-icon :size="24"><Bell /></el-icon>
         <span class="label">通知</span>
       </div>
       
       <div class="menu-item" :class="{ active: route.path === '/price-compare' }" @click="router.push('/price-compare')">
-        <el-icon :size="32"><Goods /></el-icon>
+        <el-icon :size="24"><Goods /></el-icon>
         <span class="label">比价</span>
       </div>
 
       <div class="menu-item" :class="{ active: route.path === '/me' }" @click="router.push('/me')">
-        <el-icon :size="32"><User /></el-icon>
+        <el-icon :size="24"><User /></el-icon>
         <span class="label">我</span>
       </div>
     </div>
@@ -40,7 +40,7 @@
       >
         <template #reference>
           <div class="menu-item">
-            <el-icon :size="32"><MoreFilled /></el-icon>
+            <el-icon :size="24"><MoreFilled /></el-icon>
             <span class="label">更多</span>
           </div>
         </template>
@@ -71,6 +71,7 @@ import { Compass, Plus, Bell, MoreFilled, User, Moon, SwitchButton } from '@elem
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import authStore from '../stores/auth'
+
 
 const router = useRouter()
 const route = useRoute()
@@ -111,7 +112,7 @@ const handleLogout = () => {
   background-color: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
-  padding: 0 24px;
+  padding: 0 20px;
   position: fixed;
   left: 0;
   top: 0;
@@ -122,7 +123,7 @@ const handleLogout = () => {
 }
 
 .logo-container {
-  height: 90px;
+  height: 72px;
   display: flex;
   align-items: center;
   padding-left: 12px;
@@ -132,7 +133,7 @@ const handleLogout = () => {
 
 .logo-text {
   color: #ff2442;
-  font-size: 40px; 
+  font-size: 32px; 
   font-family: 'Billabong', cursive, sans-serif;
   font-weight: 900;
   letter-spacing: -1px;
@@ -141,19 +142,19 @@ const handleLogout = () => {
 .menu-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  height: 64px;
-  padding: 0 16px;
+  height: 50px;
+  padding: 0 12px;
   border-radius: 32px;
   cursor: pointer;
   transition: background-color 0.2s, padding 0.3s;
   color: var(--text-color);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
 }

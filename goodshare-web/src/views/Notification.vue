@@ -14,7 +14,7 @@
                         <span class="action">赞了你的帖子</span>
                         <span class="time">{{ formatTime(item.createdAt) }}</span>
                     </div>
-                    <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url(${getCoverUrl(item.relatedPost)})` }"></div>
+                    <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url('${getCoverUrl(item.relatedPost)}')` }"></div>
                 </div>
             </div>
             <div v-else class="empty-state">
@@ -48,11 +48,29 @@
                         <span class="action">评论了你的帖子</span>
                         <span class="time">{{ formatTime(item.createdAt) }}</span>
                     </div>
-                    <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url(${getCoverUrl(item.relatedPost)})` }"></div>
+                    <div class="post-preview" v-if="item.relatedPost && getCoverUrl(item.relatedPost)" @click="goToPost(item.relatedPost.id)" :style="{ backgroundImage: `url('${getCoverUrl(item.relatedPost)}')` }"></div>
                 </div>
             </div>
             <div v-else class="empty-state">
                 <el-empty description="暂无新评论" />
+            </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="私信" name="messages">
+            <div v-if="messageConversations.length > 0">
+                <div v-for="item in messageConversations" :key="item.userId" class="notification-item" @click="goToChat(item.userId)" style="cursor: pointer;">
+                    <el-badge :is-dot="item.unreadCount > 0" class="avatar-badge">
+                        <el-avatar :size="40" :src="item.avatarUrl || defaultAvatar" />
+                    </el-badge>
+                    <div class="notification-content">
+                        <span class="username">{{ item.nickname || item.username }}</span>
+                        <span class="action">{{ item.lastMessageContent }}</span>
+                        <span class="time">{{ formatTime(item.lastMessageTime) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="empty-state">
+                <el-empty description="暂无私信" />
             </div>
         </el-tab-pane>
       </el-tabs>
@@ -65,21 +83,38 @@ import { ref, computed, onMounted } from 'vue'
 import Sidebar from "../components/Sidebar.vue";
 import request from '../utils/request'
 import { useRouter } from 'vue-router'
+import { getThumbnailUrl } from '../utils/image'
 
 const router = useRouter()
 const activeTab = ref('likes')
 const notifications = ref([])
+const messageConversations = ref([])
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
 
 const fetchNotifications = async () => {
     try {
         const res = await request.get('/notifications')
-        notifications.value = res.data || []
+        // MyBatis-Plus Page object uses 'records' for the data list
+        notifications.value = res.data?.records || []
     } catch (error) {
         console.error('Failed to fetch notifications', error)
         notifications.value = []
     }
 }
+
+const fetchMessageConversations = async () => {
+    try {
+        const res = await request.get('/messages/conversations')
+        messageConversations.value = res.data || []
+    } catch (error) {
+        console.error('Failed to fetch conversations', error)
+    }
+}
+
+onMounted(() => {
+    fetchNotifications()
+    fetchMessageConversations()
+})
 
 const likes = computed(() => notifications.value.filter(n => n.type === 'LIKE'))
 const follows = computed(() => notifications.value.filter(n => n.type === 'FOLLOW'))
@@ -99,25 +134,32 @@ const formatTime = (timeStr) => {
 }
 
 const getCoverUrl = (post) => {
-    if (!post) return '';
-    if (post.coverUrl) return post.coverUrl;
-    if (post.images) {
+    if (!post) return ''
+    let url = null
+    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
+        url = post.coverUrl
+    } else if (post.images) {
         try {
             // Check if images is already an array or a JSON string
             const imgs = typeof post.images === 'string' ? JSON.parse(post.images) : post.images;
-            if (Array.isArray(imgs) && imgs.length > 0) return imgs[0];
+            if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
         } catch (e) {}
     }
-    return null;
+    return getThumbnailUrl(url)
 }
 
 const goToPost = (postId) => {
+    if (!postId) return
     router.push(`/post/${postId}`)
 }
 
-onMounted(() => {
-    fetchNotifications()
-})
+const goToChat = (userId) => {
+    if (!userId) return
+    router.push({
+        path: '/chat',
+        query: { userId }
+    })
+}
 </script>
 
 <style scoped>
@@ -181,4 +223,9 @@ onMounted(() => {
     background-position: center;
     cursor: pointer;
 }
+
+.loading-state {
+    padding: 20px 0;
+}
 </style>
+

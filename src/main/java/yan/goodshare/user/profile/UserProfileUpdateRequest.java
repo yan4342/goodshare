@@ -9,6 +9,9 @@ public class UserProfileUpdateRequest {
     private String bio;
     private String avatarUrl;
 
+    public UserProfileUpdateRequest() {
+    }
+
     public UserProfileUpdateRequest(String nickname, String email, String bio, String avatarUrl) {
         this.nickname = nickname;
         this.email = email;

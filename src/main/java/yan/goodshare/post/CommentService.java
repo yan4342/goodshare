@@ -47,8 +47,8 @@ public class CommentService {
 
         Comment comment = new Comment();
         comment.setContent(commentRequest.getContent());
-        comment.setPost_id(postId);
-        comment.setUser_id(user.getId());
+        comment.setPostId(postId);
+        comment.setUserId(user.getId());
         comment.setCreatedAt(LocalDateTime.now());
 
         commentMapper.insert(comment);

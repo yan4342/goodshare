@@ -18,18 +18,18 @@
   --el-color-primary-dark-2: #cc1d35;
   
   /* Sidebar Width Variable */
-  --sidebar-width: 340px;
+  --sidebar-width: 280px;
 }
 
 @media (max-width: 1200px) {
   :root {
-    --sidebar-width: 260px;
+    --sidebar-width: 208px;
   }
 }
 
 @media (max-width: 768px) {
   :root {
-    --sidebar-width: 80px;
+    --sidebar-width: 72px;
   }
 }
 

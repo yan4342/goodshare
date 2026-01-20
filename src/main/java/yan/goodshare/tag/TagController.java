@@ -17,6 +17,7 @@ public class TagController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createTag(@RequestBody Tag tag) {
         try {
             Tag createdTag = tagService.createTag(tag.getName());
@@ -32,6 +33,7 @@ public class TagController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteTag(@PathVariable Long id) {
         tagService.deleteTag(id);
         return ResponseEntity.ok().build();

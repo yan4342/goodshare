@@ -9,6 +9,9 @@ import yan.goodshare.mapper.NotificationMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 @Service
 public class NotificationService extends ServiceImpl<NotificationMapper, Notification> {
 
@@ -31,8 +34,9 @@ public class NotificationService extends ServiceImpl<NotificationMapper, Notific
         save(notification);
     }
 
-    public List<Notification> getUserNotifications(Long userId) {
-        return notificationMapper.selectNotificationsWithDetails(userId);
+    public IPage<Notification> getUserNotifications(Long userId, int page, int size, String type) {
+        Page<Notification> pageParam = new Page<>(page, size);
+        return notificationMapper.selectNotificationsWithDetails(pageParam, userId, type);
     }
 
     public void markAsRead(Long notificationId) {

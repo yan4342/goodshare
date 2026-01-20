@@ -31,10 +31,9 @@ const form = ref({
 })
 
 onMounted(() => {
-    // If user is already logged in, log them out to ensure clean admin login
-    if (authStore.state.isAuthenticated) {
-        authStore.logout()
-        ElMessage.info('已自动登出当前账号，请登录管理员账号')
+    // Check if already logged in as admin
+    if (localStorage.getItem('admin_token')) {
+        router.push('/admin/tags')
     }
 })
 
@@ -57,9 +56,8 @@ const handleLogin = async () => {
         throw new Error('Invalid response')
     }
 
-    authStore.setToken(data.accessToken)
-    // Manually construct user object since backend might only return token
-    authStore.setUser({ username: form.value.username, role: 'ADMIN' }) 
+    // Store admin token separately
+    localStorage.setItem('admin_token', data.accessToken)
     
     ElMessage.success('管理员登录成功')
     

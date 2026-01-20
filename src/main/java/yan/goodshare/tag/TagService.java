@@ -32,6 +32,9 @@ public class TagService {
     }
 
     public void deleteTag(Long id) {
+        // First delete associations in post_tags
+        tagMapper.deletePostTagsByTagId(id);
+        // Then delete the tag
         tagMapper.deleteById(id);
     }
 }

@@ -29,21 +29,21 @@
 
         <div v-else-if="results.length > 0" class="results-container">
           <div class="platform-legend">
-            <span class="legend-item"><span class="dot taobao"></span>淘宝</span>
+            <span class="legend-item"><span class="dot taobao"></span>淘宝/天猫</span>
             <span class="legend-item"><span class="dot jd"></span>京东</span>
-            <span class="legend-item"><span class="dot pdd"></span>拼多多</span>
+            <span class="legend-item"><span class="dot vip"></span>唯品会</span>
           </div>
 
           <div class="product-grid">
             <div v-for="(item, index) in results" :key="index" class="product-card" @click="openProduct(item.productUrl)">
-              <div class="product-image" :style="{ backgroundImage: `url(${item.imageUrl})` }">
-                <div class="platform-badge" :class="item.platform.toLowerCase()">{{ item.platform }}</div>
+              <div class="product-image" :style="{ backgroundImage: `url('${item.imageUrl}')` }">
+                <div class="platform-badge" :class="getPlatformClass(item.shopName)">{{ item.platform }}</div>
               </div>
               <div class="product-info">
                 <h3 class="product-name" :title="item.name">{{ item.name }}</h3>
                 <div class="product-meta">
                   <div class="price">¥{{ item.price }}</div>
-                  <div class="shop">{{ item.shopName }}</div>
+                  <div class="shop" :style="{ color: getShopColor(item.shopName) }">{{ item.shopName }}</div>
                 </div>
                 <el-button type="primary" size="small" class="buy-btn" @click.stop="openProduct(item.productUrl)">
                   去购买
@@ -86,7 +86,10 @@ const handleSearch = async () => {
   results.value = []
   
   try {
-    const res = await request.get(`/crawler/compare?keyword=${encodeURIComponent(searchKeyword.value)}`)
+    const res = await request.get(`/crawler/compare`, {
+      params: { keyword: searchKeyword.value },
+      timeout: 60000 // Increase timeout to 60s for crawler
+    })
     results.value = res.data
   } catch (err) {
     console.error('Failed to compare prices', err)
@@ -98,9 +101,47 @@ const handleSearch = async () => {
 const openProduct = (url) => {
   window.open(url, '_blank')
 }
+
+const getShopColor = (name) => {
+  if (!name) return '#999'
+  if (name.includes('京东')) return '#e1251b'
+  if (name.includes('天猫') || name.includes('淘宝')) return '#ff5000'
+  if (name.includes('唯品会')) return '#f10180'
+  return '#666'
+}
+
+const getPlatformClass = (name) => {
+  if (!name) return 'other'
+  if (name.includes('京东')) return 'jd'
+  if (name.includes('天猫') || name.includes('淘宝')) return 'taobao'
+  if (name.includes('唯品会')) return 'vip'
+  return 'other'
+}
 </script>
 
 <style scoped>
+.loading-state {
+  text-align: center;
+  padding: 40px 0;
+}
+.loading-content {
+  margin-bottom: 30px;
+}
+.loading-icon {
+  font-size: 40px;
+  color: var(--primary-color);
+  margin-bottom: 16px;
+}
+.loading-text {
+  font-size: 18px;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+.loading-subtext {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+}
+
 .home-container {
   min-height: 100vh;
   background-color: var(--bg-color-overlay);
@@ -166,7 +207,7 @@ const openProduct = (url) => {
 }
 .dot.taobao { background-color: #ff5000; }
 .dot.jd { background-color: #e1251b; }
-.dot.pdd { background-color: #e02e24; }
+.dot.vip { background-color: #f10180; }
 
 .product-grid {
   display: grid;
@@ -203,7 +244,7 @@ const openProduct = (url) => {
 }
 .platform-badge.taobao { background-color: #ff5000; }
 .platform-badge.jd { background-color: #e1251b; }
-.platform-badge.pinduoduo { background-color: #e02e24; }
+.platform-badge.vip { background-color: #f10180; }
 
 .product-info {
   padding: 16px;
@@ -226,11 +267,11 @@ const openProduct = (url) => {
   color: #ff2442;
   font-size: 20px;
   font-weight: bold;
-}
 .shop {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  max-width: 100px;
+  font-size: 13px;
+  margin-top: 4px;
+  font-weight: 500;
+} max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

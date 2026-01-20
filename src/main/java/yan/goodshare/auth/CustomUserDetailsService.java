@@ -31,7 +31,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (roles == null || roles.isEmpty()) {
             roles = "USER"; // Default role
         }
-        Set<GrantedAuthority> authorities = java.util.Arrays.stream(roles.split(",")).map(SimpleGrantedAuthority::new).collect(Collectors.toSet());
+        Set<GrantedAuthority> authorities = java.util.Arrays.stream(roles.split(","))
+                .map(role -> {
+                    if (role.startsWith("ROLE_")) {
+                        return new SimpleGrantedAuthority(role);
+                    } else {
+                        return new SimpleGrantedAuthority("ROLE_" + role);
+                    }
+                })
+                .collect(Collectors.toSet());
         return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), authorities);
     }
 }

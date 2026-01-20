@@ -10,7 +10,15 @@ const service = axios.create({
 // Request interceptor
 service.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token')
+    let token = localStorage.getItem('token')
+    // Use admin token for admin endpoints or if explicitly requested
+    if (config.url.startsWith('/admin') || config.url.startsWith('/api/admin') || config._isAdmin) {
+        const adminToken = localStorage.getItem('admin_token')
+        if (adminToken) {
+            token = adminToken
+        }
+    }
+
     if (token) {
       config.headers['Authorization'] = 'Bearer ' + token
     }

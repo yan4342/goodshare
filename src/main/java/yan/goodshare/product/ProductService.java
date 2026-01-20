@@ -29,7 +29,7 @@ public class ProductService {
         if (post == null) {
             throw new RuntimeException("Post not found");
         }
-        product.setPost_id(postId);
+        product.setPostId(postId);
         productMapper.insert(product);
         return product;
     }
@@ -39,7 +39,7 @@ public class ProductService {
         if (product == null) {
             throw new RuntimeException("Product not found");
         }
-        price.setProduct_id(productId);
+        price.setProductId(productId);
         priceMapper.insert(price);
         return price;
     }
