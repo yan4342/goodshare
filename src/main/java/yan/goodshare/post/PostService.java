@@ -305,6 +305,13 @@ public class PostService {
     }
 
     @Transactional
+    public void deletePosts(List<Long> ids) {
+        for (Long id : ids) {
+            deletePost(id);
+        }
+    }
+
+    @Transactional
     public void deletePost(Long postId) {
         Post post = postMapper.selectById(postId);
         if (post == null) {

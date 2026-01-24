@@ -60,6 +60,16 @@ public class AdminController {
         return ResponseEntity.ok(postService.getAllPosts());
     }
 
+    @DeleteMapping("/posts")
+    public ResponseEntity<?> deletePosts(@RequestBody java.util.Map<String, List<Long>> payload) {
+        List<Long> ids = payload.get("ids");
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body("Ids are required");
+        }
+        postService.deletePosts(ids);
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/posts/{id}")
     public ResponseEntity<?> deletePost(@PathVariable Long id) {
         postService.deletePost(id);

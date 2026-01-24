@@ -28,7 +28,8 @@ public class UserTagWeightService {
         List<Tag> allTags = tagMapper.selectList(null);
         
         // 2. Get existing user weights
-        List<UserTagWeight> userWeights = userTagWeightMapper.selectByUserId(userId);
+        // Use selectList with QueryWrapper to ensure proper mapping of snake_case columns
+        List<UserTagWeight> userWeights = userTagWeightMapper.selectList(new QueryWrapper<UserTagWeight>().eq("user_id", userId));
         Map<Long, UserTagWeight> weightMap = userWeights.stream()
                 .collect(Collectors.toMap(UserTagWeight::getTagId, w -> w));
         

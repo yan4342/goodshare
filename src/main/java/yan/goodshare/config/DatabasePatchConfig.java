@@ -27,7 +27,7 @@ public class DatabasePatchConfig {
                         "tag_id BIGINT NOT NULL," +
                         "PRIMARY KEY (post_id, tag_id)" +
                         ")");
-                System.out.println("Ensured post_tags table exists.");
+                //System.out.println("Ensured post_tags table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating post_tags table: " + e.getMessage());
             }
@@ -72,7 +72,7 @@ public class DatabasePatchConfig {
                         "is_read BOOLEAN DEFAULT FALSE," +
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                         ")");
-                System.out.println("Ensured notifications table exists.");
+                //System.out.println("Ensured notifications table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating notifications table: " + e.getMessage());
             }
@@ -102,7 +102,7 @@ public class DatabasePatchConfig {
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
                         "UNIQUE KEY unique_user_post (user_id, post_id)" +
                         ")");
-                System.out.println("Ensured post_views table exists.");
+                //System.out.println("Ensured post_views table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating post_views table: " + e.getMessage());
             }
@@ -125,7 +125,7 @@ public class DatabasePatchConfig {
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                         ")");
-                System.out.println("Ensured app_configs table exists.");
+                //System.out.println("Ensured app_configs table exists.");
 
                 // Insert defaults if not exist
                 String checkSql = "SELECT count(*) FROM app_configs WHERE config_key = ?";
@@ -151,7 +151,7 @@ public class DatabasePatchConfig {
                             "weight.comment", "3.0", "Weight for Comment interaction");
                 }
                 
-                System.out.println("Ensured default app_configs values.");
+                //System.out.println("Ensured default app_configs values.");
             } catch (Exception e) {
                 System.err.println("Error setting up app_configs: " + e.getMessage());
             }
@@ -164,7 +164,7 @@ public class DatabasePatchConfig {
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                         ")");
-                System.out.println("Ensured search_stats table exists.");
+                //System.out.println("Ensured search_stats table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating search_stats table: " + e.getMessage());
             }
@@ -177,7 +177,7 @@ public class DatabasePatchConfig {
                         "followed_id BIGINT NOT NULL," +
                         "UNIQUE KEY uk_follow (follower_id, followed_id)" +
                         ")");
-                System.out.println("Ensured follows table exists.");
+                //System.out.println("Ensured follows table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating follows table: " + e.getMessage());
             }
@@ -192,9 +192,41 @@ public class DatabasePatchConfig {
                         "is_read BOOLEAN DEFAULT FALSE," +
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                         ")");
-                System.out.println("Ensured messages table exists.");
+                //System.out.println("Ensured messages table exists.");
             } catch (Exception e) {
                 System.err.println("Error creating messages table: " + e.getMessage());
+            }
+
+            // 13. Create appraisals table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS appraisals (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "user_id BIGINT NOT NULL," +
+                        "product_name VARCHAR(255) NOT NULL," +
+                        "description TEXT," +
+                        "images LONGTEXT," +
+                        "status INT DEFAULT 0," +
+                        "real_votes INT DEFAULT 0," +
+                        "fake_votes INT DEFAULT 0," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        ")");
+                //System.out.println("Ensured appraisals table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating appraisals table: " + e.getMessage());
+            }
+
+            // 14. Create appraisal_votes table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS appraisal_votes (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "appraisal_id BIGINT NOT NULL," +
+                        "user_id BIGINT NOT NULL," +
+                        "vote_type INT NOT NULL," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        ")");
+                //System.out.println("Ensured appraisal_votes table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating appraisal_votes table: " + e.getMessage());
             }
         };
     }

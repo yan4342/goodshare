@@ -37,6 +37,13 @@
       >
         <span>算法权重</span>
       </div>
+      <div 
+        class="menu-item" 
+        :class="{ active: currentTab === 'appraisals' }"
+        @click="currentTab = 'appraisals'"
+      >
+        <span>鉴定管理</span>
+      </div>
     </div>
     
     <div class="admin-content">
@@ -45,7 +52,8 @@
             currentTab === 'tags' ? '标签管理' : 
             currentTab === 'posts' ? '帖子管理' : 
             currentTab === 'audit' ? '内容审核' :
-            currentTab === 'users' ? '用户管理' : '算法权重配置' 
+            currentTab === 'users' ? '用户管理' : 
+            currentTab === 'appraisals' ? '鉴定管理' : '算法权重配置' 
         }}</h2>
         <el-button type="primary" @click="logout">退出登录</el-button>
       </div>
@@ -260,6 +268,67 @@
           </el-card>
       </div>
 
+      <!-- Appraisals Management -->
+      <div v-if="currentTab === 'appraisals'">
+        <el-table :data="appraisals" v-loading="appraisalsLoading" style="width: 100%">
+          <el-table-column prop="id" label="ID" width="80" />
+          
+          <el-table-column label="图片" width="100">
+            <template #default="scope">
+                <el-image 
+                    v-if="getAppraisalCover(scope.row)"
+                    :src="getAppraisalCover(scope.row)" 
+                    style="width: 50px; height: 50px"
+                    :preview-src-list="[getAppraisalCover(scope.row)]"
+                    fit="cover"
+                />
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="productName" label="商品名称" />
+          
+          <el-table-column label="发布用户" width="150">
+            <template #default="scope">
+                {{ scope.row.user?.nickname || 'Unknown' }}
+            </template>
+          </el-table-column>
+
+          <el-table-column label="投票情况" width="150">
+            <template #default="scope">
+                <span style="color: #67c23a">真: {{ scope.row.realVotes }}</span> / 
+                <span style="color: #f56c6c">假: {{ scope.row.fakeVotes }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="createdAt" label="发布时间" width="180">
+            <template #default="scope">
+                {{ formatDate(scope.row.createdAt) }}
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="120">
+            <template #default="scope">
+              <el-popconfirm title="确定删除这个鉴定请求吗？" @confirm="deleteAppraisal(scope.row.id)">
+                <template #reference>
+                  <el-button type="danger" size="small">删除</el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="pagination" style="margin-top: 20px; display: flex; justify-content: flex-end;">
+            <el-pagination
+                background
+                layout="prev, pager, next"
+                :total="appraisalTotal"
+                :page-size="appraisalPageSize"
+                v-model:current-page="appraisalPage"
+                @current-change="fetchAppraisals"
+            />
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -308,6 +377,13 @@ const weights = ref({
 })
 const weightsLoading = ref(false)
 
+// Appraisal Data
+const appraisals = ref([])
+const appraisalsLoading = ref(false)
+const appraisalPage = ref(1)
+const appraisalPageSize = ref(10)
+const appraisalTotal = ref(0)
+
 onMounted(() => {
   fetchTags()
 })
@@ -323,6 +399,8 @@ watch(currentTab, (newTab) => {
         fetchWeights()
     } else if (newTab === 'audit') {
         fetchAuditPosts()
+    } else if (newTab === 'appraisals') {
+        fetchAppraisals()
     }
 })
 
@@ -377,7 +455,7 @@ const deleteTag = (id) => {
 const fetchPosts = async () => {
     postsLoading.value = true
     try {
-        const res = await request.get('/admin/posts')
+        const res = await request.get('/admin/posts', { _isAdmin: true })
         posts.value = res.data
     } catch (error) {
         console.error('Failed to fetch posts', error)
@@ -398,7 +476,7 @@ const deletePost = (id) => {
     }
   ).then(async () => {
     try {
-      await request.delete(`/admin/posts/${id}`)
+      await request.delete(`/admin/posts/${id}`, { _isAdmin: true })
       ElMessage.success('删除成功')
       fetchPosts()
     } catch (error) {
@@ -420,7 +498,7 @@ const deleteSelectedPosts = () => {
     ).then(async () => {
         const ids = selectedPosts.value.map(p => p.id)
         try {
-            await request.delete('/admin/posts', { data: { ids } })
+            await request.delete('/admin/posts', { data: { ids }, _isAdmin: true })
             ElMessage.success('批量删除成功')
             fetchPosts()
         } catch (error) {
@@ -442,7 +520,8 @@ const fetchAuditPosts = async () => {
             params: {
                 page: auditPage.value,
                 size: auditSize.value
-            }
+            },
+            _isAdmin: true
         })
         auditPosts.value = res.data.records
         auditTotal.value = res.data.total
@@ -456,7 +535,7 @@ const fetchAuditPosts = async () => {
 
 const updateStatus = async (id, status) => {
     try {
-        await request.put(`/admin/posts/${id}/status`, { status })
+        await request.put(`/admin/posts/${id}/status`, { status }, { _isAdmin: true })
         ElMessage.success(status === 1 ? '已通过' : '已拒绝')
         fetchAuditPosts()
     } catch (error) {
@@ -511,7 +590,7 @@ const deleteUser = (id) => {
         type: 'error'
     }).then(async () => {
         try {
-            await request.delete(`/admin/users/${id}`)
+            await request.delete(`/admin/users/${id}`, { _isAdmin: true })
             ElMessage.success('用户已删除')
             fetchUsers()
         } catch (e) {
@@ -524,7 +603,7 @@ const deleteUser = (id) => {
 const fetchWeights = async () => {
     weightsLoading.value = true
     try {
-        const res = await request.get('/admin/weights')
+        const res = await request.get('/admin/weights', { _isAdmin: true })
         weights.value = { ...weights.value, ...res.data }
     } catch (e) {
         ElMessage.error('获取权重配置失败')
@@ -535,10 +614,52 @@ const fetchWeights = async () => {
 
 const saveWeights = async () => {
     try {
-        await request.post('/admin/weights', weights.value)
+        await request.post('/admin/weights', weights.value, { _isAdmin: true })
         ElMessage.success('权重配置已保存')
     } catch (e) {
         ElMessage.error('保存失败')
+    }
+}
+
+// --- Appraisal Methods ---
+const fetchAppraisals = async () => {
+  appraisalsLoading.value = true
+  try {
+    const res = await request.get('/admin/appraisals', {
+      params: {
+        page: appraisalPage.value,
+        size: appraisalPageSize.value
+      },
+      _isAdmin: true
+    })
+    appraisals.value = res.data.records
+    appraisalTotal.value = res.data.total
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('获取鉴定列表失败')
+  } finally {
+    appraisalsLoading.value = false
+  }
+}
+
+const deleteAppraisal = async (id) => {
+  try {
+    await request.delete(`/admin/appraisals/${id}`, { _isAdmin: true })
+    ElMessage.success('删除成功')
+    fetchAppraisals()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('删除失败')
+  }
+}
+
+const getAppraisalCover = (item) => {
+    if (!item.images) return null
+    try {
+        const imgs = JSON.parse(item.images)
+        return Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : null
+    } catch (e) {
+        return null
     }
 }
 

@@ -118,8 +118,9 @@ const validatePass = (rule, value, callback) => {
         callback(new Error('请输入密码'))
     } else {
         if (registerForm.confirmPassword !== '') {
-            if (!registerFormRef.value) return
-            registerFormRef.value.validateField('confirmPassword')
+            if (registerFormRef.value) {
+                registerFormRef.value.validateField('confirmPassword')
+            }
         }
         callback()
     }
@@ -207,9 +208,14 @@ const sendCaptcha = () => {
 }
 
 const handleRegister = async () => {
-  if (!registerFormRef.value) return
+  console.log('Register button clicked')
+  if (!registerFormRef.value) {
+      console.error('Form ref is missing')
+      return
+  }
   
-  await registerFormRef.value.validate(async (valid) => {
+  await registerFormRef.value.validate(async (valid, fields) => {
+      console.log('Validation result:', valid, fields)
       if (valid) {
           if (registerForm.captcha !== '123456') { // Mock verification
                ElMessage.error('验证码错误 (测试请用 123456)')
@@ -226,10 +232,13 @@ const handleRegister = async () => {
             ElMessage.success('注册成功，请登录')
             router.push('/login')
           } catch (err) {
+            console.error('Registration failed:', err)
             // Error handled in interceptor
           } finally {
             loading.value = false
           }
+      } else {
+          ElMessage.warning('请检查表单填写是否正确')
       }
   })
 }
@@ -242,7 +251,7 @@ const handleRegister = async () => {
   align-items: center;
   height: 100vh;
   background-color: var(--bg-color);
-  background-image: url('https://ci.xiaohongshu.com/eb760777-62d1-4235-8664-984254b92497');
+  background-image: url('../assets/background.svg');
   background-size: cover;
   background-position: center;
   transition: background-color 0.3s;

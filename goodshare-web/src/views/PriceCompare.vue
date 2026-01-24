@@ -86,9 +86,9 @@ const handleSearch = async () => {
   results.value = []
   
   try {
-    const res = await request.get(`/crawler/compare`, {
+    const res = await request.get(`/prices/search`, {
       params: { keyword: searchKeyword.value },
-      timeout: 60000 // Increase timeout to 60s for crawler
+      timeout: 70000 // Increase timeout to 60s for crawler
     })
     results.value = res.data
   } catch (err) {

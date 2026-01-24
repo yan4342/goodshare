@@ -45,7 +45,7 @@ public class CrawlerService {
 
     // Simple in-memory cache: Keyword -> {Timestamp, Results}
     private static final java.util.Map<String, CacheEntry> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final long CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
+    private static final long CACHE_DURATION_MS = 1000 * 60 * 60 * 24; // 24 hours
 
     private static class CacheEntry {
         long timestamp;
@@ -59,11 +59,11 @@ public class CrawlerService {
 
     public List<ProductPriceDTO> searchProducts(String keyword) {
         // Check Cache
-        // CacheEntry entry = CACHE.get(keyword);
-        // if (entry != null && (System.currentTimeMillis() - entry.timestamp < CACHE_DURATION_MS)) {
-        //    System.out.println("Returning cached results for: " + keyword);
-        //    return entry.data;
-        // }
+        CacheEntry entry = CACHE.get(keyword);
+        if (entry != null && (System.currentTimeMillis() - entry.timestamp < CACHE_DURATION_MS)) {
+           System.out.println("Returning cached results for: " + keyword);
+           return entry.data;
+        }
 
         List<ProductPriceDTO> results = new ArrayList<>();
         

@@ -56,22 +56,40 @@ const handleLogin = async () => {
         throw new Error('Invalid response')
     }
 
-    // Store admin token separately
+    // Store admin token temporarily for validation
     localStorage.setItem('admin_token', data.accessToken)
     
-    ElMessage.success('管理员登录成功')
-    
-    // Force navigation
-    setTimeout(() => {
-        router.push('/admin/tags').catch(err => {
-            console.error('Navigation failed:', err)
-            ElMessage.error('页面跳转失败')
+    // Validate role by trying to access a protected admin endpoint
+    try {
+        // Use a lightweight admin endpoint to verify permissions
+        await request.get('/admin/users', { 
+            params: { page: 1, size: 1 }, 
+            _isAdmin: true 
         })
-    }, 100)
+        
+        ElMessage.success('管理员登录成功')
+        
+        // Force navigation
+        setTimeout(() => {
+            router.push('/admin/tags').catch(err => {
+                console.error('Navigation failed:', err)
+                ElMessage.error('页面跳转失败')
+            })
+        }, 100)
+    } catch (e) {
+        localStorage.removeItem('admin_token')
+        ElMessage.error('该账号没有管理员权限')
+    }
     
   } catch (error) {
     console.error(error)
-    ElMessage.error('登录失败，请检查账号密码或权限')
+    // Only show error if we haven't already handled it (e.g. Not an admin)
+    if (localStorage.getItem('admin_token')) { // If token still exists (unexpected error after validation started)
+         localStorage.removeItem('admin_token')
+    }
+    if (!error.message.includes('Not an admin')) {
+         ElMessage.error('登录失败，请检查账号密码或权限')
+    }
   } finally {
     loading.value = false
   }

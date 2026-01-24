@@ -3,8 +3,12 @@
     <transition name="fade">
       <div v-if="visible" class="overlay" @click="handleClose"></div>
     </transition>
-    <transition name="zoom">
-      <div v-if="visible" class="modal-content">
+    <transition
+      @enter="onEnter"
+      @leave="onLeave"
+      :css="false"
+    >
+      <div v-if="visible" class="modal-content" ref="modalContent">
         <div class="content-flex">
         <!-- Left: Image Section -->
         <div v-if="imageList.length > 0" class="image-section">
@@ -138,10 +142,77 @@ const props = defineProps({
     postId: {
         type: [String, Number],
         default: null
+    },
+    originRect: {
+        type: Object,
+        default: null
     }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'update'])
+
+const onEnter = (el, done) => {
+    if (!props.originRect) {
+        done()
+        return
+    }
+    
+    const { top, left, width, height } = props.originRect
+    const rect = el.getBoundingClientRect()
+    
+    const scaleX = width / rect.width
+    const scaleY = height / rect.height
+    
+    const originCenterX = left + width / 2
+    const originCenterY = top + height / 2
+    
+    const finalCenterX = rect.left + rect.width / 2
+    const finalCenterY = rect.top + rect.height / 2
+    
+    const deltaX = originCenterX - finalCenterX
+    const deltaY = originCenterY - finalCenterY
+    
+    el.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`
+    el.style.transformOrigin = 'center center'
+    el.style.opacity = '0'
+    
+    // Force reflow
+    el.offsetHeight
+    
+    el.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1), opacity 0.3s ease'
+    el.style.transform = 'translate(0, 0) scale(1, 1)'
+    el.style.opacity = '1'
+    
+    el.addEventListener('transitionend', done, { once: true })
+}
+
+const onLeave = (el, done) => {
+    if (!props.originRect) {
+        done()
+        return
+    }
+    
+    const { top, left, width, height } = props.originRect
+    const rect = el.getBoundingClientRect()
+    
+    const scaleX = width / rect.width
+    const scaleY = height / rect.height
+    
+    const originCenterX = left + width / 2
+    const originCenterY = top + height / 2
+    
+    const finalCenterX = rect.left + rect.width / 2
+    const finalCenterY = rect.top + rect.height / 2
+    
+    const deltaX = originCenterX - finalCenterX
+    const deltaY = originCenterY - finalCenterY
+    
+    el.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 1, 1), opacity 0.3s ease'
+    el.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`
+    el.style.opacity = '0'
+    
+    el.addEventListener('transitionend', done, { once: true })
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -223,6 +294,7 @@ const fetchPost = async (id) => {
     try {
         const res = await request.get(`/posts/${id}`)
         post.value = res.data
+        emit('update', { id: post.value.id, viewCount: post.value.viewCount })
         const authorId = post.value.userId || post.value.user?.id
         if (authorId) {
             checkFollowStatus(authorId)
@@ -320,6 +392,7 @@ const toggleLike = async () => {
             isLiked.value = true
             likeCount.value++
         }
+        emit('update', { id: post.value.id, likeCount: likeCount.value })
     } catch (err) {
         console.error('Failed to toggle like', err)
         ElMessage.error('操作失败')

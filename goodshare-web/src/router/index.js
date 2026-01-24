@@ -48,6 +48,11 @@ const routes = [
     component: () => import('../views/Search.vue')
   },
   {
+    path: '/test-canvas',
+    name: 'TestCanvas',
+    component: () => import('../views/TestCanvas.vue')
+  },
+  {
     path: '/price-compare',
     name: 'PriceCompare',
     component: () => import('../views/PriceCompare.vue')
@@ -81,6 +86,28 @@ const routes = [
     name: 'AdminTags',
     component: () => import('../views/admin/AdminTagManager.vue'),
     meta: { requiresAdmin: true }
+  },
+  {
+    path: '/appraisals',
+    name: 'AppraisalList',
+    component: () => import('../views/AppraisalList.vue')
+  },
+  {
+    path: '/appraisals/create',
+    name: 'AppraisalCreate',
+    component: () => import('../views/AppraisalCreate.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/appraisals/:id',
+    name: 'AppraisalDetail',
+    component: () => import('../views/AppraisalDetail.vue')
+  },
+  {
+    path: '/admin/appraisals',
+    name: 'AdminAppraisals',
+    component: () => import('../views/admin/AdminAppraisalManager.vue'),
+    meta: { requiresAdmin: true }
   }
 ]
 
@@ -93,29 +120,41 @@ router.beforeEach((to, from, next) => {
     const isAuthenticated = authStore.state.isAuthenticated
     const isAdminAuthenticated = !!localStorage.getItem('admin_token')
     
+    // 1. Admin Routes Protection
     if (to.meta.requiresAdmin) {
         if (!isAdminAuthenticated) {
             next('/admin/login')
         } else {
             next()
         }
-    } else if (to.meta.requiresAuth && !isAuthenticated) {
+        return
+    }
+
+    // 2. Admin Login Auto-Redirect (Better UX)
+    // If already logged in as admin, redirect to dashboard
+    if (to.path === '/admin/login' && isAdminAuthenticated) {
+        next('/admin/tags')
+        return
+    }
+
+    // 3. Regular Auth Protection
+    if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login')
-    } else if (to.meta.guest && isAuthenticated) {
-        // If already logged in and trying to access guest page
-        // If it's admin login, allow it (will handle logout in component)
+        return
+    } 
+    
+    // 4. Guest Pages (Login/Register) for Regular Users
+    if (to.meta.guest && isAuthenticated) {
+        // Allow access to admin login even if logged in as user
         if (to.path === '/admin/login') {
-            if (isAdminAuthenticated) {
-                next('/admin/tags')
-            } else {
-                next()
-            }
+            next()
         } else {
             next('/')
         }
-    } else {
-        next()
+        return
     }
+
+    next()
 })
 
 export default router

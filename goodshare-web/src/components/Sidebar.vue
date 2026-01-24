@@ -25,6 +25,11 @@
         <span class="label">比价</span>
       </div>
 
+      <div class="menu-item" :class="{ active: route.path.startsWith('/appraisals') }" @click="router.push('/appraisals')">
+        <el-icon :size="24"><CircleCheck /></el-icon>
+        <span class="label">鉴定</span>
+      </div>
+
       <div class="menu-item" :class="{ active: route.path === '/me' }" @click="router.push('/me')">
         <el-icon :size="24"><User /></el-icon>
         <span class="label">我</span>
@@ -67,7 +72,7 @@
 </template>
 
 <script setup>
-import { Compass, Plus, Bell, MoreFilled, User, Moon, SwitchButton } from '@element-plus/icons-vue'
+import { Compass, Plus, Bell, MoreFilled, User, Moon, SwitchButton, Goods, CircleCheck } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import authStore from '../stores/auth'

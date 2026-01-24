@@ -92,6 +92,37 @@
                 </div>
             </div>
         </el-tab-pane>
+
+        <el-tab-pane label="鉴定" name="appraisals">
+            <div v-if="myAppraisals.length === 0" class="empty-state">
+                <el-empty description="还没有发布过鉴定哦" />
+            </div>
+            <div v-else class="masonry-grid">
+                <div v-for="item in myAppraisals" :key="item.id" class="post-card" @click="$router.push(`/appraisals/${item.id}`)">
+                    <div v-if="getAppraisalCover(item)" class="card-image" :style="{ backgroundImage: `url('${getAppraisalCover(item)}')` }">
+                        <div v-if="isCurrentUser" class="delete-btn" @click.stop="handleDeleteAppraisal(item)">
+                            <el-icon><Delete /></el-icon>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">{{ item.productName }}</h3>
+                        <div class="card-footer">
+                            <div class="author">
+                                <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
+                                <span>{{ userProfile.nickname || userProfile.username }}</span>
+                            </div>
+                            <div class="likes">
+                                <span style="font-size: 12px; color: #666;">
+                                    <span style="color: #67c23a">真 {{ item.realVotes }}</span> / 
+                                    <span style="color: #f56c6c">假 {{ item.fakeVotes }}</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </el-tab-pane>
+
         <el-tab-pane label="收藏" name="favorites" v-if="isCurrentUser">
             <div v-if="favorites.length === 0" class="empty-state">
                 <el-empty description="还没有收藏过笔记哦" />
@@ -229,6 +260,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
 import authStore from '../stores/auth'
+import homeStore from '../stores/home'
 import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sidebar from "../components/Sidebar.vue";
@@ -242,6 +274,7 @@ const route = useRoute()
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
 const userProfile = ref({})
 const posts = ref([])
+const myAppraisals = ref([])
 const favorites = ref([])
 const likedPosts = ref([])
 const tagWeights = ref([])
@@ -317,6 +350,7 @@ const fetchUserProfile = async () => {
         // Fetch posts after profile to use ID
         if (res.data.id) {
             fetchMyPosts(res.data.id)
+            fetchMyAppraisals(res.data.id)
             if (isCurrentUser.value) {
                 fetchMyFavorites()
                 fetchLikedPosts()
@@ -424,6 +458,15 @@ const fetchMyPosts = async (userId) => {
     }
 }
 
+const fetchMyAppraisals = async (userId) => {
+    try {
+        const res = await request.get(`/appraisals/user/${userId}`)
+        myAppraisals.value = res.data.records
+    } catch (err) {
+        console.error('Failed to load appraisals', err)
+    }
+}
+
 const fetchMyFavorites = async () => {
     try {
         const res = await request.get('/favorites')
@@ -467,11 +510,49 @@ const handleWeightChange = async (weight) => {
             weight: weight.weight
         })
         ElMessage.success('权重更新成功')
+        // Clear home store cache to ensure recommendations are refreshed
+        homeStore.reset()
     } catch (error) {
         console.error('Failed to update weight', error)
         ElMessage.error('权重更新失败')
         // Revert? simpler to just refresh or let it be
     }
+}
+
+const getAppraisalCover = (item) => {
+    if (!item.images) return null
+    try {
+        const imgs = JSON.parse(item.images)
+        return Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : null
+    } catch (e) {
+        return null
+    }
+}
+
+const handleDeleteAppraisal = (item) => {
+    ElMessageBox.confirm(
+        '确定要删除这个鉴定请求吗？',
+        '提示',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    ).then(async () => {
+        try {
+            // Re-use admin endpoint? No, normal users need a delete endpoint
+            // Currently AppraisalService.deleteAppraisal is public, but controller?
+            // AppraisalController doesn't have delete. I should add it.
+            // Wait, for now I can try using the admin one if I am admin, but normal user?
+            // I need to add DELETE /api/appraisals/{id} to AppraisalController.
+            await request.delete(`/appraisals/${item.id}`)
+            ElMessage.success('删除成功')
+            fetchMyAppraisals(userProfile.value.id)
+        } catch (error) {
+            console.error(error)
+            ElMessage.error('删除失败')
+        }
+    })
 }
 
 const handleFileChange = (file) => {

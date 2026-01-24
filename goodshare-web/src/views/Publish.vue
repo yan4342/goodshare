@@ -33,6 +33,25 @@
             <el-input v-model="form.title" placeholder="填写标题会有更多赞哦~" maxlength="20" show-word-limit />
           </el-form-item>
 
+          <el-form-item label="AI 创作助手">
+            <div class="ai-input-group">
+                <el-input 
+                    v-model="aiKeyword" 
+                    placeholder="输入商品名或主题，AI帮您写笔记（例如：iPhone 16 使用体验）" 
+                    maxlength="50" 
+                    clearable
+                    @keyup.enter="handleAiGenerate"
+                >
+                    <template #append>
+                        <el-button @click="handleAiGenerate" :loading="aiLoading">
+                            <el-icon class="ai-icon"><MagicStick /></el-icon>
+                            一键生成
+                        </el-button>
+                    </template>
+                </el-input>
+            </div>
+          </el-form-item>
+
           <el-form-item label="正文">
             <div ref="editorContainer" style="height: 300px;"></div>
           </el-form-item>
@@ -258,7 +277,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, Check, Star, StarFilled, Collection, CollectionTag, ChatDotRound } from '@element-plus/icons-vue'
+import { Plus, Check, Star, StarFilled, Collection, CollectionTag, ChatDotRound, MagicStick } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -274,6 +293,8 @@ const dialogVisible = ref(false)
 const showPreview = ref(false)
 const hasContentImage = ref(false)
 const previewCoverUrl = ref('')
+const aiKeyword = ref('')
+const aiLoading = ref(false)
 let quill = null
 
 const form = ref({
@@ -287,6 +308,49 @@ const previewData = ref({
     images: []
 })
 
+const handleAiGenerate = async () => {
+    if (!aiKeyword.value.trim()) {
+        ElMessage.warning('请输入商品名或主题')
+        return
+    }
+
+    aiLoading.value = true
+    try {
+        const res = await request.post('/ai/generate', { keyword: aiKeyword.value })
+        if (res.data && res.data.content) {
+            // Append or replace? Let's append if there is content, but usually replacement is expected for "generation"
+            // However, to be safe, if content is empty, just set it.
+            // If content exists, ask user? Or just append.
+            // Let's replace for now as it's a "Generator"
+            
+            const generatedContent = res.data.content
+            
+            // If quill is ready
+            if (quill) {
+                // Insert at the end
+                // quill.insertText(quill.getLength(), generatedContent)
+                // Or set contents
+                quill.root.innerHTML = `<p>${generatedContent.replace(/\n/g, '<br>')}</p>`
+                form.value.content = quill.root.innerHTML
+            } else {
+                form.value.content = generatedContent
+            }
+            
+            // Auto fill title if empty
+            if (!form.value.title) {
+                form.value.title = aiKeyword.value + ' 测评分享'
+            }
+
+            ElMessage.success('AI 生成成功！')
+        }
+    } catch (error) {
+        console.error('AI Generation failed', error)
+        // ElMessage.error('AI 生成失败，请稍后重试') // Interceptor handles this
+    } finally {
+        aiLoading.value = false
+    }
+}
+
 const selectedCoverStyle = ref(0)
 const selectedTextStyle = ref(0)
 
@@ -295,7 +359,9 @@ const textStyles = [
     { name: '极简黑', color: '#000000', font: 'sans-serif', weight: 'bold', shadow: false },
     { name: '衬线雅', color: '#FFFFFF', font: 'serif', weight: 'bold', shadow: true },
     { name: '活力黄', color: '#FFD700', font: 'sans-serif', weight: '900', shadow: true, shadowColor: 'rgba(0,0,0,0.8)' },
-    { name: '清新绿', color: '#E0FFEB', font: 'monospace', weight: 'bold', shadow: true, shadowColor: '#004d00' }
+    { name: '清新绿', color: '#E0FFEB', font: 'monospace', weight: 'bold', shadow: true, shadowColor: '#004d00' },
+    { name: '霓虹粉', color: '#FF00FF', font: 'sans-serif', weight: 'bold', shadow: true, shadowColor: '#00FFFF', glow: true },
+    { name: '描边黑', color: '#FFFFFF', font: 'Impact, sans-serif', weight: 'bold', stroke: '#000000', strokeWidth: 3 }
 ]
 
 const coverStyles = [
@@ -307,7 +373,10 @@ const coverStyles = [
     { name: '幽蓝', type: 'gradient', colors: ['#30cfd0', '#330867'], decoration: 'bubbles' },
     { name: '纯净白', type: 'solid', colors: ['#ffffff'], decoration: 'border', defaultTextIndex: 1 },
     { name: '复古纸张', type: 'solid', colors: ['#f4e4bc'], decoration: 'noise', defaultTextIndex: 1 },
-    { name: '科技蓝', type: 'gradient', colors: ['#000428', '#004e92'], decoration: 'grid' }
+    { name: '科技蓝', type: 'gradient', colors: ['#000428', '#004e92'], decoration: 'grid' },
+    { name: '派对', type: 'solid', colors: ['#FFF5E6'], decoration: 'confetti', defaultTextIndex: 1 },
+    { name: '几何', type: 'gradient', colors: ['#2E3192', '#1BFFFF'], decoration: 'geometric' },
+    { name: '赛博', type: 'solid', colors: ['#000000'], decoration: 'neon', defaultTextIndex: 5 }
 ]
 
 const uploadHeaders = computed(() => {
@@ -382,6 +451,47 @@ const drawCanvasContent = (ctx, w, h, text) => {
         for(let i=0; i<5000; i++) {
             ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2)
         }
+    } else if (bgStyle.decoration === 'confetti') {
+        const colors = ['#FFC700', '#FF0000', '#2E3192', '#009E00', '#FF00FF']
+        for(let i=0; i<100; i++) {
+            ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)]
+            ctx.save()
+            ctx.translate(Math.random() * w, Math.random() * h)
+            ctx.rotate(Math.random() * Math.PI * 2)
+            ctx.fillRect(0, 0, 8 + Math.random() * 8, 4 + Math.random() * 4)
+            ctx.restore()
+        }
+    } else if (bgStyle.decoration === 'geometric') {
+        for(let i=0; i<15; i++) {
+            ctx.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.1})`
+            ctx.beginPath()
+            ctx.moveTo(Math.random() * w, Math.random() * h)
+            ctx.lineTo(Math.random() * w, Math.random() * h)
+            ctx.lineTo(Math.random() * w, Math.random() * h)
+            ctx.fill()
+        }
+    } else if (bgStyle.decoration === 'neon') {
+        ctx.strokeStyle = '#00FFFF'
+        ctx.shadowColor = '#00FFFF'
+        ctx.shadowBlur = 20
+        ctx.lineWidth = 2
+        for(let i=0; i<5; i++) {
+            ctx.beginPath()
+            const y = Math.random() * h
+            ctx.moveTo(0, y)
+            ctx.bezierCurveTo(w/3, y - 100, 2*w/3, y + 100, w, y)
+            ctx.stroke()
+        }
+        ctx.strokeStyle = '#FF00FF'
+        ctx.shadowColor = '#FF00FF'
+        for(let i=0; i<5; i++) {
+            ctx.beginPath()
+            const x = Math.random() * w
+            ctx.moveTo(x, 0)
+            ctx.bezierCurveTo(x - 100, h/3, x + 100, 2*h/3, x, h)
+            ctx.stroke()
+        }
+        ctx.shadowBlur = 0
     }
     ctx.restore()
 
@@ -391,7 +501,10 @@ const drawCanvasContent = (ctx, w, h, text) => {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     
-    if (txtStyle.shadow) {
+    if (txtStyle.glow) {
+        ctx.shadowColor = txtStyle.shadowColor || 'white'
+        ctx.shadowBlur = 20
+    } else if (txtStyle.shadow) {
         ctx.shadowColor = txtStyle.shadowColor || 'rgba(0,0,0,0.3)'
         ctx.shadowBlur = 10
         ctx.shadowOffsetX = 2
@@ -427,6 +540,11 @@ const drawCanvasContent = (ctx, w, h, text) => {
     let startY = (h - totalHeight) / 2
 
     for(let i = 0; i < lines.length; i++) {
+        if (txtStyle.stroke) {
+            ctx.lineWidth = txtStyle.strokeWidth || 2
+            ctx.strokeStyle = txtStyle.stroke
+            ctx.strokeText(lines[i], w / 2, startY + (i * lineHeight))
+        }
         ctx.fillText(lines[i], w / 2, startY + (i * lineHeight))
     }
     

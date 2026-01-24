@@ -98,6 +98,20 @@ public interface PostMapper extends BaseMapper<Post> {
     @Select("SELECT t.* FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = #{postId}")
     Set<Tag> selectTagsByPostId(Long postId);
 
+    @Select("<script>" +
+            "SELECT pt.post_id, t.* FROM tags t " +
+            "JOIN post_tags pt ON t.id = pt.tag_id " +
+            "WHERE pt.post_id IN " +
+            "<foreach item='item' index='index' collection='postIds' open='(' separator=',' close=')'>" +
+            "#{item}" +
+            "</foreach>" +
+            "</script>")
+    @Results({
+            @Result(property = "id", column = "id"),
+            @Result(property = "name", column = "name")
+    })
+    List<java.util.Map<String, Object>> selectTagsByPostIds(@Param("postIds") List<Long> postIds);
+
     @Delete("DELETE FROM post_tags WHERE post_id = #{postId}")
     void deletePostTags(Long postId);
 

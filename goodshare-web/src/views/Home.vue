@@ -1,7 +1,7 @@
 <template>
   <div class="home-container">
     <Sidebar v-if="isAuthenticated" />
-    <el-scrollbar height="100vh" @scroll="handleScroll">
+    <el-scrollbar height="100vh" @scroll="handleScroll" ref="scrollbarRef">
       <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }" ref="scrollContent">
         <Navbar />
         
@@ -26,7 +26,7 @@
 
         <!-- Waterfall Grid -->
         <div class="masonry-grid">
-          <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post)">
+          <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
             <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}' )` }"></div>
             <div class="card-info">
               <h3 class="post-title">{{ post.title }}</h3>
@@ -65,50 +65,86 @@
         
         <PostDetail 
           v-if="showPostDetail" 
-          :post-id="selectedPostId" 
-          @close="closePost" 
+          :post-id="selectedPostId"
+          :origin-rect="clickedRect" 
+          @close="closePost"
+          @update="handlePostUpdate" 
         />
-      </div>
+
+        </div>
       </div>
     </el-scrollbar>
+
+    <div class="refresh-fab" @click="refreshPosts">
+        <el-icon><Refresh /></el-icon>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.refresh-fab {
+    position: fixed;
+    bottom: 40px;
+    right: 40px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: var(--el-color-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 100;
+    font-size: 24px;
+}
+
+.refresh-fab:hover {
+    transform: scale(1.1) rotate(180deg);
+    background-color: var(--el-color-primary-dark-2);
+}
+</style>
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
 import Sidebar from '../components/Sidebar.vue'
 import PostDetail from './PostDetail.vue'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import request from '../utils/request'
 import { getThumbnailUrl } from '../utils/image'
-import { Star, UserFilled, View } from '@element-plus/icons-vue'
+import { Star, UserFilled, View, Refresh } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import authStore from '../stores/auth'
+import homeStore from '../stores/home'
 
 const router = useRouter()
-const posts = ref([])
+// Use store state for persistence
+const posts = computed(() => homeStore.state.posts)
 const tags = ref([])
-const activeTag = ref('推荐')
+const activeTag = computed(() => homeStore.state.activeTag)
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
-const page = ref(1)
+const page = computed(() => homeStore.state.page)
 const pageSize = ref(10)
 const loading = ref(false)
-const hasMore = ref(true)
+const hasMore = computed(() => homeStore.state.hasMore)
 const showPostDetail = ref(false)
 const selectedPostId = ref(null)
 const scrollContent = ref(null)
+const scrollbarRef = ref(null)
+const clickedRect = ref(null)
+const fetchId = ref(0)
 
 const handleScroll = ({ scrollTop }) => {
+    homeStore.setScrollTop(scrollTop)
+    
     if (loading.value || !hasMore.value) return
     
-    // Calculate scroll bottom
-    // We need the height of the content. 
-    // Since el-scrollbar wraps the content, we can get the inner div height via ref
     if (scrollContent.value) {
         const contentHeight = scrollContent.value.clientHeight
-        const windowHeight = window.innerHeight // or the height of el-scrollbar (100vh)
+        const windowHeight = window.innerHeight 
         
-        // Trigger when within 300px of bottom
         if (contentHeight - scrollTop - windowHeight < 300) {
             loadMore()
         }
@@ -125,10 +161,8 @@ const fetchTags = async () => {
 }
 
 const selectTag = async (tagName) => {
-    activeTag.value = tagName
-    page.value = 1
-    posts.value = []
-    hasMore.value = true
+    homeStore.reset() // Keep activeTag, clear posts
+    homeStore.setActiveTag(tagName)
     await fetchPosts(tagName)
 }
 
@@ -137,15 +171,20 @@ const loadMore = () => {
     fetchPosts(null, true)
 }
 
-const fetchPosts = async (tag = null, isLoadMore = false) => {
-    if (loading.value) return
+const fetchPosts = async (tag = null, isLoadMore = false, force = false) => {
+    if (loading.value && !force) return
+    
+    const currentFetchId = Date.now()
+    fetchId.value = currentFetchId
+    
     loading.value = true
     try {
         let url = '/posts'
         const targetTag = tag || activeTag.value
+        const currentPage = isLoadMore ? page.value : 1
         
         let params = {
-            page: page.value,
+            page: currentPage,
             size: pageSize.value
         }
 
@@ -159,44 +198,63 @@ const fetchPosts = async (tag = null, isLoadMore = false) => {
             params.tag = targetTag
         }
         
-        // Use params object which axios supports (assuming request wrapper supports it or we build query string)
-        // Check if request wrapper supports second argument config
         const res = await request.get(url, { params })
         
+        if (fetchId.value !== currentFetchId) return
+
         let newPosts = []
         if (res.data && Array.isArray(res.data)) {
             newPosts = res.data
         } else if (res.data && res.data.records) {
-            newPosts = res.data.records
-        }
-
-        if (newPosts.length < pageSize.value) {
-            hasMore.value = false
-        }
-
-        if (isLoadMore) {
-            posts.value = [...posts.value, ...newPosts]
-        } else {
-            posts.value = newPosts
+             newPosts = res.data.records
         }
         
-        if (newPosts.length > 0) {
-            page.value++
-        } else {
-            hasMore.value = false
+        if (newPosts.length < pageSize.value) {
+            homeStore.setHasMore(false)
         }
+        
+        if (isLoadMore) {
+            homeStore.appendPosts(newPosts)
+            homeStore.setPage(currentPage + 1)
+        } else {
+            homeStore.setPosts(newPosts)
+            homeStore.setPage(2)
+            homeStore.setHasMore(newPosts.length >= pageSize.value)
+        }
+        
     } catch (err) {
-        console.error('Failed to fetch posts', err)
-        hasMore.value = false
+        if (fetchId.value === currentFetchId) {
+            console.error('Failed to fetch posts', err)
+        }
     } finally {
-        loading.value = false
+        if (fetchId.value === currentFetchId) {
+            loading.value = false
+        }
     }
 }
 
-onMounted(async () => {
-  await fetchTags()
-  await fetchPosts()
-})
+const refreshPosts = async () => {
+    homeStore.reset()
+    await fetchPosts(null, false, true)
+}
+
+const handlePostUpdate = (updatedFields) => {
+    homeStore.updatePost(updatedFields)
+}
+
+const openPost = (post, event) => {
+    if (event && event.currentTarget) {
+        clickedRect.value = event.currentTarget.getBoundingClientRect()
+    }
+    selectedPostId.value = post.id
+    showPostDetail.value = true
+}
+
+const closePost = () => {
+    showPostDetail.value = false
+    selectedPostId.value = null
+    clickedRect.value = null
+}
 
 const getCoverUrl = (post) => {
     let url = null
@@ -211,19 +269,19 @@ const getCoverUrl = (post) => {
     return getThumbnailUrl(url)
 }
 
-const openPost = (post) => {
-  selectedPostId.value = post.id
-  showPostDetail.value = true
-  // URL update removed to avoid conflict with Vue Router
-  // window.history.pushState({}, '', `/post/${post.id}`)
-}
-
-const closePost = () => {
-  showPostDetail.value = false
-  selectedPostId.value = null
-  // URL restore removed
-  // window.history.pushState({}, '', '/')
-}
+onMounted(async () => {
+    await fetchTags()
+    
+    if (posts.value.length === 0) {
+        await fetchPosts()
+    } else {
+        nextTick(() => {
+            if (scrollbarRef.value) {
+                scrollbarRef.value.setScrollTop(homeStore.state.scrollTop)
+            }
+        })
+    }
+})
 </script>
 
 <style scoped>
@@ -248,9 +306,8 @@ const closePost = () => {
 }
 .tags-bar {
   display: flex;
-  gap: 30px;
+  gap: 10px;
   padding: 8px 0 30px; /* Reduced top padding for alignment with sidebar */
-  padding-left: 20px; /* Added left padding for alignment */
   overflow-x: auto;
   font-size: 16px;
   color: var(--text-color-secondary);
