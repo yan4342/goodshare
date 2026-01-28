@@ -51,7 +51,7 @@
             <div class="post-text" v-html="post.content"></div>
             
             <div class="tags-list">
-              <span v-for="tag in post.tags" :key="tag.id" class="tag">#{{ tag.name }}</span>
+              <span v-for="tag in post.tags" :key="tag.id" class="tag" @click="handleTagClick(tag.name)">#{{ tag.name }}</span>
             </div>
             
             <div class="meta-row">
@@ -283,6 +283,11 @@ const imageList = computed(() => {
     }
     return []
 })
+
+const handleTagClick = (tagName) => {
+    handleClose()
+    router.push({ path: '/search', query: { q: tagName } })
+}
 
 const formatDate = (dateStr) => {
     if (!dateStr) return ''
@@ -593,10 +598,14 @@ const handleClose = () => {
   white-space: pre-wrap;
   margin-bottom: 20px;
 }
+.post-text :deep(a) {
+    color: var(--el-color-primary);
+    text-decoration: underline;
+}
 .post-text :deep(img) {
     max-width: 100%;
     border-radius: 8px;
-.tags-list {
+}.tags-list {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
@@ -619,15 +628,7 @@ const handleClose = () => {
     align-items: center;
     gap: 4px;
 }
-.date {
-  /* color: var(--text-color-secondary); Remove if handled by meta-row */
-} flex-wrap: wrap;
-  gap: 8px;
-}
-.tag {
-  color: var(--el-color-primary); /* Use primary color for tags */
-  cursor: pointer;
-}
+
 .date {
   margin-top: 10px;
   font-size: 12px;

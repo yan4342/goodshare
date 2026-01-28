@@ -11,6 +11,7 @@
               v-model="searchKeyword"
               placeholder="输入商品名称（如：iPhone 15）"
               class="custom-input"
+              size="large"
               @keyup.enter="handleSearch"
             >
               <template #prefix>
@@ -20,6 +21,16 @@
                 <el-button @click="handleSearch">比价</el-button>
               </template>
             </el-input>
+            <el-button 
+                type="success" 
+                class="trend-btn" 
+                size="large"
+                round
+                :disabled="!searchKeyword || !searched"
+                @click="showHistory"
+            >
+                <el-icon><TrendCharts /></el-icon> 价格走势
+            </el-button>
           </div>
         </div>
 
@@ -62,21 +73,36 @@
         </div>
       </div>
     </div>
+
+    <!-- History Dialog -->
+    <el-dialog
+        v-model="historyDialogVisible"
+        title="价格历史走势"
+        width="70%"
+        @opened="initChart"
+    >
+        <div ref="chartContainer" style="width: 100%; height: 400px;"></div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import Sidebar from '../components/Sidebar.vue'
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import request from '../utils/request'
-import { Search } from '@element-plus/icons-vue'
+import { Search, TrendCharts, Loading } from '@element-plus/icons-vue'
 import authStore from '../stores/auth'
+import { ElMessage } from 'element-plus'
 
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const searchKeyword = ref('')
 const results = ref([])
 const loading = ref(false)
 const searched = ref(false)
+
+const historyDialogVisible = ref(false)
+const chartContainer = ref(null)
+let chartInstance = null
 
 const handleSearch = async () => {
   if (!searchKeyword.value.trim()) return
@@ -88,14 +114,116 @@ const handleSearch = async () => {
   try {
     const res = await request.get(`/prices/search`, {
       params: { keyword: searchKeyword.value },
-      timeout: 70000 // Increase timeout to 60s for crawler
+      timeout: 120000 // Increase timeout to 120s for crawler
     })
-    results.value = res.data
+    console.log('Price search results:', res.data)
+    if (Array.isArray(res.data)) {
+        // Force reactivity update
+        results.value = [...res.data]
+    } else {
+        results.value = []
+    }
   } catch (err) {
     console.error('Failed to compare prices', err)
+    if (err.code === 'ECONNABORTED') {
+        ElMessage.error('搜索耗时较长，请稍后重试或尝试再次搜索')
+    } else {
+        ElMessage.error('获取比价数据失败，请重试')
+    }
   } finally {
     loading.value = false
   }
+}
+
+const showHistory = async () => {
+    historyDialogVisible.value = true
+}
+
+const initChart = async () => {
+    if (!chartContainer.value) return
+    
+    // Ensure ECharts is loaded
+    if (!window.echarts) {
+        // Dynamic load script if not present
+        await new Promise((resolve) => {
+            const script = document.createElement('script')
+            script.src = 'https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js'
+            script.onload = resolve
+            document.head.appendChild(script)
+        })
+    }
+
+    if (chartInstance) {
+        chartInstance.dispose()
+    }
+    
+    chartInstance = window.echarts.init(chartContainer.value)
+    chartInstance.showLoading()
+    
+    try {
+        const res = await request.get('/prices/history', {
+            params: { keyword: searchKeyword.value }
+        })
+        const data = res.data
+        
+        const dates = data.map(item => item.date)
+        const prices = data.map(item => item.minPrice)
+        const avgPrices = data.map(item => item.avgPrice)
+        
+        const option = {
+            tooltip: {
+                trigger: 'axis'
+            },
+            legend: {
+                data: ['最低价', '平均价']
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                boundaryGap: false,
+                data: dates
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: {
+                    formatter: '¥{value}'
+                }
+            },
+            series: [
+                {
+                    name: '最低价',
+                    type: 'line',
+                    data: prices,
+                    smooth: true,
+                    itemStyle: { color: '#67C23A' },
+                    areaStyle: {
+                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                          { offset: 0, color: 'rgba(103, 194, 58, 0.5)' },
+                          { offset: 1, color: 'rgba(103, 194, 58, 0.1)' }
+                        ])
+                    }
+                },
+                {
+                    name: '平均价',
+                    type: 'line',
+                    data: avgPrices,
+                    smooth: true,
+                    itemStyle: { color: '#409EFF' }
+                }
+            ]
+        }
+        
+        chartInstance.setOption(option)
+    } catch (e) {
+        console.error('Failed to load history', e)
+    } finally {
+        chartInstance.hideLoading()
+    }
 }
 
 const openProduct = (url) => {
@@ -120,6 +248,7 @@ const getPlatformClass = (name) => {
 </script>
 
 <style scoped>
+/* Removed .trend-btn from here as it is now redefined below */
 .loading-state {
   text-align: center;
   padding: 40px 0;
@@ -170,8 +299,25 @@ const getPlatformClass = (name) => {
   color: var(--text-color);
 }
 .search-box {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.custom-input {
+    flex: 1;
+}
+.trend-btn {
+    margin-left: 0;
+    padding: 12px 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+    transition: all 0.3s;
+}
+.trend-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(103, 194, 58, 0.4);
 }
 .custom-input :deep(.el-input__wrapper) {
   border-radius: 24px 0 0 24px;

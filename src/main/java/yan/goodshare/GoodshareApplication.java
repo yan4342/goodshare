@@ -6,9 +6,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableAsync;
 import yan.goodshare.auth.AuthService;
+import yan.goodshare.post.PostService;
 
 @SpringBootApplication
+@EnableAsync
 @MapperScan("yan.goodshare.mapper")
 public class GoodshareApplication {
 
@@ -17,9 +20,12 @@ public class GoodshareApplication {
     }
 
     @Bean
-    CommandLineRunner run(AuthService authService) {
+    CommandLineRunner run(AuthService authService, PostService postService) {
         return args -> {
             authService.createAdminIfNotExists();
+            System.out.println("Executing startup reindex...");
+            postService.reindexAllPosts();
+            System.out.println("Startup reindex completed.");
         };
     }
 }

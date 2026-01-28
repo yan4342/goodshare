@@ -316,36 +316,87 @@ const handleAiGenerate = async () => {
 
     aiLoading.value = true
     try {
-        const res = await request.post('/ai/generate', { keyword: aiKeyword.value })
-        if (res.data && res.data.content) {
-            // Append or replace? Let's append if there is content, but usually replacement is expected for "generation"
-            // However, to be safe, if content is empty, just set it.
-            // If content exists, ask user? Or just append.
-            // Let's replace for now as it's a "Generator"
-            
-            const generatedContent = res.data.content
-            
-            // If quill is ready
-            if (quill) {
-                // Insert at the end
-                // quill.insertText(quill.getLength(), generatedContent)
-                // Or set contents
-                quill.root.innerHTML = `<p>${generatedContent.replace(/\n/g, '<br>')}</p>`
-                form.value.content = quill.root.innerHTML
-            } else {
-                form.value.content = generatedContent
-            }
-            
-            // Auto fill title if empty
-            if (!form.value.title) {
-                form.value.title = aiKeyword.value + ' 测评分享'
-            }
+        // Use Fetch API for streaming response
+        const token = localStorage.getItem('token')
+        const response = await fetch('/api/ai/generate-stream', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({ keyword: aiKeyword.value })
+        })
 
-            ElMessage.success('AI 生成成功！')
+        if (!response.ok) {
+            throw new Error('AI request failed')
         }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let accumulatedContent = ''
+        let buffer = ''
+        
+        // Clear current content if needed, or just append? 
+        // Let's start fresh for the generated part
+        if (quill) {
+             quill.root.innerHTML = '<p>AI 正在思考...</p>'
+        }
+
+        let isDone = false
+        while (!isDone) {
+            const { done, value } = await reader.read()
+            if (done) break
+            
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // Keep the last partial line
+            
+            for (const line of lines) {
+                if (line.trim().startsWith('data:')) {
+                    const content = line.trim().slice(5) // Remove "data:"
+                    if (content.includes('[DONE]')) {
+                        isDone = true
+                        break
+                    }
+                    accumulatedContent += content
+                    
+                    if (quill) {
+                        // Update Quill content in real-time
+                        // Since we request HTML, we set innerHTML
+                        quill.root.innerHTML = accumulatedContent
+                    } else {
+                        form.value.content = accumulatedContent
+                    }
+                }
+            }
+        }
+        
+        // Process any remaining buffer
+        if (!isDone && buffer.trim().startsWith('data:')) {
+             const content = buffer.trim().slice(5)
+             if (content.includes('[DONE]')) {
+                 isDone = true
+             } else {
+                 accumulatedContent += content
+             }
+        }
+        
+        if (quill) {
+             quill.root.innerHTML = accumulatedContent
+        } else {
+             form.value.content = accumulatedContent
+        }
+
+        // Auto fill title if empty
+        if (!form.value.title) {
+            form.value.title = aiKeyword.value + ' 测评分享'
+        }
+        
+        ElMessage.success('AI 生成完成！')
+
     } catch (error) {
         console.error('AI Generation failed', error)
-        // ElMessage.error('AI 生成失败，请稍后重试') // Interceptor handles this
+        ElMessage.error('AI 生成失败，请稍后重试')
     } finally {
         aiLoading.value = false
     }

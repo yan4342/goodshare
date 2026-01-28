@@ -30,6 +30,11 @@ public class SearchController {
         );
     }
 
+    @GetMapping("/suggest")
+    public ResponseEntity<List<String>> suggest(@RequestParam String query) {
+        return ResponseEntity.ok(searchService.suggest(query));
+    }
+
     @GetMapping("/hot")
     public ResponseEntity<?> getHotKeywords() {
         return ResponseEntity.ok(searchService.getHotKeywords());

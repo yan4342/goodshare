@@ -54,8 +54,10 @@ public class UploadController {
                          Path thumbPath = this.fileStorageLocation.resolve(thumbName);
                          if (!Files.exists(thumbPath)) {
                              try {
-                                 createThumbnail(path.toFile(), thumbPath.toFile());
-                                 System.out.println("Generated missing thumbnail: " + thumbName);
+                                 boolean generated = createThumbnail(path.toFile(), thumbPath.toFile());
+                                 if (generated) {
+                                     System.out.println("Generated missing thumbnail: " + thumbName);
+                                 }
                              } catch (Exception e) {
                                  System.err.println("Failed to generate thumbnail for " + filename + ": " + e.getMessage());
                              }
@@ -87,8 +89,13 @@ public class UploadController {
                 try {
                     String thumbFileName = getThumbFilename(newFileName);
                     Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
-                    createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
-                    thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
+                    boolean resized = createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
+                    if (resized) {
+                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
+                    } else {
+                        // If not resized (image is small), use the original URL
+                        thumbnailUrl = fileUrl;
+                    }
                 } catch (Exception e) {
                     System.err.println("Failed to generate thumbnail: " + e.getMessage());
                     // Fallback to original URL if thumb generation fails
@@ -116,9 +123,9 @@ public class UploadController {
         return filename.substring(0, dotIndex) + "_thumb" + filename.substring(dotIndex);
     }
 
-    private void createThumbnail(File originalFile, File thumbFile) throws IOException {
+    private boolean createThumbnail(File originalFile, File thumbFile) throws IOException {
         BufferedImage originalImage = ImageIO.read(originalFile);
-        if (originalImage == null) return; // Not a valid image file
+        if (originalImage == null) return false; // Not a valid image file
 
         int originalWidth = originalImage.getWidth();
         int originalHeight = originalImage.getHeight();
@@ -127,9 +134,8 @@ public class UploadController {
         int maxDim = 800;
         
         if (originalWidth <= maxDim && originalHeight <= maxDim) {
-            // No need to resize, just copy
-            Files.copy(originalFile.toPath(), thumbFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            return;
+            // No need to resize, and we don't want to copy it anymore to save space
+            return false;
         }
 
         int newWidth, newHeight;
@@ -163,6 +169,7 @@ public class UploadController {
         } else {
              ImageIO.write(resizedImage, extension, thumbFile);
         }
+        return true;
     }
 
     private void writeJpeg(BufferedImage image, File file, float quality) throws IOException {

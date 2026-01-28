@@ -35,6 +35,12 @@ public class PostDocument {
     @Field(type = FieldType.Integer, name = "likeCount")
     private Integer likeCount;
 
+    @Field(type = FieldType.Integer, name = "status")
+    private Integer status;
+
+    @Field(type = FieldType.Keyword, name = "tags")
+    private java.util.List<String> tags;
+
     // Getters and Setters
 
     public String getId() {
@@ -107,5 +113,21 @@ public class PostDocument {
 
     public void setLikeCount(Integer likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public java.util.List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(java.util.List<String> tags) {
+        this.tags = tags;
     }
 }

@@ -21,4 +21,9 @@ public class PriceController {
     public ResponseEntity<List<ProductPriceDTO>> searchPrices(@RequestParam String keyword) {
         return ResponseEntity.ok(crawlerService.searchProducts(keyword));
     }
+
+    @GetMapping("/history")
+    public ResponseEntity<List<yan.goodshare.dto.ProductHistoryDTO>> getPriceHistory(@RequestParam String keyword) {
+        return ResponseEntity.ok(crawlerService.getProductHistory(keyword));
+    }
 }

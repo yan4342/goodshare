@@ -385,6 +385,23 @@ public class PostService {
         }
     }
 
+    public void reindexAllPosts() {
+        // Clear all existing data in Elasticsearch to ensure consistency
+        searchService.deleteAllPosts();
+        
+        List<Post> posts = postMapper.selectAllPostsWithUser();
+        for (Post post : posts) {
+            // Index if status is not rejected (2)
+            // Default to 0 (Pending) if null, which is visible
+            Integer status = post.getStatus() != null ? post.getStatus() : 0;
+            if (status != 2) {
+                // Ensure status is set in object for indexing
+                post.setStatus(status);
+                searchService.indexPost(post);
+            }
+        }
+    }
+
     private void deleteImageFile(String url) {
         if (url != null && url.contains("/uploads/")) {
             String filename = url.substring(url.lastIndexOf("/") + 1);

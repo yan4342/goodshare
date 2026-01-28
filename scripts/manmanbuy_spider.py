@@ -14,6 +14,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 # Edge imports
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.edge.service import Service as EdgeService
@@ -162,74 +164,65 @@ def parse_nextjs_data(next_f_data):
     return products
 
 def get_manmanbuy_products(keyword, limit=0):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    # Add fake user-agent
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    
-    # Suppress logging
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    chrome_options.add_argument('--blink-settings=imagesEnabled=true') # Enable images to look more real
-
+    start_time = time.time()
     driver = None
     
-    # Try Chrome
+    # Try Edge (Preferred by User)
     try:
-        # Try using npmmirror for better connectivity in China
+        edge_options = EdgeOptions()
+        edge_options.add_argument("--headless")
+        edge_options.add_argument("--disable-gpu")
+        # Edge-specific options to mimic Chrome behavior
+        edge_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        edge_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        edge_options.add_argument('--blink-settings=imagesEnabled=true')
+        edge_options.page_load_strategy = 'eager'
+
         try:
-            # Try https mirror
-            manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
-            service = Service(manager.install())
-        except Exception as e:
-            print(f"Chrome HTTPS Mirror failed: {e}", file=sys.stderr)
+            # Try system default first
+            service = EdgeService()
+            driver = webdriver.Edge(service=service, options=edge_options)
+        except Exception:
+            # Fallback to webdriver_manager
             try:
-                 # Try http mirror
-                 manager = ChromeDriverManager(url="http://npmmirror.com/mirrors/chromedriver/", latest_release_url="http://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
-                 service = Service(manager.install())
-            except Exception as e2:
-                 print(f"Chrome HTTP Mirror failed: {e2}", file=sys.stderr)
-                 # Fallback to default source
-                 service = Service(ChromeDriverManager().install())
+                service = EdgeService(EdgeChromiumDriverManager().install())
+                driver = webdriver.Edge(service=service, options=edge_options)
+            except Exception as e:
+                raise e
     except Exception as e:
-        print(f"All Chrome driver installation methods failed: {e}", file=sys.stderr)
-        service = Service()
-    
-    try:
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-    except Exception as e:
-        print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
-    
-    # Fallback to Edge if Chrome failed
-    if driver is None:
-        print("Attempting fallback to Microsoft Edge...", file=sys.stderr)
+        print(f"Failed to initialize Edge WebDriver: {e}", file=sys.stderr)
+        
+        # Fallback to Chrome if Edge failed
+        print("Attempting fallback to Chrome...", file=sys.stderr)
         try:
-            edge_options = EdgeOptions()
-            edge_options.add_argument("--headless")
-            edge_options.add_argument("--disable-gpu")
-            # Edge-specific options to mimic Chrome behavior
-            edge_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            edge_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            edge_options.add_argument('--blink-settings=imagesEnabled=true')
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            chrome_options.add_argument('--blink-settings=imagesEnabled=true')
+            chrome_options.page_load_strategy = 'eager'
 
             try:
-                # Try installing Edge driver
-                service = EdgeService(EdgeChromiumDriverManager().install())
-            except Exception:
-                # Fallback to default/system driver
-                service = EdgeService()
-            
-            driver = webdriver.Edge(service=service, options=edge_options)
-            print("Successfully initialized Microsoft Edge WebDriver.", file=sys.stderr)
+                service = Service()
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except:
+                try:
+                    manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
+                    service = Service(manager.install())
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                except Exception as e:
+                    raise e
         except Exception as e:
-            print(f"Failed to initialize Edge WebDriver: {e}", file=sys.stderr)
+            print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
             # Output empty list to prevent JSON parse error in Java
             print("[]")
             return
 
     # Anti-detection: Hide WebDriver property
+    print(f"Driver initialized in {time.time() - start_time:.2f}s", file=sys.stderr)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
             Object.defineProperty(navigator, 'webdriver', {
@@ -243,14 +236,28 @@ def get_manmanbuy_products(keyword, limit=0):
     try:
         # Using the PC search URL
         search_url = f"https://s.manmanbuy.com/pc/search/result?c=discount&keyword={keyword}"
+        t_load = time.time()
         driver.get(search_url)
-        
-        # Random wait for content to load
-        time.sleep(random.uniform(4, 8))
+                # Random wait for content to load
+        time.sleep(random.uniform(2, 5))
         
         # Scroll to trigger lazy loading with random pause
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
         time.sleep(random.uniform(2, 5))
+        # Wait for Next.js hydration data (max 10s)
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda d: d.execute_script("return window.self.__next_f !== undefined && window.self.__next_f.length > 0")
+            )
+        except:
+            pass
+        print(f"Page loaded & ready in {time.time() - t_load:.2f}s", file=sys.stderr)
+
+        # Human-like behavior to reduce anti-scraping risk
+        # 1. Random small scroll to simulate user viewing
+        driver.execute_script(f"window.scrollTo(0, {random.randint(300, 700)});")
+        # 2. Random short pause (1.5s - 3s) - faster than before but safe enough
+        time.sleep(random.uniform(1.5, 3.0))
 
         # Strategy 1: Try extracting from Next.js hydration data
         try:

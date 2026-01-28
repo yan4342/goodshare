@@ -61,14 +61,38 @@ public class AIController {
         String systemPrompt = "你是一个专业的小红书/社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的种草/测评笔记。" +
                 "要求：\n" +
                 "1. 标题要吸引人，包含emoji。\n" +
-                "2. 正文分段落，包含使用体验、优缺点分析、适合人群等。\n" +
+                "2. 正文分段落，包含使用体验、优缺点分析等。\n" +
                 "3. 语气亲切、真实、有感染力。\n" +
                 "4. 适当使用emoji。\n" +
-                "5. 字数控制在300-500字左右。";
+                "5. 字数控制在300-450字左右。";
         
         String userPrompt = "请为以下商品/主题写一篇笔记：" + keyword;
 
         String content = deepSeekService.chat(userPrompt, systemPrompt);
         return Map.of("content", content);
+    }
+
+    @PostMapping("/generate-stream")
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter generatePostStream(@RequestBody Map<String, String> request) {
+        String keyword = request.get("keyword");
+        if (keyword == null || keyword.trim().isEmpty()) {
+            throw new IllegalArgumentException("Keyword cannot be empty");
+        }
+
+        String systemPrompt = "你是一个专业的小红书/社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的种草/测评笔记。" +
+                "要求：\n" +
+                "1. 标题要吸引人，包含emoji。\n" +
+                "2. 正文分段落，包含使用体验、优缺点分析等。\n" +
+                "3. 语气亲切、真实、有感染力。\n" +
+                "4. 适当使用emoji。\n" +
+                "5. 字数控制在300-450字左右。\n" +
+                "6. 请直接返回HTML格式内容，使用<p>标签分段，<b>标签加粗，<ul><li>标签列举。不要使用Markdown代码块。";
+        
+        String userPrompt = "请为以下商品/主题写一篇笔记：" + keyword;
+
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(60000L); // 60s timeout
+        deepSeekService.streamChat(userPrompt, systemPrompt, emitter);
+        
+        return emitter;
     }
 }

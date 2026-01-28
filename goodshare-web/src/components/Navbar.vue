@@ -3,16 +3,33 @@
     <div class="navbar-content">
       <div class="logo" v-if="!isAuthenticated" @click="$router.push('/')">GoodShare</div>
       <div class="search-bar" :class="{ 'full-width': isAuthenticated }">
-        <el-input
+        <el-autocomplete
           v-model="searchQuery"
+          :fetch-suggestions="querySearchAsync"
           placeholder="搜索你感兴趣的内容..."
           class="search-input"
+          popper-class="navbar-search-popper"
+          :trigger-on-focus="true"
+          @select="handleSelect"
           @keyup.enter="handleSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
-        </el-input>
+          <template #default="{ item }">
+            <div v-if="item.type === 'header'" class="suggest-header">
+                <el-icon color="#ff2442"><Trophy /></el-icon>
+                <span>全站热搜</span>
+            </div>
+            <div v-else-if="item.type === 'hot'" class="suggest-item hot-suggest-item">
+              <span class="hot-rank" :class="{ 'top-3': item.rank <= 3 }">{{ item.rank }}</span>
+              <span class="hot-keyword">{{ item.value }}</span>
+            </div>
+            <div v-else class="suggest-item" tabindex="0">
+              {{ getPrefix(item.value) }}<em class="suggest_high_light">{{ getMatchText(item.value) }}</em>{{ getSuffix(item.value) }}
+            </div>
+          </template>
+        </el-autocomplete>
       </div>
       <div class="menu-items">
         <template v-if="!isAuthenticated">
@@ -26,6 +43,7 @@
             <template #dropdown>
                 <el-dropdown-menu>
                     <el-dropdown-item disabled>{{ username }}</el-dropdown-item>
+                    <el-dropdown-item command="reindex">重建搜索索引 (Admin)</el-dropdown-item>
                     <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
             </template>
@@ -37,10 +55,12 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Search, UserFilled } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import { Search, UserFilled, Trophy } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import authStore from '../stores/auth'
+import request from '../utils/request'
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -48,16 +68,98 @@ const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const userAvatar = computed(() => authStore.state.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
 const username = computed(() => authStore.state.user?.nickname || authStore.state.user?.username)
 
+const hotKeywords = ref([])
+
+const fetchHotKeywords = async () => {
+  try {
+    const res = await request.get('/search/hot')
+    hotKeywords.value = res.data || []
+  } catch (err) {
+    console.error('Failed to fetch hot keywords', err)
+  }
+}
+
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     router.push({ path: '/search', query: { q: searchQuery.value } })
   }
 }
 
-const handleCommand = (command) => {
+const querySearchAsync = async (queryString, cb) => {
+  if (!queryString || queryString.trim().length < 1) {
+    // Show hot keywords when empty
+    if (hotKeywords.value.length === 0) {
+      await fetchHotKeywords()
+    }
+    const hotItems = hotKeywords.value.map((item, index) => ({
+      value: item.keyword,
+      type: 'hot',
+      rank: index + 1,
+      count: item.searchCount
+    }))
+    // Add a header item
+    if (hotItems.length > 0) {
+        hotItems.unshift({ value: '全站热搜', type: 'header' })
+    }
+    cb(hotItems)
+    return
+  }
+  try {
+    const res = await request.get('/search/suggest', { params: { query: queryString } })
+    const suggestions = res.data.map(title => ({ value: title, type: 'suggest' }))
+    cb(suggestions)
+  } catch (error) {
+    console.error('Fetch suggestions failed:', error)
+    cb([])
+  }
+}
+
+const handleSelect = (item) => {
+  if (item.type === 'header') return
+  searchQuery.value = item.value
+  handleSearch()
+}
+
+const getPrefix = (text) => {
+  if (!searchQuery.value) return ''
+  const q = searchQuery.value.toLowerCase()
+  const t = text.toLowerCase()
+  const index = t.indexOf(q)
+  if (index === -1) return ''
+  return text.substring(0, index)
+}
+
+const getMatchText = (text) => {
+  if (!searchQuery.value) return ''
+  const q = searchQuery.value.toLowerCase()
+  const t = text.toLowerCase()
+  const index = t.indexOf(q)
+  if (index === -1) return ''
+  // Return the original casing for the match
+  return text.substring(index, index + searchQuery.value.length)
+}
+
+const getSuffix = (text) => {
+  if (!searchQuery.value) return text
+  const q = searchQuery.value.toLowerCase()
+  const t = text.toLowerCase()
+  const index = t.indexOf(q)
+  if (index === -1) return text
+  return text.substring(index + searchQuery.value.length)
+}
+
+const handleCommand = async (command) => {
     if (command === 'logout') {
         authStore.logout()
         router.push('/login')
+    } else if (command === 'reindex') {
+        try {
+            await request.post('/posts/reindex')
+            ElMessage.success('索引重建成功')
+        } catch (error) {
+            console.error(error)
+            ElMessage.error('索引重建失败：需要管理员权限')
+        }
     }
 }
 </script>
@@ -102,9 +204,10 @@ const handleCommand = (command) => {
 .search-bar.full-width {
     margin: 0 auto; /* Remove left margin if logo is gone */
     max-width: 600px; /* Maybe wider */
+
 }
 .search-input :deep(.el-input__wrapper) {
-  border-radius: 25px;
+  border-radius: 999px !important;
   background-color: var(--bg-color);
   box-shadow: none;
   padding-left: 15px;
@@ -189,5 +292,85 @@ const handleCommand = (command) => {
 .hot-count {
   font-size: 12px;
   color: #999;
+}
+
+.suggest-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-color);
+  width: 100%;
+}
+
+.suggest_high_light {
+  color: #ff2442;
+  font-style: normal;
+  font-weight: 600;
+}
+</style>
+
+<style>
+/* Global styles for search suggestion popper to bypass scoped style isolation */
+.navbar-search-popper .suggest-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-color);
+  width: 100%;
+  line-height: normal;
+  padding: 4px 0;
+}
+
+.navbar-search-popper .suggest_high_light {
+  color: #ff2442;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Force border radius for search input */
+.navbar .search-input .el-input__wrapper {
+  border-radius: 999px !important;
+}
+</style>
+
+<style scoped>.suggest_high_light {
+  color: #ff2442;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.navbar-search-popper .suggest-header {
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+    pointer-events: none; /* Make header unclickable */
+}
+
+.navbar-search-popper .hot-suggest-item {
+    padding: 6px 0;
+}
+
+.navbar-search-popper .hot-rank {
+  width: 20px;
+  font-weight: 700;
+  font-style: italic;
+  margin-right: 10px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.navbar-search-popper .hot-rank.top-3 {
+  color: #ff2442;
+}
+
+.navbar-search-popper .hot-keyword {
+    color: var(--text-color);
 }
 </style>

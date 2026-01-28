@@ -103,4 +103,11 @@ public class PostController {
         postService.recordView(id, username);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/reindex")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> reindexAllPosts() {
+        postService.reindexAllPosts();
+        return ResponseEntity.ok().build();
+    }
 }
