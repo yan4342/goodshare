@@ -98,13 +98,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Sidebar from '../components/Sidebar.vue'
 import request from '../utils/request'
 import authStore from '../stores/auth'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import SockJS from 'sockjs-client/dist/sockjs.min.js'
+import Stomp from 'stompjs'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,6 +120,7 @@ const newMessage = ref('')
 const loadingConversations = ref(false)
 const loadingMessages = ref(false)
 const messageListRef = ref(null)
+let stompClient = null
 
 const emojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -142,6 +145,7 @@ onMounted(async () => {
         await authStore.fetchUser()
     }
     await fetchConversations()
+    connectWebSocket()
     
     // If query has userId, open that chat
     const targetUserId = route.query.userId
@@ -272,6 +276,87 @@ const formatTime = (timeStr) => {
 
 const goToUser = (userId) => {
     router.push(`/user/${userId}`)
+}
+
+onUnmounted(() => {
+    if (stompClient && stompClient.connected) {
+        stompClient.disconnect()
+    }
+})
+
+const connectWebSocket = () => {
+    if (stompClient && stompClient.connected) return
+
+    // Connect to Gateway (8080) which routes to Goodshare Server
+    const socket = new SockJS('http://localhost:8080/ws')
+    stompClient = Stomp.over(socket)
+    stompClient.debug = null // Disable debug logs
+
+    const token = authStore.state.token
+    if (!token) return
+
+    stompClient.connect({ 'Authorization': 'Bearer ' + token }, (frame) => {
+        // Subscribe to user-specific queue
+        stompClient.subscribe('/user/queue/messages', (message) => {
+            const msg = JSON.parse(message.body)
+            handleIncomingMessage(msg)
+        })
+    }, (error) => {
+        console.error('STOMP error', error)
+    })
+}
+
+const handleIncomingMessage = (msg) => {
+    const otherId = msg.senderId === currentUser.value.id ? msg.receiverId : msg.senderId
+    
+    // Update active chat if open
+    if (currentChatUser.value && currentChatUser.value.id === otherId) {
+        // Only append if it's not already in the list (avoid duplicates if we sent it via HTTP and also got WS echo)
+        // Actually, we should rely on WS for everything OR handle deduplication.
+        // Current sendMessage adds to list immediately.
+        // If we get an echo back from WS for our own message, we should check ID.
+        
+        // Check if message with this ID already exists (if ID is available)
+        // Our sendMessage returns the saved msg with ID.
+        const exists = messages.value.some(m => m.id === msg.id)
+        if (!exists) {
+            messages.value.push(msg)
+            scrollToBottom()
+            
+            // Mark as read if it's incoming and we are viewing it
+            if (msg.senderId !== currentUser.value.id) {
+                 request.put(`/messages/${otherId}/read`)
+            }
+        }
+    }
+    
+    // Update conversation list item
+    updateConversationList(msg)
+}
+
+const updateConversationList = (msg) => {
+    const otherId = msg.senderId === currentUser.value.id ? msg.receiverId : msg.senderId
+    const existingIndex = conversations.value.findIndex(c => c.userId === otherId)
+    
+    if (existingIndex !== -1) {
+        const conv = conversations.value[existingIndex]
+        conv.lastMessageContent = msg.content
+        conv.lastMessageTime = msg.createdAt
+        
+        // Increment unread if incoming and NOT currently viewing this chat
+        if (msg.senderId !== currentUser.value.id) {
+            if (!currentChatUser.value || currentChatUser.value.id !== otherId) {
+                conv.unreadCount = (conv.unreadCount || 0) + 1
+            }
+        }
+        
+        // Move to top
+        conversations.value.splice(existingIndex, 1)
+        conversations.value.unshift(conv)
+    } else {
+        // New conversation - refresh list to get full user details
+        fetchConversations()
+    }
 }
 </script>
 

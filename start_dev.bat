@@ -1,5 +1,5 @@
 @echo off
-:: Batch script to start MySQL, Redis, Elasticsearch, and Frontend
+:: Batch script to start MySQL, Redis, Elasticsearch, Nacos, Microservices, and Frontend
 :: Run as Administrator
 
 :: Check for Administrator privileges
@@ -45,8 +45,33 @@ if %errorLevel% neq 0 (
     echo [SUCCESS] Redis Service started.
 )
 
-:: 4. Start Frontend
-echo [STEP 4] Starting Frontend (npm run dev)...
+:: 4. Start Nacos
+echo [STEP 4] Starting Nacos (Docker)...
+cd /d "%~dp0"
+docker-compose up -d nacos
+if %errorLevel% neq 0 (
+    echo [WARN] Failed to start Nacos via Docker Compose.
+) else (
+    echo [SUCCESS] Nacos started.
+)
+
+:: 5. Start Gateway Service
+echo [STEP 5] Starting Gateway Service...
+cd /d "%~dp0gateway-service"
+start "Gateway Service" mvn spring-boot:run
+
+:: 6. Start Core Service (Goodshare Server)
+echo [STEP 6] Starting Core Service (Goodshare Server)...
+cd /d "%~dp0goodshare-server"
+start "Core Service" mvn spring-boot:run
+
+:: 7. Start Crawler Service
+echo [STEP 7] Starting Crawler Service...
+cd /d "%~dp0crawler-service"
+start "Crawler Service" mvn spring-boot:run
+
+:: 8. Start Frontend
+echo [STEP 8] Starting Frontend (npm run dev)...
 cd /d "%~dp0goodshare-web"
 if exist package.json (
     echo Starting npm run dev in %CD%

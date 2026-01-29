@@ -722,8 +722,8 @@ onMounted(async () => {
         await loadScript('/quill/quill.min.js')
 
         // Load Emoji
-        loadStyle('https://unpkg.com/quill-emoji@0.2.0/dist/quill-emoji.css')
-        await loadScript('https://unpkg.com/quill-emoji@0.2.0/dist/quill-emoji.js')
+        loadStyle('/quill/quill-emoji.css')
+        await loadScript('/quill/quill-emoji.js')
 
         // Initialize Quill
         if (window.Quill && editorContainer.value) {

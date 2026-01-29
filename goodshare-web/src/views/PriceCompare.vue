@@ -46,17 +46,17 @@
           </div>
 
           <div class="product-grid">
-            <div v-for="(item, index) in results" :key="index" class="product-card" @click="openProduct(item.productUrl)">
+            <div v-for="(item, index) in results" :key="index" class="product-card" @click="openProduct(item.url)">
               <div class="product-image" :style="{ backgroundImage: `url('${item.imageUrl}')` }">
                 <div class="platform-badge" :class="getPlatformClass(item.shopName)">{{ item.platform }}</div>
               </div>
               <div class="product-info">
-                <h3 class="product-name" :title="item.name">{{ item.name }}</h3>
+                <h3 class="product-name" :title="item.title">{{ item.title }}</h3>
                 <div class="product-meta">
                   <div class="price">¥{{ item.price }}</div>
                   <div class="shop" :style="{ color: getShopColor(item.shopName) }">{{ item.shopName }}</div>
                 </div>
-                <el-button type="primary" size="small" class="buy-btn" @click.stop="openProduct(item.productUrl)">
+                <el-button type="primary" size="small" class="buy-btn" @click.stop="openProduct(item.url)">
                   去购买
                 </el-button>
               </div>
@@ -147,7 +147,7 @@ const initChart = async () => {
         // Dynamic load script if not present
         await new Promise((resolve) => {
             const script = document.createElement('script')
-            script.src = 'https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js'
+            script.src = '/libs/echarts.min.js'
             script.onload = resolve
             document.head.appendChild(script)
         })
@@ -227,6 +227,10 @@ const initChart = async () => {
 }
 
 const openProduct = (url) => {
+  if (!url || url === 'about:blank') {
+    ElMessage.warning('该商品暂无购买链接')
+    return
+  }
   window.open(url, '_blank')
 }
 

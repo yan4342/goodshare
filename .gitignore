@@ -52,3 +52,4 @@ goodshare-web/.env.local
 goodshare-web/.env.*.local
 goodshare-web/.eslintcache
 goodshare-web/*.local
+goodshare-web/.npm-cache/

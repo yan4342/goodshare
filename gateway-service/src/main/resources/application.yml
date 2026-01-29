@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: crawler-service
+          uri: lb://crawler-service
+          predicates:
+            - Path=/api/prices/**
+        - id: goodshare-server
+          uri: lb://goodshare-server
+          predicates:
+            - Path=/**

@@ -1,0 +1,20 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: crawler-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+logging:
+  level:
+    root: INFO
+    yan.goodshare.crawler: DEBUG
