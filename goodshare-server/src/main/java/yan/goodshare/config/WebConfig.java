@@ -10,16 +10,22 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
         // Map /uploads/** to the project root uploads directory
-        // Using absolute path to avoid relative path issues in different execution contexts
-        String uploadsPath = "file:D:/IntelliJ IDEA Community Edition 2024.1/IdeaProjects/goodshare/uploads/";
+        // Docker environment uses /app/uploads/
+        // Local environment uses project root or absolute path
+        String windowsPath = "file:D:/IntelliJ IDEA Community Edition 2024.1/IdeaProjects/goodshare/uploads/";
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations(uploadsPath, "file:../uploads/", "file:uploads/");
+                .addResourceLocations(
+                    "file:/app/uploads/", // Docker priority
+                    windowsPath,          // Local absolute
+                    "file:uploads/",      // Relative CWD
+                    "file:../uploads/"    // Parent relative
+                );
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:5173", "http://localhost:8080") // Allow Vue dev server and local access
+                .allowedOrigins("http://localhost:5173", "http://localhost:8080", "http://localhost:8088") // Allow Vue dev server and local access
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);

@@ -238,15 +238,15 @@ def get_manmanbuy_products(keyword, limit=0):
             chrome_options.page_load_strategy = 'eager'
 
             try:
-                service = Service()
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except:
-                try:
+                service = None
+                if os.path.exists("/usr/bin/chromedriver"):
+                    service = Service("/usr/bin/chromedriver")
+                else:
                     manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
                     service = Service(manager.install())
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
-                except Exception as e:
-                    raise e
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except Exception as e:
+                raise e
         except Exception as e:
             print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
             # Output empty list to prevent JSON parse error in Java

@@ -31,6 +31,18 @@
             >
                 <el-icon><TrendCharts /></el-icon> 价格走势
             </el-button>
+            <el-button 
+                type="warning" 
+                class="refresh-btn" 
+                size="large"
+                round
+                :loading="loading"
+                :disabled="!searchKeyword || !searched"
+                @click="handleRefresh"
+                style="margin-left: 10px;"
+            >
+                <el-icon><Refresh /></el-icon> 重新爬取
+            </el-button>
           </div>
         </div>
 
@@ -90,9 +102,10 @@
 import Sidebar from '../components/Sidebar.vue'
 import { ref, computed, nextTick } from 'vue'
 import request from '../utils/request'
-import { Search, TrendCharts, Loading } from '@element-plus/icons-vue'
+import { Search, TrendCharts, Refresh } from '@element-plus/icons-vue'
 import authStore from '../stores/auth'
 import { ElMessage } from 'element-plus'
+import * as echarts from 'echarts'
 
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const searchKeyword = ref('')
@@ -141,23 +154,12 @@ const showHistory = async () => {
 
 const initChart = async () => {
     if (!chartContainer.value) return
-    
-    // Ensure ECharts is loaded
-    if (!window.echarts) {
-        // Dynamic load script if not present
-        await new Promise((resolve) => {
-            const script = document.createElement('script')
-            script.src = '/libs/echarts.min.js'
-            script.onload = resolve
-            document.head.appendChild(script)
-        })
-    }
 
     if (chartInstance) {
         chartInstance.dispose()
     }
     
-    chartInstance = window.echarts.init(chartContainer.value)
+    chartInstance = echarts.init(chartContainer.value)
     chartInstance.showLoading()
     
     try {
@@ -202,7 +204,7 @@ const initChart = async () => {
                     smooth: true,
                     itemStyle: { color: '#67C23A' },
                     areaStyle: {
-                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                           { offset: 0, color: 'rgba(103, 194, 58, 0.5)' },
                           { offset: 1, color: 'rgba(103, 194, 58, 0.1)' }
                         ])

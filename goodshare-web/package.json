@@ -14,6 +14,7 @@
     "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.13.2",
     "element-plus": "^2.6.0",
+    "echarts": "^5.5.0",
     "sockjs-client": "^1.6.1",
     "stompjs": "^2.3.3",
     "vue": "^3.4.19",

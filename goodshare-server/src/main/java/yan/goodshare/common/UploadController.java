@@ -57,6 +57,11 @@ public class UploadController {
                                  boolean generated = createThumbnail(path.toFile(), thumbPath.toFile());
                                  if (generated) {
                                      System.out.println("Generated missing thumbnail: " + thumbName);
+                                 } else {
+                                     // If not generated (e.g. image too small), copy original to thumb
+                                     // This ensures _thumb file always exists for legacy compatibility
+                                     Files.copy(path, thumbPath, StandardCopyOption.REPLACE_EXISTING);
+                                     System.out.println("Created copy for small thumbnail: " + thumbName);
                                  }
                              } catch (Exception e) {
                                  System.err.println("Failed to generate thumbnail for " + filename + ": " + e.getMessage());

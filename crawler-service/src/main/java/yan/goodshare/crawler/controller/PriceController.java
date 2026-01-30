@@ -19,8 +19,10 @@ public class PriceController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<ProductPriceDTO>> searchPrices(@RequestParam String keyword) {
-        return ResponseEntity.ok(crawlerService.searchProducts(keyword));
+    public ResponseEntity<List<ProductPriceDTO>> searchPrices(
+            @RequestParam String keyword,
+            @RequestParam(required = false, defaultValue = "false") boolean refresh) {
+        return ResponseEntity.ok(crawlerService.searchProducts(keyword, refresh));
     }
 
     @GetMapping("/history")

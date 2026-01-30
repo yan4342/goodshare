@@ -50,15 +50,22 @@ public class CrawlerService {
         }
     }
 
-    public List<ProductPriceDTO> searchProducts(String keyword) {
+    public List<ProductPriceDTO> searchProducts(String keyword, boolean refresh) {
         String cacheKey = REDIS_KEY_PREFIX + keyword;
         
+        if (refresh) {
+            redisTemplate.delete(cacheKey);
+            System.out.println("Refresh requested. Cleared product cache for: " + keyword);
+        }
+
         // Check Redis Cache
         try {
-            Object cachedData = redisTemplate.opsForValue().get(cacheKey);
-            if (cachedData != null) {
-                System.out.println("Returning cached results from Redis for: " + keyword);
-                return (List<ProductPriceDTO>) cachedData;
+            if (!refresh) {
+                Object cachedData = redisTemplate.opsForValue().get(cacheKey);
+                if (cachedData != null) {
+                    System.out.println("Returning cached results from Redis for: " + keyword);
+                    return (List<ProductPriceDTO>) cachedData;
+                }
             }
         } catch (Exception e) {
             System.err.println("Redis cache error: " + e.getMessage());
@@ -253,9 +260,9 @@ public class CrawlerService {
                  scriptPath = "scripts/manmanbuy_spider.py";
             }
             
-            // Build command: python script.py keyword limit
+            // Build command: python3 script.py keyword 8
             // Limit to 20 items to prevent anti-scraping blocks
-            ProcessBuilder processBuilder = new ProcessBuilder("python", scriptPath, keyword, "8");
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", scriptPath, keyword, "8");
             processBuilder.redirectErrorStream(true); // Merge stderr to stdout for debugging
             
             Process process = processBuilder.start();

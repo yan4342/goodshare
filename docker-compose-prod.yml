@@ -1,0 +1,100 @@
+services:
+  # Infrastructure
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: nacos-standalone
+    environment:
+      - PREFER_HOST_MODE=hostname
+      - MODE=standalone
+      - NACOS_AUTH_ENABLE=false
+    ports:
+      - "8500:8848"
+      - "9500:9848"
+    restart: always
+
+  redis:
+    image: redis:latest
+    container_name: redis-standalone
+    ports:
+      - "6379:6379"
+    restart: always
+
+  elasticsearch:
+    image: elasticsearch:8.19.9
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "19200:9200"
+      - "9300:9300"
+    restart: always
+
+  # Microservices
+  gateway-service:
+    build: ./gateway-service
+    container_name: gateway-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+    depends_on:
+      - nacos
+    restart: always
+
+  goodshare-server:
+    build: ./goodshare-server
+    container_name: goodshare-server
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/goodshare?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
+    depends_on:
+      - nacos
+      - redis
+      - elasticsearch
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+  crawler-service:
+    build: ./crawler-service
+    container_name: crawler-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_DATA_REDIS_HOST=redis
+    depends_on:
+      - nacos
+      - redis
+    restart: always
+
+  recommendation-service:
+    build: ./recommendation-service
+    container_name: recommendation-service
+    ports:
+      - "5000:5000"
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+    depends_on:
+      - nacos
+    restart: always
+
+  goodshare-web:
+    build: ./goodshare-web
+    container_name: goodshare-web
+    ports:
+      - "8088:80"
+    depends_on:
+      - gateway-service
+    restart: always
