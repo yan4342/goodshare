@@ -256,6 +256,10 @@
                       <el-input-number v-model="weights['weight.comment']" :step="0.1" :min="0" />
                       <span class="help-text">用户评论帖子的权重 (默认 3.0)</span>
                   </el-form-item>
+                  <el-form-item label="热度 (Popularity)">
+                      <el-input-number v-model="weights['weight.comment_count']" :step="0.05" :min="0" />
+                      <span class="help-text">帖子评论总数的加权系数 (默认 0.1)</span>
+                  </el-form-item>
                   <el-form-item>
                       <el-button type="primary" @click="saveWeights">保存配置</el-button>
                   </el-form-item>

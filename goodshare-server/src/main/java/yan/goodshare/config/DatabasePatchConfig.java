@@ -150,6 +150,11 @@ public class DatabasePatchConfig {
                     jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
                             "weight.comment", "3.0", "Weight for Comment interaction");
                 }
+                // Comment Count Weight
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.comment_count") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
+                            "weight.comment_count", "0.1", "Weight for Post Comment Count (Popularity)");
+                }
                 
                 //System.out.println("Ensured default app_configs values.");
             } catch (Exception e) {

@@ -7,6 +7,8 @@ public class CommentRequest {
     @NotEmpty
     private String content;
 
+    private Long parentId;
+
     // Getters and Setters
 
     public String getContent() {
@@ -15,5 +17,13 @@ public class CommentRequest {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
     }
 }

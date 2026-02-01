@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import yan.goodshare.service.NotificationService;
+import yan.goodshare.search.SearchService;
 
 @Service
 public class CommentService {
@@ -23,12 +24,16 @@ public class CommentService {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
+    private final yan.goodshare.mapper.CommentLikeMapper commentLikeMapper;
+    private final SearchService searchService;
 
-    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService) {
+    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, yan.goodshare.mapper.CommentLikeMapper commentLikeMapper, SearchService searchService) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
+        this.commentLikeMapper = commentLikeMapper;
+        this.searchService = searchService;
     }
 
     public Comment createComment(Long postId, CommentRequest commentRequest) {
@@ -49,17 +54,85 @@ public class CommentService {
         comment.setContent(commentRequest.getContent());
         comment.setPostId(postId);
         comment.setUserId(user.getId());
+        comment.setParentId(commentRequest.getParentId()); // Handle reply
         comment.setCreatedAt(LocalDateTime.now());
 
         commentMapper.insert(comment);
         
         // Create notification
-        notificationService.createNotification(post.getUserId(), user.getId(), "COMMENT", postId);
+        // If it's a reply, notify the comment author? 
+        // For now, existing logic notifies post author.
+        // We should also notify parent comment author if it exists and is different.
+        if (commentRequest.getParentId() != null) {
+             Comment parent = commentMapper.selectById(commentRequest.getParentId());
+             if (parent != null && !parent.getUserId().equals(user.getId())) {
+                 notificationService.createNotification(parent.getUserId(), user.getId(), "REPLY", postId);
+             }
+        }
+        
+        // Always notify post author (unless it's self, logic inside notificationService handles it usually, or we check here)
+        if (!post.getUserId().equals(user.getId())) {
+             notificationService.createNotification(post.getUserId(), user.getId(), "COMMENT", postId);
+        }
+
+        // Update Search Index
+        try {
+            Post fullPost = postMapper.selectPostWithUserByIdIgnoreStatus(postId);
+            if (fullPost != null) {
+                searchService.indexPost(fullPost);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to update search index for post " + postId + ": " + e.getMessage());
+        }
         
         return comment;
     }
 
     public List<Comment> getCommentsByPostId(Long postId) {
-        return commentMapper.selectCommentsWithUser(postId);
+        List<Comment> comments = commentMapper.selectCommentsWithUser(postId);
+        
+        // Populate like info
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long currentUserId = null;
+        if (principal instanceof UserDetails) {
+            String username = ((UserDetails) principal).getUsername();
+            User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+            if (user != null) {
+                currentUserId = user.getId();
+            }
+        }
+
+        for (Comment comment : comments) {
+            comment.setLikeCount(commentLikeMapper.countByCommentId(comment.getId()));
+            if (currentUserId != null) {
+                comment.setIsLiked(commentLikeMapper.existsByCommentIdAndUserId(comment.getId(), currentUserId));
+            } else {
+                comment.setIsLiked(false);
+            }
+        }
+        return comments;
+    }
+
+    public void likeComment(Long commentId) {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", userDetails.getUsername()));
+        
+        yan.goodshare.entity.CommentLike like = new yan.goodshare.entity.CommentLike();
+        like.setCommentId(commentId);
+        like.setUserId(user.getId());
+        try {
+            commentLikeMapper.insert(like);
+        } catch (Exception e) {
+            // Ignore duplicate key
+        }
+    }
+
+    public void unlikeComment(Long commentId) {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", userDetails.getUsername()));
+        
+        commentLikeMapper.delete(new QueryWrapper<yan.goodshare.entity.CommentLike>()
+            .eq("comment_id", commentId)
+            .eq("user_id", user.getId()));
     }
 }

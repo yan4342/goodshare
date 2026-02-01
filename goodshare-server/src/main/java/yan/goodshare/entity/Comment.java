@@ -26,10 +26,43 @@ public class Comment {
     @TableField(exist = false)
     private User user;
 
+    private Long parentId;
+
+    @TableField(exist = false)
+    private Long likeCount;
+
+    @TableField(exist = false)
+    private Boolean isLiked;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
     // Getters and Setters
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
+
+    public Long getLikeCount() {
+        return likeCount;
+    }
+
+    public void setLikeCount(Long likeCount) {
+        this.likeCount = likeCount;
+    }
+
+    public Boolean getIsLiked() {
+        return isLiked;
+    }
+
+    public void setIsLiked(Boolean isLiked) {
+        this.isLiked = isLiked;
+    }
+
 
     public Long getPostId() {
         return postId;

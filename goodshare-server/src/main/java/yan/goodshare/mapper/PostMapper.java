@@ -11,93 +11,103 @@ import java.util.Set;
 
 public interface PostMapper extends BaseMapper<Post> {
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsWithUser();
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectAllPostsWithUser();
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     IPage<Post> selectPostsWithUserPage(IPage<Post> page);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsByUserIdWithUser(Long userId);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsByUserIdWithUserIgnoreStatus(Long userId);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id} AND (p.status != 2 OR p.status IS NULL)")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id} AND (p.status != 2 OR p.status IS NULL)")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     Post selectPostWithUserById(Long id);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id}")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id}")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     Post selectPostWithUserByIdIgnoreStatus(Long id);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsByTagName(String tagName);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     IPage<Post> selectPostsByTagNamePage(IPage<Post> page, String tagName);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.status = 0 ORDER BY p.created_at DESC")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.status = 0 ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     IPage<Post> selectPendingPostsPage(IPage<Post> page);
 
@@ -121,6 +131,16 @@ public interface PostMapper extends BaseMapper<Post> {
     })
     List<java.util.Map<String, Object>> selectTagsByPostIds(@Param("postIds") List<Long> postIds);
 
+    @Select("<script>" +
+            "SELECT id as post_id, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count " +
+            "FROM posts p " +
+            "WHERE p.id IN " +
+            "<foreach item='item' index='index' collection='postIds' open='(' separator=',' close=')'>" +
+            "#{item}" +
+            "</foreach>" +
+            "</script>")
+    List<java.util.Map<String, Object>> selectCommentCountsByPostIds(@Param("postIds") List<Long> postIds);
+
     @Delete("DELETE FROM post_tags WHERE post_id = #{postId}")
     void deletePostTags(Long postId);
 
@@ -133,17 +153,18 @@ public interface PostMapper extends BaseMapper<Post> {
     @Delete("DELETE FROM favorites WHERE post_id = #{postId}")
     void deletePostFavorites(Long postId);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id WHERE pt.tag_id = #{tagId} AND p.status != 2 ORDER BY p.created_at DESC LIMIT #{limit}")
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id WHERE pt.tag_id = #{tagId} AND p.status != 2 ORDER BY p.created_at DESC LIMIT #{limit}")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsByTagId(@Param("tagId") Long tagId, @Param("limit") int limit);
 
     @Select("<script>" +
-            "SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url " +
+            "SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url " +
             "FROM posts p JOIN users u ON p.user_id = u.id " +
             "WHERE p.status != 2 AND p.id IN " +
             "<foreach item='item' index='index' collection='ids' open='(' separator=',' close=')'>" +
@@ -154,11 +175,12 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectPostsWithUserByIds(@Param("ids") List<Long> ids);
 
-    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url " +
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url " +
             "FROM posts p JOIN users u ON p.user_id = u.id " +
             "WHERE p.status != 2 " +
             "ORDER BY p.created_at DESC LIMIT #{limit}")
@@ -166,12 +188,13 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectRecentPostsWithUser(int limit);
 
     @Select("<script>" +
-            "SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, u.username, u.nickname, u.avatar_url " +
+            "SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url " +
             "FROM posts p JOIN users u ON p.user_id = u.id " +
             "WHERE p.status != 2 " +
             "<if test='excludedIds != null and !excludedIds.isEmpty()'>" +
@@ -187,7 +210,8 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
-            @Result(property = "likeCount", column = "like_count")
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectHotPostsWithUser(@Param("limit") int limit, @Param("offset") int offset, @Param("excludedIds") List<Long> excludedIds);
 }

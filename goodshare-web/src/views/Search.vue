@@ -86,6 +86,8 @@ const searchPosts = async () => {
                     content: doc.content,
                     coverUrl: doc.coverUrl,
                     likeCount: doc.likeCount,
+                    viewCount: doc.viewCount,
+                    commentCount: doc.commentCount,
                     user: {
                         id: doc.userId,
                         username: doc.username,

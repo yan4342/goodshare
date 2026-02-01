@@ -67,12 +67,28 @@
             <div class="comments-section">
               <div class="comment-count">共 {{ comments.length }} 条评论</div>
               <div v-if="comments.length === 0" class="no-comments">暂无评论，快来抢沙发吧~</div>
-              <div v-for="comment in comments" :key="comment.id" class="comment-item">
-                <el-avatar :size="32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+              <div v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'is-reply': comment.parentId }">
+                <el-avatar :size="comment.parentId ? 24 : 32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
                 <div class="comment-content">
-                  <div class="comment-user">{{ comment.user?.username || '用户' }}</div>
+                  <div class="comment-user">
+                    {{ comment.user?.username || '用户' }}
+                    <span v-if="comment.parentId" class="reply-target">
+                        <span class="reply-text">回复</span> <span class="at-user">@{{ getParentUser(comment.parentId) || '用户' }}</span>
+                    </span>
+                  </div>
                   <div class="comment-text">{{ comment.content }}</div>
-                  <div class="comment-date">{{ formatDate(comment.createdAt) }}</div>
+                  <div class="comment-footer">
+                    <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+                    <div class="comment-actions">
+                        <span class="action-item" @click="toggleCommentLike(comment)" :class="{ liked: comment.isLiked }">
+                            <el-icon><component :is="comment.isLiked ? 'StarFilled' : 'Star'" /></el-icon>
+                            <span v-if="comment.likeCount > 0">{{ comment.likeCount }}</span>
+                        </span>
+                        <span class="action-item" @click="handleReply(comment)">
+                            回复
+                        </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -91,12 +107,17 @@
                 </div>
 
             </div>
-            <div class="comment-input-area">
-                 <el-popover
-                    placement="top"
-                    :width="300"
-                    trigger="click"
-                 >
+            <div class="comment-input-wrapper">
+                <div v-if="replyTo" class="reply-badge">
+                    <span>回复 @{{ replyTo.user?.username }}:</span>
+                    <el-icon class="close-reply" @click="cancelReply"><Close /></el-icon>
+                </div>
+                <div class="comment-input-area">
+                     <el-popover
+                        placement="top"
+                        :width="300"
+                        trigger="click"
+                     >
                     <template #reference>
                         <el-button circle class="emoji-btn">
                             <span style="font-size: 18px; line-height: 1;">😀</span>
@@ -124,6 +145,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
       </div>
     </transition>
@@ -420,14 +442,58 @@ const toggleFavorite = async () => {
     }
 }
 
+const replyTo = ref(null)
+
+const handleReply = (comment) => {
+    replyTo.value = comment
+    newComment.value = '' // Optional: keep draft or clear? Clear is safer for context switch.
+    // Focus input? We can use a ref for input if needed, but simple binding works for now.
+    // Ideally focus the input element.
+    const inputEl = document.querySelector('.comment-input input')
+    if (inputEl) inputEl.focus()
+}
+
+const cancelReply = () => {
+    replyTo.value = null
+}
+
+const toggleCommentLike = async (comment) => {
+    if (!authStore.state.isAuthenticated) {
+        ElMessage.warning('请先登录')
+        return
+    }
+    try {
+        if (comment.isLiked) {
+            await request.delete(`/posts/${props.postId || route.params.id}/comments/${comment.id}/like`)
+            comment.isLiked = false
+            comment.likeCount = Math.max(0, (comment.likeCount || 0) - 1)
+        } else {
+            await request.post(`/posts/${props.postId || route.params.id}/comments/${comment.id}/like`)
+            comment.isLiked = true
+            comment.likeCount = (comment.likeCount || 0) + 1
+        }
+    } catch (err) {
+        console.error('Failed to toggle comment like', err)
+        ElMessage.error('操作失败')
+    }
+}
+
+const getParentUser = (parentId) => {
+    if (!parentId) return null
+    const parent = comments.value.find(c => c.id === parentId)
+    return parent?.user?.username
+}
+
 const submitComment = async () => {
     if (!newComment.value.trim()) return
     submitting.value = true
     try {
         await request.post(`/posts/${post.value.id}/comments`, {
-            content: newComment.value
+            content: newComment.value,
+            parentId: replyTo.value?.id
         })
         newComment.value = ''
+        replyTo.value = null
         ElMessage.success('评论成功')
         fetchComments(post.value.id) // Refresh comments
     } catch (err) {
@@ -652,6 +718,14 @@ const handleClose = () => {
     display: flex;
     gap: 10px;
     margin-bottom: 16px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+.comment-item.is-reply {
+    margin-left: 40px;
+    background: rgba(128, 128, 128, 0.03);
+    padding: 8px;
+    border-left: 2px solid var(--border-color);
 }
 .comment-content {
     flex: 1;
@@ -669,13 +743,46 @@ const handleClose = () => {
 .comment-date {
     font-size: 11px;
     color: var(--text-color-secondary);
-    margin-top: 2px;
+    /* margin-top removed as it's handled in footer now */
 }
-.bottom-actions {
-  border-top: 1px solid var(--border-color);
-  padding-top: 12px;
-  margin-top: 12px;
+.reply-target {
+    margin-left: 6px;
+    font-size: 13px;
+    color: var(--text-color-secondary);
 }
+.reply-text {
+    margin-right: 4px;
+}
+.at-user {
+    color: var(--el-color-primary);
+    font-weight: 500;
+}
+.comment-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+}
+.comment-actions {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-color-secondary);
+}
+.action-item {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 0.2s;
+}
+.action-item:hover {
+    color: var(--el-color-primary);
+}
+.action-item.liked {
+    color: #ff2442;
+}
+
 .interaction-bar {
   display: flex;
   justify-content: space-around;
@@ -695,14 +802,40 @@ const handleClose = () => {
     font-size: 12px;
     margin-top: 2px;
 }
+
+.bottom-actions {
+  /* Border handled by wrapper/area now */
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.comment-input-wrapper {
+    background: var(--bg-color-overlay);
+    border-top: 1px solid var(--border-color);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+.reply-badge {
+    padding: 8px 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-color-secondary);
+}
+.close-reply {
+    cursor: pointer;
+    padding: 4px;
+}
+.close-reply:hover {
+    color: var(--text-color);
+}
 .comment-input-area {
   padding: 16px 20px;
-  background: var(--bg-color-overlay);
-  border-top: 1px solid var(--border-color);
+  background: transparent; /* Changed from var(--bg-color-overlay) */
+  /* border-top removed */
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: background-color 0.3s, border-color 0.3s;
 }
 
 .emoji-btn {

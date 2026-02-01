@@ -41,6 +41,10 @@
                       <el-icon><Star /></el-icon>
                       <span>{{ post.likeCount || 0 }}</span>
                   </div>
+                  <div class="comments" style="display: flex; align-items: center;">
+                      <el-icon><ChatDotRound /></el-icon>
+                      <span style="margin-left: 4px;">{{ post.commentCount || 0 }}</span>
+                  </div>
                   <div class="views" v-if="post.viewCount !== undefined">
                       <el-icon><View /></el-icon>
                       <span>{{ post.viewCount }}</span>

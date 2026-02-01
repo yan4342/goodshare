@@ -83,9 +83,15 @@
                                 <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
                                 <span>{{ userProfile.nickname || userProfile.username }}</span>
                             </div>
-                            <div class="likes">
-                                <el-icon><Star /></el-icon>
-                                <span>{{ post.likeCount || 0 }}</span>
+                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><Star /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                </div>
+                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><ChatDotRound /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -137,9 +143,15 @@
                         <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
                         <span>{{ post.user?.username }}</span>
                     </div>
-                            <div class="likes">
-                                <el-icon><Star /></el-icon>
-                                <span>{{ post.likeCount || 0 }}</span>
+                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><Star /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                </div>
+                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><ChatDotRound /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -160,9 +172,15 @@
                         <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
                         <span>{{ post.user?.username }}</span>
                     </div>
-                            <div class="likes">
-                                <el-icon><Star /></el-icon>
-                                <span>{{ post.likeCount || 0 }}</span>
+                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><Star /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                </div>
+                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><ChatDotRound /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

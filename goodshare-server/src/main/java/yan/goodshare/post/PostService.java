@@ -88,6 +88,16 @@ public class PostService {
         // Increment view count in posts table
         post.setViewCount(post.getViewCount() + 1);
         postMapper.updateById(post);
+
+        // Update Search Index
+        try {
+            Post fullPost = postMapper.selectPostWithUserByIdIgnoreStatus(postId);
+            if (fullPost != null) {
+                searchService.indexPost(fullPost);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to update search index for post " + postId + ": " + e.getMessage());
+        }
     }
 
     public Post createPost(PostRequest postRequest) {

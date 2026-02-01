@@ -61,6 +61,8 @@ public class SearchService {
         postDocument.setContent(post.getContent());
         postDocument.setCoverUrl(post.getCoverUrl());
         postDocument.setLikeCount(post.getLikeCount() != null ? post.getLikeCount() : 0);
+        postDocument.setViewCount(post.getViewCount() != null ? post.getViewCount() : 0);
+        postDocument.setCommentCount(post.getCommentCount() != null ? post.getCommentCount() : 0);
         postDocument.setStatus(post.getStatus());
         
         // Handle User Info (Fetch if missing)

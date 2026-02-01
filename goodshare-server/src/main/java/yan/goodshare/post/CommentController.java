@@ -31,4 +31,16 @@ public class CommentController {
     public ResponseEntity<List<Comment>> getCommentsByPostId(@PathVariable Long postId) {
         return ResponseEntity.ok(commentService.getCommentsByPostId(postId));
     }
+
+    @PostMapping("/{commentId}/like")
+    public ResponseEntity<?> likeComment(@PathVariable Long commentId) {
+        commentService.likeComment(commentId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{commentId}/like")
+    public ResponseEntity<?> unlikeComment(@PathVariable Long commentId) {
+        commentService.unlikeComment(commentId);
+        return ResponseEntity.ok().build();
+    }
 }

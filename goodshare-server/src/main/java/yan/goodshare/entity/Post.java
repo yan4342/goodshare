@@ -41,6 +41,9 @@ public class Post {
     @TableField(exist = false)
     private Integer likeCount = 0;
 
+    @TableField(exist = false)
+    private Integer commentCount = 0;
+
     @TableField("view_count")
     private Integer viewCount = 0;
 
@@ -74,6 +77,14 @@ public class Post {
 
     public void setLikeCount(Integer likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public Integer getCommentCount() {
+        return commentCount;
+    }
+
+    public void setCommentCount(Integer commentCount) {
+        this.commentCount = commentCount;
     }
 
     public Long getId() {

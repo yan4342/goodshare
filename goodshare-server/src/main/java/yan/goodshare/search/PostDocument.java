@@ -35,6 +35,12 @@ public class PostDocument {
     @Field(type = FieldType.Integer, name = "likeCount")
     private Integer likeCount;
 
+    @Field(type = FieldType.Integer, name = "viewCount")
+    private Integer viewCount;
+
+    @Field(type = FieldType.Integer, name = "commentCount")
+    private Integer commentCount;
+
     @Field(type = FieldType.Integer, name = "status")
     private Integer status;
 
@@ -113,6 +119,22 @@ public class PostDocument {
 
     public void setLikeCount(Integer likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public Integer getViewCount() {
+        return viewCount;
+    }
+
+    public void setViewCount(Integer viewCount) {
+        this.viewCount = viewCount;
+    }
+
+    public Integer getCommentCount() {
+        return commentCount;
+    }
+
+    public void setCommentCount(Integer commentCount) {
+        this.commentCount = commentCount;
     }
 
     public Integer getStatus() {

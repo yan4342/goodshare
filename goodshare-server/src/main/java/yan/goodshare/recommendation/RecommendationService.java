@@ -82,6 +82,7 @@ public class RecommendationService {
             weights.putIfAbsent("weight.favorite", 2.0);
             weights.putIfAbsent("weight.comment", 3.0);
             weights.putIfAbsent("weight.content", 1.0);
+            weights.putIfAbsent("weight.comment_count", 0.1);
         } catch (Exception e) {
             System.err.println("Failed to load weights from DB: " + e.getMessage());
             // Fallback defaults
@@ -90,6 +91,7 @@ public class RecommendationService {
             weights.put("weight.favorite", 2.0);
             weights.put("weight.comment", 3.0);
             weights.put("weight.content", 1.0);
+            weights.put("weight.comment_count", 0.1);
         }
     }
 
@@ -296,6 +298,34 @@ public class RecommendationService {
                 }
             } catch (Exception e) {
                 System.err.println("CB Recommendation failed for post " + seedId + ": " + e.getMessage());
+            }
+        }
+
+        // 5.5 Comment Count Boosting (Popularity)
+        if (!recommendedPosts.isEmpty()) {
+            List<Long> candidateIds = new ArrayList<>(recommendedPosts.keySet());
+            // Batch fetch
+            int batchSize = 100;
+            double commentWeight = weights.getOrDefault("weight.comment_count", 0.1);
+            
+            if (commentWeight > 0.001) {
+                for (int i = 0; i < candidateIds.size(); i += batchSize) {
+                    int end = Math.min(candidateIds.size(), i + batchSize);
+                    List<Long> batchIds = candidateIds.subList(i, end);
+                    
+                    List<Map<String, Object>> counts = postMapper.selectCommentCountsByPostIds(batchIds);
+                    
+                    for (Map<String, Object> row : counts) {
+                        Long pId = ((Number) row.get("post_id")).longValue();
+                        Long count = ((Number) row.get("comment_count")).longValue();
+                        
+                        if (count > 0) {
+                            // Logarithmic boost to prevent runaway scores for viral posts
+                            double boost = Math.log1p(count) * commentWeight;
+                             recommendedPosts.merge(pId, boost, (a, b) -> a + b);
+                        }
+                    }
+                }
             }
         }
 
