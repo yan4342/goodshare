@@ -26,8 +26,16 @@ import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.web.client.RestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+
 @Service
 public class RecommendationService {
+
+    @Autowired
+    private RestTemplate restTemplate;
 
     @Autowired
     private LikeMapper likeMapper;
@@ -193,42 +201,40 @@ public class RecommendationService {
         Map<Long, Double> targetUserInteractions = userItemMatrix.getOrDefault(userId, new HashMap<>());
         Map<Long, Double> recommendedPosts = new HashMap<>();
 
-        // 3. UserCF Recommendation
-        if (!targetUserInteractions.isEmpty()) {
-            // Calculate Similarity (Cosine Similarity)
-            Map<Long, Double> userSimilarities = new HashMap<>();
-            for (Map.Entry<Long, Map<Long, Double>> entry : userItemMatrix.entrySet()) {
-                Long otherUserId = entry.getKey();
-                if (otherUserId.equals(userId)) continue;
-
-                double similarity = calculateCosineSimilarity(targetUserInteractions, entry.getValue());
-                if (similarity > 0) {
-                    userSimilarities.put(otherUserId, similarity);
-                }
-            }
-
-            // Find Top K Neighbors
-            List<Long> nearestNeighbors = userSimilarities.entrySet().stream()
-                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                    .limit(NEIGHBOR_COUNT)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-
-            // Recommend Items from Neighbors
-            for (Long neighborId : nearestNeighbors) {
-                double similarity = userSimilarities.get(neighborId);
-                Map<Long, Double> neighborInteractions = userItemMatrix.get(neighborId);
-
-                for (Map.Entry<Long, Double> entry : neighborInteractions.entrySet()) {
-                    Long postId = entry.getKey();
+        // 3. Collaborative Filtering (Python Microservice)
+        try {
+            // Call Python Service
+            String url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=50";
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                url, 
+                HttpMethod.GET, 
+                null, 
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+            
+            List<Map<String, Object>> cfRecs = response.getBody();
+            if (cfRecs != null) {
+                for (Map<String, Object> rec : cfRecs) {
+                    Long postId = ((Number) rec.get("post_id")).longValue();
+                    Double score = ((Number) rec.get("score")).doubleValue();
+                    
                     // Filter out items already interacted by target user
                     if (!targetUserInteractions.containsKey(postId)) {
-                        double randomNoise = random.nextDouble() * 0.01;
-                        recommendedPosts.merge(postId, entry.getValue() * similarity + randomNoise, (a, b) -> a + b);
+                        recommendedPosts.merge(postId, score, (a, b) -> a + b);
                     }
                 }
             }
+        } catch (Exception e) {
+            System.err.println("Python Recommendation Service failed: " + e.getMessage());
+            // Fallback: If Python service fails, we might want to use the local logic or just skip CF
+            // For now, we log and skip, relying on Hot Posts fallback later.
         }
+
+        /* Legacy Java UserCF Implementation (Replaced by Python Service)
+        if (!targetUserInteractions.isEmpty()) {
+             // ... (Original Java logic removed/commented)
+        }
+        */
 
         // 4. Partition Recommendation (Tag-based Boosting)
         // Use selectList directly to ensure proper mapping (avoid custom query potential mapping issues)

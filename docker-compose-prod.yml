@@ -8,8 +8,8 @@ services:
       - MODE=standalone
       - NACOS_AUTH_ENABLE=false
     ports:
-      - "8500:8848"
-      - "9500:9848"
+      - "18848:8848"
+      - "19848:9848"
     restart: always
 
   redis:
@@ -28,7 +28,7 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "19200:9200"
-      - "9300:9300"
+      - "19300:9300"
     restart: always
 
   # Microservices
@@ -85,9 +85,9 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - NACOS_SERVER_ADDR=nacos:8848
-    depends_on:
-      - nacos
+      - DB_URL=mysql+pymysql://root:123456@host.docker.internal:3306/goodshare
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
 
   goodshare-web:

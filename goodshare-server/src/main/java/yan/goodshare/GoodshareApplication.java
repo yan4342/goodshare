@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import yan.goodshare.auth.AuthService;
 import yan.goodshare.post.PostService;
 
+import org.springframework.web.client.RestTemplate;
+
 @SpringBootApplication
 @EnableAsync
 @MapperScan("yan.goodshare.mapper")
@@ -17,6 +19,11 @@ public class GoodshareApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(GoodshareApplication.class, args);
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 
     @Bean

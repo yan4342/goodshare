@@ -13,8 +13,8 @@ services:
       - NACOS_AUTH_IDENTITY_VALUE=example
       - NACOS_AUTH_TOKEN=U2VjcmV0S2V5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5
     ports:
-      - "8500:8848"
-      - "9500:9848"
+      - "18848:8848"
+      - "19848:9848"
     restart: always
 
   redis:
@@ -33,7 +33,18 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "19200:9200"
-      - "9300:9300"
+      - "19300:9300"
+    restart: always
+
+  recommendation-service:
+    build: ./recommendation-service
+    container_name: recommendation-service
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_URL=mysql+pymysql://root:123456@host.docker.internal:3306/goodshare
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
   
   # mysql:
