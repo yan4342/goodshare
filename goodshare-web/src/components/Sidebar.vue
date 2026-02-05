@@ -137,8 +137,11 @@ const handleLogout = () => {
 }
 
 .logo-text {
-  color: #ff2442;
-  font-size: 32px; 
+  color: #fff;
+  background-color: #ff2442;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 24px; 
   font-family: 'Billabong', cursive, sans-serif;
   font-weight: 900;
   letter-spacing: -1px;

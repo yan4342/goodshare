@@ -25,32 +25,34 @@
           </div>
 
         <!-- Waterfall Grid -->
-        <div class="masonry-grid">
-          <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
-            <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}' )` }"></div>
-            <div class="card-info">
-              <h3 class="post-title">{{ post.title }}</h3>
-              <div class="post-meta">
-                <div class="author">
-                  <el-avatar :size="16" icon="UserFilled" :src="post.user?.avatarUrl || '../assests/avatar.png'" />
-                  <span class="author-name" v-if="post.user">{{ post.user.nickname || post.user.username || '用户' }}</span>
-                  <span class="author-name" v-else>用户</span>
+        <div class="waterfall-grid">
+          <div class="column" v-for="(colPosts, index) in columns" :key="index">
+            <div v-for="post in colPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
+                <img v-if="getCoverUrl(post)" :src="getCoverUrl(post)" class="cover-image" loading="lazy" />
+                <div class="card-info">
+                <h3 class="post-title">{{ post.title }}</h3>
+                <div class="post-meta">
+                    <div class="author">
+                    <el-avatar :size="16" icon="UserFilled" :src="post.user?.avatarUrl || '../assests/avatar.png'" />
+                    <span class="author-name" v-if="post.user">{{ post.user.nickname || post.user.username || '用户' }}</span>
+                    <span class="author-name" v-else>用户</span>
+                    </div>
+                    <div class="metrics">
+                    <div class="likes">
+                        <el-icon><Star /></el-icon>
+                        <span>{{ post.likeCount || 0 }}</span>
+                    </div>
+                    <div class="comments" style="display: flex; align-items: center;">
+                        <el-icon><ChatDotRound /></el-icon>
+                        <span style="margin-left: 4px;">{{ post.commentCount || 0 }}</span>
+                    </div>
+                    <div class="views" v-if="post.viewCount !== undefined">
+                        <el-icon><View /></el-icon>
+                        <span>{{ post.viewCount }}</span>
+                    </div>
+                    </div>
                 </div>
-                <div class="metrics">
-                  <div class="likes">
-                      <el-icon><Star /></el-icon>
-                      <span>{{ post.likeCount || 0 }}</span>
-                  </div>
-                  <div class="comments" style="display: flex; align-items: center;">
-                      <el-icon><ChatDotRound /></el-icon>
-                      <span style="margin-left: 4px;">{{ post.commentCount || 0 }}</span>
-                  </div>
-                  <div class="views" v-if="post.viewCount !== undefined">
-                      <el-icon><View /></el-icon>
-                      <span>{{ post.viewCount }}</span>
-                  </div>
                 </div>
-              </div>
             </div>
           </div>
         </div>
@@ -115,7 +117,7 @@
 import Navbar from '../components/Navbar.vue'
 import Sidebar from '../components/Sidebar.vue'
 import PostDetail from './PostDetail.vue'
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import request from '../utils/request'
 import { getThumbnailUrl } from '../utils/image'
 import { Star, UserFilled, View, Refresh } from '@element-plus/icons-vue'
@@ -139,6 +141,28 @@ const scrollContent = ref(null)
 const scrollbarRef = ref(null)
 const clickedRect = ref(null)
 const fetchId = ref(0)
+const columnCount = ref(5)
+
+const updateColumnCount = () => {
+    const width = window.innerWidth
+    if (width < 768) {
+        columnCount.value = 2
+    } else if (width < 1000) {
+        columnCount.value = 3
+    } else if (width < 1450) {
+        columnCount.value = 4
+    } else {
+        columnCount.value = 5
+    }
+}
+
+const columns = computed(() => {
+    const cols = Array.from({ length: columnCount.value }, () => [])
+    posts.value.forEach((post, index) => {
+        cols[index % columnCount.value].push(post)
+    })
+    return cols
+})
 
 const handleScroll = ({ scrollTop }) => {
     homeStore.setScrollTop(scrollTop)
@@ -274,6 +298,9 @@ const getCoverUrl = (post) => {
 }
 
 onMounted(async () => {
+    updateColumnCount()
+    window.addEventListener('resize', updateColumnCount)
+    
     await fetchTags()
     
     if (posts.value.length === 0) {
@@ -285,6 +312,10 @@ onMounted(async () => {
             }
         })
     }
+})
+
+onUnmounted(() => {
+    window.removeEventListener('resize', updateColumnCount)
 })
 </script>
 
@@ -311,7 +342,7 @@ onMounted(async () => {
 .tags-bar {
   display: flex;
   gap: 10px;
-  padding: 8px 0 30px; /* Reduced top padding for alignment with sidebar */
+  padding: 0 0 30px; /* Reduced top padding for alignment with sidebar */
   overflow-x: auto;
   font-size: 16px;
   color: var(--text-color-secondary);
@@ -329,15 +360,23 @@ onMounted(async () => {
   font-weight: 600;
   background-color: var(--hover-bg);
 }
-.masonry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+.waterfall-grid {
+  display: flex;
   gap: 20px;
+  width: 100%;
+  align-items: flex-start;
 }
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
 .post-card {
   cursor: pointer;
-  break-inside: avoid;
-  margin-bottom: 20px;
+  margin-bottom: 0; /* Handled by gap */
   transition: transform 0.2s;
 }
 .post-card:hover {
@@ -345,32 +384,35 @@ onMounted(async () => {
 }
 .cover-image {
   width: 100%;
-  padding-bottom: 133%; /* 3:4 Aspect Ratio */
-  background-size: cover;
-  background-position: center;
+  height: auto;
+  display: block;
   border-radius: 16px;
   margin-bottom: 10px;
   background-color: var(--border-color);
-  position: relative;
+  min-height: 1px; /* Ensure element has height context during loading */
 }
-/* Optional: Add a dark overlay on hover */
-.cover-image::after {
+/* Overlay logic needs update since we use img tag now */
+.post-card {
+    position: relative;
+}
+.post-card::after {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.03);
     opacity: 0;
     transition: opacity 0.2s;
-    border-radius: 16px;
+    border-radius: 12px;
+    pointer-events: none;
 }
-.post-card:hover .cover-image::after {
+.post-card:hover::after {
     opacity: 1;
 }
 .card-info {
     padding: 0 4px;
 }
 .post-title {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--text-color);
   line-height: 1.4;
   margin-bottom: 8px;

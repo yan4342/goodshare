@@ -25,9 +25,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private CustomUserDetailsService customUserDetailsService;
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
+            
+            if (request.getRequestURI().contains("/api/ai/generate-stream")) {
+                 logger.info("Processing AI request: " + request.getRequestURI());
+                 if (jwt != null) {
+                     logger.info("Found JWT token: " + jwt.substring(0, Math.min(jwt.length(), 20)) + "...");
+                     boolean isValid = tokenProvider.validateToken(jwt);
+                     logger.info("Token validation result: " + isValid);
+                 } else {
+                     logger.warn("No JWT token found in AI request");
+                 }
+            }
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);

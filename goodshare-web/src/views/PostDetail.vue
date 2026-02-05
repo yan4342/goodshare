@@ -14,10 +14,14 @@
         <div v-if="imageList.length > 0" class="image-section">
           <el-carousel v-if="imageList.length > 1" trigger="click" height="100%" :autoplay="false" arrow="always">
             <el-carousel-item v-for="(img, index) in imageList" :key="index">
-              <div class="image-wrapper" :style="{ backgroundImage: `url('${img}')` }"></div>
+              <img :src="img" class="blurred-bg" />
+              <img :src="img" class="post-image" alt="Post image" />
             </el-carousel-item>
           </el-carousel>
-          <div v-else class="image-wrapper" :style="{ backgroundImage: `url('${imageList[0]}')` }"></div>
+          <template v-else>
+            <img :src="imageList[0]" class="blurred-bg" />
+            <img :src="imageList[0]" class="post-image" alt="Post image" />
+          </template>
         </div>
         
         <!-- Right: Info -->
@@ -595,21 +599,54 @@ const handleClose = () => {
 }
 .image-section {
   flex: 1.5;
-  background: #000;
-  position: relative; /* Changed from flex center to handle carousel */
+  background: #000; /* Fallback background */
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  min-width: 0; /* Fix flex overflow */
 }
-.image-wrapper {
+
+.blurred-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
+  object-fit: cover;
+  filter: blur(20px) brightness(0.7);
+  transform: scale(1.1);
+  z-index: 0;
 }
-/* Ensure carousel fills the section */
+
 .image-section :deep(.el-carousel) {
     width: 100%;
     height: 100%;
+    z-index: 1;
 }
+
+.image-section :deep(.el-carousel__container) {
+    height: 100%;
+}
+
+.image-section :deep(.el-carousel__item) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+.post-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  z-index: 1;
+}
+/* Duplicates removed */
 .info-section {
   flex: 1;
   display: flex;

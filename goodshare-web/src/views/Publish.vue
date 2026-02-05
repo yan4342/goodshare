@@ -317,7 +317,10 @@ const handleAiGenerate = async () => {
     aiLoading.value = true
     try {
         // Use Fetch API for streaming response
-        const token = localStorage.getItem('token')
+        // Try user token first, then admin token
+        const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+        console.log('AI Generation - Token being used:', token ? token.substring(0, 10) + '...' : 'None');
+
         const response = await fetch('/api/ai/generate-stream', {
             method: 'POST',
             headers: {
@@ -327,8 +330,14 @@ const handleAiGenerate = async () => {
             body: JSON.stringify({ keyword: aiKeyword.value })
         })
 
+        if (response.status === 401) {
+             ElMessage.error('请先登录')
+             router.push('/login')
+             return
+        }
+
         if (!response.ok) {
-            throw new Error('AI request failed')
+            throw new Error('AI request failed: ' + response.statusText)
         }
 
         const reader = response.body.getReader()

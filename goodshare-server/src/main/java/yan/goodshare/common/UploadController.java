@@ -91,19 +91,25 @@ public class UploadController {
 
             // Generate thumbnail if image
             if (isImage(newFileName)) {
+                String thumbFileName = getThumbFilename(newFileName);
+                Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
                 try {
-                    String thumbFileName = getThumbFilename(newFileName);
-                    Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
                     boolean resized = createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
-                    if (resized) {
-                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
-                    } else {
-                        // If not resized (image is small), use the original URL
-                        thumbnailUrl = fileUrl;
+                    if (!resized) {
+                        // If not resized (image is small), copy original to thumb
+                        Files.copy(targetLocation, thumbLocation, StandardCopyOption.REPLACE_EXISTING);
                     }
+                    thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
                 } catch (Exception e) {
                     System.err.println("Failed to generate thumbnail: " + e.getMessage());
-                    // Fallback to original URL if thumb generation fails
+                    // Fallback: try to copy original to thumb so frontend doesn't 404
+                    try {
+                        Files.copy(targetLocation, thumbLocation, StandardCopyOption.REPLACE_EXISTING);
+                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
+                    } catch (IOException ioException) {
+                        // If copy fails too, then we stick to original URL
+                        thumbnailUrl = fileUrl;
+                    }
                 }
             }
 

@@ -170,20 +170,24 @@ const handleCommand = async (command) => {
   top: 0;
   z-index: 1000;
   background: var(--bg-color-overlay);
-  height: 64px;
+  width: 100%;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.3s;
-  margin-left: var(--sidebar-width*0.5);
 }
 .navbar-content {
   width: 100%;
+  box-sizing: border-box;
   max-width: 1728px; /* Wide screen support */
   padding: 0 19px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.menu-items {
+    flex-shrink: 0;
 }
 .logo {
   color: #ff2442;
@@ -206,16 +210,21 @@ const handleCommand = async (command) => {
     max-width: 600px; /* Maybe wider */
 
 }
+.search-input {
+    --el-input-height: 52px;
+}
 .search-input :deep(.el-input__wrapper) {
   border-radius: 999px !important;
-  background-color: var(--bg-color);
+  background-color: var(--hover-bg);
   box-shadow: none;
   padding-left: 15px;
   transition: background-color 0.3s;
+  height: 52px; /* Ensure wrapper has correct height */
 }
 .search-input :deep(.el-input__inner) {
-    height: 40px;
-    font-size: 14px;
+    height: 100%; /* Fill the wrapper */
+    font-size: 16px;
+    line-height: 52px;
 }
 .login-btn, .publish-btn {
   background-color: #ff2442;

@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -20,14 +21,55 @@ public class DeepSeekService {
     @Value("${deepseek.api.model}")
     private String model;
 
+    @Value("${app.proxy.host:}")
+    private String proxyHost;
+
+    @Value("${app.proxy.port:0}")
+    private int proxyPort;
+
     private final RestClient restClient;
     private final okhttp3.OkHttpClient okHttpClient;
 
     public DeepSeekService(RestClient.Builder restClientBuilder) {
         this.restClient = restClientBuilder.build();
-        this.okHttpClient = new okhttp3.OkHttpClient.Builder()
+        
+        // Create a trust manager that does not validate certificate chains
+        final javax.net.ssl.X509TrustManager trustAllCerts = new javax.net.ssl.X509TrustManager() {
+            @Override
+            public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
+            }
+
+            @Override
+            public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
+            }
+
+            @Override
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return new java.security.cert.X509Certificate[]{};
+            }
+        };
+
+        // Install the all-trusting trust manager
+        javax.net.ssl.SSLContext sslContext = null;
+        try {
+            sslContext = javax.net.ssl.SSLContext.getInstance("SSL");
+            sslContext.init(null, new javax.net.ssl.TrustManager[]{trustAllCerts}, new java.security.SecureRandom());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        final javax.net.ssl.SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+
+        okhttp3.OkHttpClient.Builder builder = new okhttp3.OkHttpClient.Builder()
                 .readTimeout(java.time.Duration.ofSeconds(60))
-                .build();
+                .sslSocketFactory(sslSocketFactory, trustAllCerts)
+                .hostnameVerifier((hostname, session) -> true);
+
+        if (StringUtils.hasText(proxyHost) && proxyPort > 0) {
+            builder.proxy(new java.net.Proxy(java.net.Proxy.Type.HTTP, new java.net.InetSocketAddress(proxyHost, proxyPort)));
+        }
+
+        this.okHttpClient = builder.build();
     }
 
     public void streamChat(String userMessage, String systemMessage, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
