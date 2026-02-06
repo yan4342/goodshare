@@ -15,11 +15,13 @@ public class ProductController {
         this.productService = productService;
     }
 
+    // 添加商品到帖子
     @PostMapping("/posts/{postId}/products")
     public ResponseEntity<Product> addProductToPost(@PathVariable Long postId, @RequestBody Product product) {
         return ResponseEntity.ok(productService.addProductToPost(postId, product));
     }
 
+    // 添加商品价格
     @PostMapping("/products/{productId}/prices")
     public ResponseEntity<Price> addPriceToProduct(@PathVariable Long productId, @RequestBody Price price) {
         return ResponseEntity.ok(productService.addPriceToProduct(productId, price));

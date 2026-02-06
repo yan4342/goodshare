@@ -1,8 +1,5 @@
 package yan.goodshare.common;
 
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -44,7 +41,6 @@ public class UploadController {
 
     @PostConstruct
     public void init() {
-        // Scan for existing images and generate thumbnails if missing
         try (Stream<Path> paths = Files.walk(this.fileStorageLocation)) {
             paths.filter(Files::isRegularFile)
                  .forEach(path -> {
@@ -57,11 +53,6 @@ public class UploadController {
                                  boolean generated = createThumbnail(path.toFile(), thumbPath.toFile());
                                  if (generated) {
                                      System.out.println("Generated missing thumbnail: " + thumbName);
-                                 } else {
-                                     // If not generated (e.g. image too small), copy original to thumb
-                                     // This ensures _thumb file always exists for legacy compatibility
-                                     Files.copy(path, thumbPath, StandardCopyOption.REPLACE_EXISTING);
-                                     System.out.println("Created copy for small thumbnail: " + thumbName);
                                  }
                              } catch (Exception e) {
                                  System.err.println("Failed to generate thumbnail for " + filename + ": " + e.getMessage());
@@ -95,21 +86,12 @@ public class UploadController {
                 Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
                 try {
                     boolean resized = createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
-                    if (!resized) {
-                        // If not resized (image is small), copy original to thumb
-                        Files.copy(targetLocation, thumbLocation, StandardCopyOption.REPLACE_EXISTING);
+                    if (resized) {
+                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
                     }
-                    thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
                 } catch (Exception e) {
                     System.err.println("Failed to generate thumbnail: " + e.getMessage());
-                    // Fallback: try to copy original to thumb so frontend doesn't 404
-                    try {
-                        Files.copy(targetLocation, thumbLocation, StandardCopyOption.REPLACE_EXISTING);
-                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
-                    } catch (IOException ioException) {
-                        // If copy fails too, then we stick to original URL
-                        thumbnailUrl = fileUrl;
-                    }
+                    thumbnailUrl = fileUrl;
                 }
             }
 
@@ -141,11 +123,12 @@ public class UploadController {
         int originalWidth = originalImage.getWidth();
         int originalHeight = originalImage.getHeight();
         
-        // Target max dimension increased to 800px for better quality
         int maxDim = 800;
-        
+        long maxBytes = 50L * 1024L;
+        if (originalFile.length() <= maxBytes) {
+            return false;
+        }
         if (originalWidth <= maxDim && originalHeight <= maxDim) {
-            // No need to resize, and we don't want to copy it anymore to save space
             return false;
         }
 

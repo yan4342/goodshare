@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: crawler-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/goodshare?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
       host: localhost

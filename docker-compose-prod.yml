@@ -73,10 +73,16 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/goodshare?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
       - SPRING_DATA_REDIS_HOST=redis
     depends_on:
       - nacos
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
 
   recommendation-service:

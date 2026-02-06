@@ -40,6 +40,10 @@ const updatePost = (updatedPost) => {
     }
 }
 
+const removePost = (postId) => {
+  state.posts = state.posts.filter(post => post.id !== postId)
+}
+
 const reset = () => {
     state.posts = []
     state.page = 1
@@ -56,5 +60,6 @@ export default {
   setScrollTop,
   setHasMore,
   updatePost,
+  removePost,
   reset
 }

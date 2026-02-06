@@ -191,7 +191,7 @@
     </div>
 
     <!-- Settings Dialog -->
-    <el-dialog v-model="showSettings" title="推荐权重设置" width="500px">
+    <el-dialog v-model="showSettings" title="分区推荐权重设置" width="560px">
         <div class="settings-section">
             <div v-if="loadingWeights" class="loading-state">
                <div style="text-align:center; padding: 20px;">加载中...</div>
@@ -200,10 +200,17 @@
               <el-empty description="还没有设置推荐权重哦" />
             </div>
             <div v-else class="weight-list">
+              <div class="weight-header">
+                <span class="tag-name">分区</span>
+                <span class="slider-label">偏好</span>
+                <span class="partition-weight">分区权重</span>
+                <span class="partition-share">占比</span>
+              </div>
               <div v-for="weight in tagWeights" :key="weight.tagId" class="weight-item">
                 <span class="tag-name">{{ weight.tagName }}</span>
-                <el-slider v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
-                <span class="weight-value">{{ weight.weight.toFixed(1) }}</span>
+                <el-slider class="weight-slider" v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
+                <span class="partition-weight">{{ getPartitionWeight(weight).toFixed(2) }}</span>
+                <span class="partition-share">{{ formatPartitionShare(weight) }}</span>
               </div>
             </div>
         </div>
@@ -506,6 +513,25 @@ const fetchLikedPosts = async () => {
 const openSettings = () => {
     showSettings.value = true
     fetchTagWeights()
+}
+
+const partitionBase = 2.0
+const totalPartitionBoost = computed(() => {
+    return tagWeights.value.reduce((sum, item) => {
+        const boost = Math.max(0, (item.weight - 1) * partitionBase)
+        return sum + boost
+    }, 0)
+})
+
+const getPartitionWeight = (weight) => {
+    return Math.max(0, (weight.weight - 1) * partitionBase)
+}
+
+const formatPartitionShare = (weight) => {
+    const total = totalPartitionBoost.value
+    if (total <= 0) return '0.0%'
+    const share = getPartitionWeight(weight) / total
+    return `${(share * 100).toFixed(1)}%`
 }
 
 const fetchTagWeights = async () => {
@@ -934,6 +960,14 @@ onMounted(() => {
     max-width: 600px;
 }
 
+.weight-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: var(--text-color-secondary);
+    font-size: 12px;
+}
+
 .weight-item {
     display: flex;
     align-items: center;
@@ -945,8 +979,22 @@ onMounted(() => {
     font-weight: bold;
 }
 
-.weight-value {
-    width: 40px;
+.slider-label {
+    flex: 1;
+}
+
+.weight-slider {
+    flex: 1;
+}
+
+.partition-weight {
+    width: 70px;
+    text-align: right;
+    color: var(--text-color-secondary);
+}
+
+.partition-share {
+    width: 60px;
     text-align: right;
     color: var(--text-color-secondary);
 }

@@ -33,6 +33,7 @@ public class AppraisalController {
         return appraisalService.getAppraisals(page, size, userId);
     }
 
+    // 获取用户收到的评价
     @GetMapping("/user/{userId}")
     public Page<Appraisal> listByUser(@PathVariable Long userId,
                                       @RequestParam(defaultValue = "1") int page,
@@ -40,6 +41,7 @@ public class AppraisalController {
         return appraisalService.getUserAppraisals(page, size, userId);
     }
 
+    // 获取评价详情
     @GetMapping("/{id}")
     public Appraisal detail(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = null;
@@ -49,6 +51,7 @@ public class AppraisalController {
         return appraisalService.getAppraisalDetail(id, userId);
     }
 
+    // 创建评价 
     @PostMapping
     public Appraisal create(@RequestBody Map<String, Object> payload, @AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {
@@ -76,6 +79,7 @@ public class AppraisalController {
         return appraisalService.createAppraisal(userId, productName, description, images);
     }
 
+    // 评价投票
     @PostMapping("/{id}/vote")
     public void vote(@PathVariable Long id, @RequestBody Map<String, Integer> payload, @AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {

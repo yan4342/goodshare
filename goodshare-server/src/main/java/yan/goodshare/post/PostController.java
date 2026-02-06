@@ -27,6 +27,7 @@ public class PostController {
         this.postService = postService;
     }
 
+    // 创建帖子
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> createPost(@Valid @RequestBody PostRequest postRequest) {
@@ -38,6 +39,7 @@ public class PostController {
         }
     }
 
+    // 更新帖子
     @org.springframework.web.bind.annotation.PutMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> updatePost(@PathVariable Long id, @Valid @RequestBody PostRequest postRequest) {
@@ -49,6 +51,7 @@ public class PostController {
         }
     }
 
+    // 获取所有帖子
     @GetMapping
     public ResponseEntity<IPage<Post>> getAllPosts(
             @RequestParam(required = false) String tag,
@@ -57,6 +60,7 @@ public class PostController {
         return ResponseEntity.ok(postService.getAllPosts(tag, page, size));
     }
 
+    // 获取帖子详情
     @GetMapping("/{id}")
     public ResponseEntity<?> getPostById(@PathVariable Long id) {
         try {
@@ -67,11 +71,13 @@ public class PostController {
         }
     }
 
+    // 获取用户发布的所有帖子
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Post>> getPostsByUserId(@PathVariable Long userId) {
         return ResponseEntity.ok(postService.getPostsByUserId(userId));
     }
 
+    // 删除帖子
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> deletePost(@PathVariable Long id) {
@@ -83,6 +89,7 @@ public class PostController {
         }
     }
 
+    // 记录帖子查看
     @PostMapping("/{id}/view")
     public ResponseEntity<?> recordView(@PathVariable Long id) {
         // Can be anonymous or authenticated
@@ -104,6 +111,19 @@ public class PostController {
         return ResponseEntity.ok().build();
     }
 
+
+    @PostMapping("/{id}/dislike")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> dislikePost(@PathVariable Long id) {
+        try {
+            postService.dislikePost(id);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // 重新索引所有帖子
     @PostMapping("/reindex")
     // @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> reindexAllPosts() {

@@ -117,6 +117,20 @@ public interface PostMapper extends BaseMapper<Post> {
     @Select("SELECT t.* FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = #{postId}")
     Set<Tag> selectTagsByPostId(Long postId);
 
+    @Select("SELECT pt.post_id FROM post_tags pt WHERE pt.tag_id = #{tagId} AND (SELECT COUNT(DISTINCT pt2.tag_id) FROM post_tags pt2 WHERE pt2.post_id = pt.post_id) = 1")
+    List<Long> selectPostIdsWithOnlyTag(@Param("tagId") Long tagId);
+
+    @Select("SELECT pt.post_id FROM post_tags pt WHERE pt.tag_id = #{tagId} AND (SELECT COUNT(DISTINCT pt2.tag_id) FROM post_tags pt2 WHERE pt2.post_id = pt.post_id) > 1")
+    List<Long> selectPostIdsWithMultipleTags(@Param("tagId") Long tagId);
+
+    @Delete("<script>" +
+            "DELETE FROM post_tags WHERE tag_id = #{tagId} AND post_id IN " +
+            "<foreach item='item' index='index' collection='postIds' open='(' separator=',' close=')'>" +
+            "#{item}" +
+            "</foreach>" +
+            "</script>")
+    void deleteTagFromPosts(@Param("tagId") Long tagId, @Param("postIds") List<Long> postIds);
+
     @Select("<script>" +
             "SELECT pt.post_id, t.* FROM tags t " +
             "JOIN post_tags pt ON t.id = pt.tag_id " +

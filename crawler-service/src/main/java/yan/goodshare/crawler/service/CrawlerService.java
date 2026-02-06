@@ -5,15 +5,14 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import yan.goodshare.crawler.dto.ProductPriceDTO;
 import yan.goodshare.crawler.dto.ProductHistoryDTO;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 @Service
 public class CrawlerService {
@@ -26,27 +25,23 @@ public class CrawlerService {
     private static final long CACHE_DURATION_HOURS = 24;
 
     private final org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
-    public CrawlerService(org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate) {
+    public CrawlerService(org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate, JdbcTemplate jdbcTemplate) {
         this.redisTemplate = redisTemplate;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public void clearCache(String keyword) {
         if (keyword != null && !keyword.isEmpty()) {
             redisTemplate.delete(REDIS_KEY_PREFIX + keyword);
-            redisTemplate.delete(HISTORY_KEY_PREFIX + keyword);
-            System.out.println("Cleared cache and history for keyword: " + keyword);
+            System.out.println("Cleared product cache for keyword: " + keyword);
         } else {
-            // Clear all crawler related keys
             java.util.Set<String> productKeys = redisTemplate.keys(REDIS_KEY_PREFIX + "*");
             if (productKeys != null && !productKeys.isEmpty()) {
                 redisTemplate.delete(productKeys);
             }
-            java.util.Set<String> historyKeys = redisTemplate.keys(HISTORY_KEY_PREFIX + "*");
-            if (historyKeys != null && !historyKeys.isEmpty()) {
-                redisTemplate.delete(historyKeys);
-            }
-            System.out.println("Cleared all product search cache and history.");
+            System.out.println("Cleared all product search cache.");
         }
     }
 
@@ -175,77 +170,88 @@ public class CrawlerService {
 
             ProductHistoryDTO historyDTO = new ProductHistoryDTO(today, minPrice, avg, null);
 
-            // Check if today's record already exists to avoid duplicates
-            // Get last element
             Object lastObj = redisTemplate.opsForList().index(key, -1);
             if (lastObj instanceof ProductHistoryDTO) {
                 ProductHistoryDTO last = (ProductHistoryDTO) lastObj;
                 if (last.getDate().equals(today)) {
-                    // Update today's record (pop and push)
                     redisTemplate.opsForList().rightPop(key);
                 }
             }
             
             redisTemplate.opsForList().rightPush(key, historyDTO);
+            try {
+                jdbcTemplate.update(
+                        "INSERT INTO price_history(keyword, record_date, min_price, avg_price, note) VALUES (?, ?, ?, ?, ?) " +
+                                "ON DUPLICATE KEY UPDATE min_price = VALUES(min_price), avg_price = VALUES(avg_price), note = VALUES(note)",
+                        keyword, java.sql.Date.valueOf(today), minPrice, avg, historyDTO.getNote()
+                );
+            } catch (Exception e) {
+                System.err.println("Failed to save history to DB: " + e.getMessage());
+            }
         }
     }
 
     public List<ProductHistoryDTO> getProductHistory(String keyword) {
+        try {
+            return jdbcTemplate.query(
+                    "SELECT record_date, min_price, avg_price, note FROM price_history WHERE keyword = ? ORDER BY record_date ASC",
+                    (rs, rowNum) -> new ProductHistoryDTO(
+                            rs.getDate("record_date").toString(),
+                            rs.getDouble("min_price"),
+                            rs.getDouble("avg_price"),
+                            rs.getString("note")
+                    ),
+                    keyword
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to get history from DB: " + e.getMessage());
+            return getHistoryFromRedis(keyword);
+        }
+    }
+
+    private List<ProductHistoryDTO> getHistoryFromRedis(String keyword) {
         String key = HISTORY_KEY_PREFIX + keyword;
         try {
             List<Object> list = redisTemplate.opsForList().range(key, 0, -1);
             if (list == null) return new ArrayList<>();
-            
+
             List<ProductHistoryDTO> history = new ArrayList<>();
             for (Object obj : list) {
                 if (obj instanceof ProductHistoryDTO) {
                     history.add((ProductHistoryDTO) obj);
                 } else if (obj instanceof java.util.LinkedHashMap) {
-                     // Handle Jackson deserialization to LinkedHashMap if generic type info is lost
-                     // This often happens with RedisTemplate<String, Object>
-                     try {
-                         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                         ProductHistoryDTO dto = mapper.convertValue(obj, ProductHistoryDTO.class);
-                         history.add(dto);
-                     } catch (Exception e) {
-                         System.err.println("Failed to convert history object: " + e.getMessage());
-                     }
+                    try {
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        ProductHistoryDTO dto = mapper.convertValue(obj, ProductHistoryDTO.class);
+                        history.add(dto);
+                    } catch (Exception e) {
+                        System.err.println("Failed to convert history object: " + e.getMessage());
+                    }
                 }
             }
-            
-            // If empty, generate some mock history for demo purposes (so the user sees the chart)
-            if (history.isEmpty()) {
-                 return generateMockHistory();
-            }
-            
             return history;
         } catch (Exception e) {
-            System.err.println("Failed to get history: " + e.getMessage());
+            System.err.println("Failed to get history from Redis: " + e.getMessage());
             return new ArrayList<>();
         }
     }
 
-    private List<ProductHistoryDTO> generateMockHistory() {
-        List<ProductHistoryDTO> mock = new ArrayList<>();
-        java.time.LocalDate date = java.time.LocalDate.now().minusDays(6);
-        Random random = new Random();
-        double basePrice = 100 + random.nextDouble() * 900;
-        
-        for (int i = 0; i < 7; i++) {
-            double price = basePrice + random.nextDouble() * 50 - 25;
-            price = Math.round(price * 100.0) / 100.0;
-            // Mock avg price slightly higher
-            double avg = price * (1.0 + random.nextDouble() * 0.2);
-            avg = Math.round(avg * 100.0) / 100.0;
-            
-            mock.add(new ProductHistoryDTO(
-                date.plusDays(i).toString(),
-                price,
-                avg,
-                "Mock Data"
-            ));
+    @jakarta.annotation.PostConstruct
+    private void initHistoryTable() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS price_history (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "keyword VARCHAR(255) NOT NULL," +
+                    "record_date DATE NOT NULL," +
+                    "min_price DOUBLE NOT NULL," +
+                    "avg_price DOUBLE NOT NULL," +
+                    "note VARCHAR(255)," +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "UNIQUE KEY uk_price_history (keyword, record_date)" +
+                    ")");
+        } catch (Exception e) {
+            System.err.println("Failed to ensure price_history table: " + e.getMessage());
         }
-        return mock;
     }
 
     private List<ProductPriceDTO> crawlManmanbuy(String keyword) {
@@ -272,7 +278,14 @@ public class CrawlerService {
             java.util.Scanner s = new java.util.Scanner(inputStream, "UTF-8").useDelimiter("\\A");
             String output = s.hasNext() ? s.next() : "";
             
-            int exitCode = process.waitFor();
+            boolean finished = process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroy();
+                System.err.println("Manmanbuy Python script timed out.");
+                return list;
+            }
+            
+            int exitCode = process.exitValue();
             if (exitCode != 0) {
                 System.err.println("Manmanbuy Python script exited with code " + exitCode);
                 System.err.println("Output: " + output);

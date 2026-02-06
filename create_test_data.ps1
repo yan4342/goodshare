@@ -1,10 +1,57 @@
+Add-Type -AssemblyName System.Drawing
 
 $baseUrl = "http://localhost:8080"
 $password = "password123"
 
-# 1. Setup Users
-$users = @("testUser1", "testUser2", "testUser3", "testUser4", "testUser5")
+$users = 1..10 | ForEach-Object { "testUser$_" }
 $userTokens = @{}
+
+$textStyles = @(
+    @{ name = "经典白"; color = "#FFFFFF"; font = "Microsoft YaHei UI"; shadow = $true; shadowColor = "rgba(0,0,0,0.3)" },
+    @{ name = "极简黑"; color = "#000000"; font = "Microsoft YaHei UI"; shadow = $false },
+    @{ name = "衬线雅"; color = "#FFFFFF"; font = "Times New Roman"; shadow = $true; shadowColor = "rgba(0,0,0,0.3)" },
+    @{ name = "活力黄"; color = "#FFD700"; font = "Microsoft YaHei UI"; shadow = $true; shadowColor = "rgba(0,0,0,0.8)" },
+    @{ name = "清新绿"; color = "#E0FFEB"; font = "Consolas"; shadow = $true; shadowColor = "#004d00" },
+    @{ name = "霓虹粉"; color = "#FF00FF"; font = "Microsoft YaHei UI"; shadow = $true; shadowColor = "#00FFFF"; glow = $true },
+    @{ name = "描边黑"; color = "#FFFFFF"; font = "Impact"; stroke = "#000000"; strokeWidth = 3 }
+)
+
+$coverStyles = @(
+    @{ name = "粉嫩"; type = "gradient"; colors = @("#FF9A9E", "#FECFEF"); decoration = "circles" },
+    @{ name = "紫罗兰"; type = "gradient"; colors = @("#a18cd1", "#fbc2eb"); decoration = "circles" },
+    @{ name = "清新"; type = "gradient"; colors = @("#84fab0", "#8fd3f4"); decoration = "circles" },
+    @{ name = "暗黑"; type = "gradient"; colors = @("#434343", "#000000"); decoration = "grid" },
+    @{ name = "日落"; type = "gradient"; colors = @("#fa709a", "#fee140"); decoration = "lines" },
+    @{ name = "幽蓝"; type = "gradient"; colors = @("#30cfd0", "#330867"); decoration = "bubbles" },
+    @{ name = "纯净白"; type = "solid"; colors = @("#ffffff"); decoration = "border"; defaultTextIndex = 1 },
+    @{ name = "复古纸张"; type = "solid"; colors = @("#f4e4bc"); decoration = "noise"; defaultTextIndex = 1 },
+    @{ name = "科技蓝"; type = "gradient"; colors = @("#000428", "#004e92"); decoration = "grid" },
+    @{ name = "派对"; type = "solid"; colors = @("#FFF5E6"); decoration = "confetti"; defaultTextIndex = 1 },
+    @{ name = "几何"; type = "gradient"; colors = @("#2E3192", "#1BFFFF"); decoration = "geometric" },
+    @{ name = "赛博"; type = "solid"; colors = @("#000000"); decoration = "neon"; defaultTextIndex = 5 }
+)
+
+$tags = @("书籍", "数码", "家居", "玩具", "服装", "文具", "美食", "旅行", "运动", "影音")
+$titlePrefix = @("精选", "测评", "分享", "入门", "清单", "指南", "推荐", "体验", "总结", "上手")
+$titleSubject = @("心得", "技巧", "搭配", "故事", "避坑", "玩法", "合集", "记录", "对比", "灵感")
+$contentOpeners = @(
+    "这次想聊聊我的真实体验，整体感受",
+    "最近研究了不少资料，发现关键点是",
+    "使用一段时间后，我觉得最重要的是",
+    "整理了几个实用的小技巧，首先是",
+    "从入门到进阶，我的总结是",
+    "这里是我对这次体验的简单回顾",
+    "如果你正准备尝试，建议先关注",
+    "这篇记录了我的实际过程，重点在于"
+)
+$contentEndings = @(
+    "欢迎交流你的看法。",
+    "希望能对你有所帮助。",
+    "有问题可以留言一起讨论。",
+    "如果有更多想法我会继续更新。",
+    "以上是我的个人体验，仅供参考。",
+    "后续有新发现会再补充。"
+)
 
 function Register-User ($username) {
     $body = @{
@@ -16,7 +63,6 @@ function Register-User ($username) {
     try {
         Invoke-RestMethod -Uri "$baseUrl/api/auth/register" -Method Post -Body $body -ContentType "application/json" -ErrorAction SilentlyContinue
     } catch {
-        # Ignore if already exists
     }
 }
 
@@ -29,102 +75,332 @@ function Login-User ($username) {
         $response = Invoke-RestMethod -Uri "$baseUrl/api/auth/login" -Method Post -Body $body -ContentType "application/json"
         return $response.accessToken
     } catch {
-        Write-Error "Login failed for $username"
         return $null
     }
+}
+
+function Parse-Color ($value) {
+    if ($value -is [System.Drawing.Color]) { return $value }
+    if ($value.StartsWith("#")) {
+        $r = [Convert]::ToInt32($value.Substring(1,2),16)
+        $g = [Convert]::ToInt32($value.Substring(3,2),16)
+        $b = [Convert]::ToInt32($value.Substring(5,2),16)
+        return [System.Drawing.Color]::FromArgb(255, $r, $g, $b)
+    }
+    if ($value.StartsWith("rgba")) {
+        $parts = $value.Substring($value.IndexOf("(") + 1).TrimEnd(")").Split(",")
+        $r = [int]$parts[0].Trim()
+        $g = [int]$parts[1].Trim()
+        $b = [int]$parts[2].Trim()
+        $a = [double]$parts[3].Trim()
+        return [System.Drawing.Color]::FromArgb([int]($a * 255), $r, $g, $b)
+    }
+    if ($value.StartsWith("rgb")) {
+        $parts = $value.Substring($value.IndexOf("(") + 1).TrimEnd(")").Split(",")
+        $r = [int]$parts[0].Trim()
+        $g = [int]$parts[1].Trim()
+        $b = [int]$parts[2].Trim()
+        return [System.Drawing.Color]::FromArgb(255, $r, $g, $b)
+    }
+    if ($value -eq "white") { return [System.Drawing.Color]::White }
+    if ($value -eq "black") { return [System.Drawing.Color]::Black }
+    return [System.Drawing.Color]::White
+}
+
+function Get-Font ($name, $size, $bold = $true) {
+    $style = if ($bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    try { return New-Object System.Drawing.Font($name, $size, $style) } catch { return New-Object System.Drawing.Font("Arial", $size, $style) }
+}
+
+function Measure-TextWidth ($graphics, $text, $font) {
+    return $graphics.MeasureString($text, $font).Width
+}
+
+function New-CoverImageBytes ($text) {
+    $width = 600
+    $height = 800
+    $bgStyle = $coverStyles | Get-Random
+    $textIndex = if ($bgStyle.ContainsKey("defaultTextIndex")) { $bgStyle.defaultTextIndex } else { Get-Random -Minimum 0 -Maximum $textStyles.Count }
+    $txtStyle = $textStyles[$textIndex]
+
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+
+    if ($bgStyle.type -eq "solid") {
+        $brush = New-Object System.Drawing.SolidBrush (Parse-Color $bgStyle.colors[0])
+        $graphics.FillRectangle($brush, 0, 0, $width, $height)
+        $brush.Dispose()
+    } else {
+        $c1 = Parse-Color $bgStyle.colors[0]
+        $c2 = Parse-Color $bgStyle.colors[1]
+        $rect = New-Object System.Drawing.Rectangle(0,0,$width,$height)
+        $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $c1, $c2, 45)
+        $graphics.FillRectangle($brush, $rect)
+        $brush.Dispose()
+    }
+
+    switch ($bgStyle.decoration) {
+        "circles" {
+            1..50 | ForEach-Object {
+                $r = (Get-Random -Minimum 10 -Maximum 50)
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(25,255,255,255))
+                $graphics.FillEllipse($brush, $x-$r, $y-$r, $r*2, $r*2)
+                $brush.Dispose()
+            }
+        }
+        "bubbles" {
+            1..30 | ForEach-Object {
+                $r = (Get-Random -Minimum 10 -Maximum 80)
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(25,255,255,255))
+                $graphics.FillEllipse($brush, $x-$r, $y-$r, $r*2, $r*2)
+                $brush.Dispose()
+            }
+        }
+        "grid" {
+            $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(25,255,255,255), 2)
+            for ($x = 0; $x -le $width; $x += 50) { $graphics.DrawLine($pen, $x, 0, $x, $height) }
+            for ($y = 0; $y -le $height; $y += 50) { $graphics.DrawLine($pen, 0, $y, $width, $y) }
+            $pen.Dispose()
+        }
+        "lines" {
+            $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(40,255,255,255), 3)
+            1..20 | ForEach-Object {
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $graphics.DrawLine($pen, $x, $y, $x + 200, $y + 200)
+            }
+            $pen.Dispose()
+        }
+        "border" {
+            $strokeColor = if ($txtStyle.color -eq "#FFFFFF") { [System.Drawing.Color]::FromArgb(204,255,255,255) } else { [System.Drawing.Color]::FromArgb(204,0,0,0) }
+            $penWide = New-Object System.Drawing.Pen ($strokeColor, 20)
+            $penThin = New-Object System.Drawing.Pen ($strokeColor, 2)
+            $graphics.DrawRectangle($penWide, 20, 20, $width - 40, $height - 40)
+            $graphics.DrawRectangle($penThin, 50, 50, $width - 100, $height - 100)
+            $penWide.Dispose()
+            $penThin.Dispose()
+        }
+        "noise" {
+            $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(13,0,0,0))
+            1..5000 | ForEach-Object {
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $graphics.FillRectangle($brush, $x, $y, 2, 2)
+            }
+            $brush.Dispose()
+        }
+        "confetti" {
+            $colors = @(
+                [System.Drawing.Color]::FromArgb(200,255,199,0),
+                [System.Drawing.Color]::FromArgb(200,255,0,0),
+                [System.Drawing.Color]::FromArgb(200,46,49,146),
+                [System.Drawing.Color]::FromArgb(200,0,158,0),
+                [System.Drawing.Color]::FromArgb(200,255,0,255)
+            )
+            1..100 | ForEach-Object {
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $w = Get-Random -Minimum 8 -Maximum 16
+                $h = Get-Random -Minimum 4 -Maximum 8
+                $brush = New-Object System.Drawing.SolidBrush ($colors | Get-Random)
+                $graphics.FillRectangle($brush, $x, $y, $w, $h)
+                $brush.Dispose()
+            }
+        }
+        "geometric" {
+            1..15 | ForEach-Object {
+                $p1 = New-Object System.Drawing.PointF (Get-Random -Minimum 0 -Maximum $width), (Get-Random -Minimum 0 -Maximum $height)
+                $p2 = New-Object System.Drawing.PointF (Get-Random -Minimum 0 -Maximum $width), (Get-Random -Minimum 0 -Maximum $height)
+                $p3 = New-Object System.Drawing.PointF (Get-Random -Minimum 0 -Maximum $width), (Get-Random -Minimum 0 -Maximum $height)
+                $alpha = [int]((0.05 + (Get-Random) * 0.1) * 255)
+                $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha,255,255,255))
+                $graphics.FillPolygon($brush, @($p1,$p2,$p3))
+                $brush.Dispose()
+            }
+        }
+        "neon" {
+            $penA = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(140,0,255,255), 2)
+            $penB = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(140,255,0,255), 2)
+            1..5 | ForEach-Object {
+                $y = Get-Random -Minimum 0 -Maximum $height
+                $graphics.DrawLine($penA, 0, $y, $width, $y)
+            }
+            1..5 | ForEach-Object {
+                $x = Get-Random -Minimum 0 -Maximum $width
+                $graphics.DrawLine($penB, $x, 0, $x, $height)
+            }
+            $penA.Dispose()
+            $penB.Dispose()
+        }
+    }
+
+    $font = Get-Font $txtStyle.font 56 $true
+    $textColor = Parse-Color $txtStyle.color
+    $shadowColor = Parse-Color ($txtStyle.shadowColor ? $txtStyle.shadowColor : "rgba(0,0,0,0.3)")
+    $strokeColor = Parse-Color ($txtStyle.stroke ? $txtStyle.stroke : "#000000")
+    $maxWidth = $width - 120
+    $lines = New-Object System.Collections.Generic.List[string]
+    $line = ""
+    foreach ($ch in $text.ToCharArray()) {
+        $test = $line + $ch
+        if ((Measure-TextWidth $graphics $test $font) -gt $maxWidth -and $line.Length -gt 0) {
+            $lines.Add($line)
+            $line = $ch
+        } else {
+            $line = $test
+        }
+    }
+    $lines.Add($line)
+
+    $lineHeight = 70
+    $totalHeight = $lines.Count * $lineHeight
+    $startY = ($height - $totalHeight) / 2
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $y = $startY + ($i * $lineHeight)
+        $lineText = $lines[$i]
+        $format = New-Object System.Drawing.StringFormat
+        $format.Alignment = [System.Drawing.StringAlignment]::Center
+        $format.LineAlignment = [System.Drawing.StringAlignment]::Center
+        $layout = New-Object System.Drawing.RectangleF(0, $y, $width, $lineHeight)
+
+        if ($txtStyle.glow) {
+            for ($dx = -2; $dx -le 2; $dx++) {
+                for ($dy = -2; $dy -le 2; $dy++) {
+                    if ($dx -ne 0 -or $dy -ne 0) {
+                        $brush = New-Object System.Drawing.SolidBrush $shadowColor
+                        $layoutGlow = New-Object System.Drawing.RectangleF($dx, $y + $dy, $width, $lineHeight)
+                        $graphics.DrawString($lineText, $font, $brush, $layoutGlow, $format)
+                        $brush.Dispose()
+                    }
+                }
+            }
+        } elseif ($txtStyle.shadow) {
+            $brush = New-Object System.Drawing.SolidBrush $shadowColor
+            $layoutShadow = New-Object System.Drawing.RectangleF(2, $y + 2, $width, $lineHeight)
+            $graphics.DrawString($lineText, $font, $brush, $layoutShadow, $format)
+            $brush.Dispose()
+        }
+
+        if ($txtStyle.stroke) {
+            for ($dx = -2; $dx -le 2; $dx++) {
+                for ($dy = -2; $dy -le 2; $dy++) {
+                    if ($dx -ne 0 -or $dy -ne 0) {
+                        $brush = New-Object System.Drawing.SolidBrush $strokeColor
+                        $layoutStroke = New-Object System.Drawing.RectangleF($dx, $y + $dy, $width, $lineHeight)
+                        $graphics.DrawString($lineText, $font, $brush, $layoutStroke, $format)
+                        $brush.Dispose()
+                    }
+                }
+            }
+        }
+
+        $brush = New-Object System.Drawing.SolidBrush $textColor
+        $graphics.DrawString($lineText, $font, $brush, $layout, $format)
+        $brush.Dispose()
+        $format.Dispose()
+    }
+
+    $wmFont = Get-Font "Microsoft YaHei UI" 24 $false
+    $wmColor = [System.Drawing.Color]::FromArgb([int](0.6 * 255), $textColor.R, $textColor.G, $textColor.B)
+    $wmFormat = New-Object System.Drawing.StringFormat
+    $wmFormat.Alignment = [System.Drawing.StringAlignment]::Center
+    $wmFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
+    $wmRect = New-Object System.Drawing.RectangleF(0, $height - 60, $width, 40)
+    $wmBrush = New-Object System.Drawing.SolidBrush $wmColor
+    $graphics.DrawString("GoodShare", $wmFont, $wmBrush, $wmRect, $wmFormat)
+    $wmBrush.Dispose()
+    $wmFormat.Dispose()
+
+    $stream = New-Object System.IO.MemoryStream
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+    $encoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $encoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 80L)
+    $bitmap.Save($stream, $codec, $encoder)
+    $bytes = $stream.ToArray()
+
+    $stream.Dispose()
+    $graphics.Dispose()
+    $bitmap.Dispose()
+    $font.Dispose()
+    $wmFont.Dispose()
+
+    return ,$bytes
+}
+
+function Upload-Image ($bytes, $token) {
+    $client = New-Object System.Net.Http.HttpClient
+    $client.DefaultRequestHeaders.Authorization = New-Object System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", $token)
+    $multipart = New-Object System.Net.Http.MultipartFormDataContent
+    $byteContent = New-Object System.Net.Http.ByteArrayContent($bytes)
+    $byteContent.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg")
+    $multipart.Add($byteContent, "file", "cover.jpg")
+    $response = $client.PostAsync("$baseUrl/api/upload", $multipart).Result
+    $content = $response.Content.ReadAsStringAsync().Result
+    $client.Dispose()
+    $multipart.Dispose()
+    $byteContent.Dispose()
+    if (-not $response.IsSuccessStatusCode) { return $null }
+    try { return ($content | ConvertFrom-Json).url } catch { return $null }
+}
+
+function New-Title ($tag, $index) {
+    return "$tag$($titlePrefix | Get-Random)$($titleSubject | Get-Random) #$("{0:D3}" -f $index)"
+}
+
+function New-Content ($tag, $index) {
+    return "$($contentOpeners | Get-Random)$tag，整体来说#$("{0:D3}" -f $index) $($contentEndings | Get-Random)"
 }
 
 Write-Host "Setting up users..."
 foreach ($u in $users) {
     Register-User $u
     $token = Login-User $u
-    if ($token) {
-        $userTokens[$u] = $token
-    }
+    if ($token) { $userTokens[$u] = $token }
 }
 
 if ($userTokens.Count -eq 0) {
-    Write-Error "No users available. Exiting."
+    Write-Host "No users available. Exiting."
     exit
 }
 
-# 2. Content Data
-$categories = @{
-    "书籍" = @(
-        @{ title = "读《百年孤独》有感"; content = "这真是一本伟大的魔幻现实主义巨著，马尔克斯的文笔太细腻了。" },
-        @{ title = "Java编程思想推荐"; content = "作为Java程序员，这本书是必读的经典，虽然有点厚，但值得一读。" },
-        @{ title = "最近看的一本历史书"; content = "明朝那些事儿写得真有趣，把历史写活了。" },
-        @{ title = "科幻迷必读三体"; content = "刘慈欣的三体想象力太宏大了，尤其是黑暗森林法则。" }
-    )
-    "数码" = @(
-        @{ title = "iPhone 16 使用体验"; content = "新一代的iPhone在拍照方面提升很大，但是续航似乎没有太多惊喜。" },
-        @{ title = "机械键盘入坑指南"; content = "红轴、青轴、茶轴到底怎么选？适合自己的才是最好的。" },
-        @{ title = "索尼大法好"; content = "新入手的微单相机，对焦速度真的快，色彩也很讨喜。" },
-        @{ title = "MacBook Pro M3 测评"; content = "性能怪兽，剪辑4K视频毫无压力，就是价格稍微有点贵。" }
-    )
-    "家居" = @(
-        @{ title = "极简主义装修风格"; content = "断舍离之后，家里变得宽敞多了，心情也变好了。" },
-        @{ title = "宜家好物推荐"; content = "这个收纳盒真的是神器，便宜又好用，推荐给大家。" },
-        @{ title = "智能家居改造计划"; content = "把家里的灯光、窗帘都接入了米家，语音控制太方便了。" },
-        @{ title = "阳台改造小花园"; content = "种了一些多肉和绿萝，每天看着它们生长，感觉很治愈。" }
-    )
-    "玩具" = @(
-        @{ title = "乐高布加迪拼装记录"; content = "花了整整一个周末才拼好，机械结构太精密了，不得不佩服乐高的设计。" },
-        @{ title = "高达模型分享"; content = "MG独角兽，爆甲模式帅炸了，就是贴纸有点多。" },
-        @{ title = "Switch游戏推荐"; content = "塞尔达传说荒野之息，真的是开放世界的巅峰之作。" },
-        @{ title = "怀旧童年四驱车"; content = "买了一辆旋风冲锋，找回了童年的快乐。" }
-    )
-    "服装" = @(
-        @{ title = "优衣库春夏穿搭"; content = "基础款也能穿出高级感，关键是颜色的搭配。" },
-        @{ title = "复古风穿搭分享"; content = "去古着店淘了一件牛仔外套，非常有味道。" },
-        @{ title = "运动鞋收藏"; content = "AJ1真的是经典，虽然现在溢价很高，但还是忍不住想买。" },
-        @{ title = "职场通勤穿搭"; content = "西装外套配牛仔裤，既正式又不失休闲感。" }
-    )
-    "文具" = @(
-        @{ title = "百乐果汁笔试色"; content = "颜色很正，书写顺滑，做手账必备。" },
-        @{ title = "手账入坑第一天"; content = "买了很多胶带和贴纸，希望能坚持记录生活。" },
-        @{ title = "凌美钢笔使用感受"; content = "狩猎者系列性价比很高，适合学生党入门。" },
-        @{ title = "国誉自我手账本"; content = "时间轴的设计很科学，能够很好地规划每天的时间。" }
-    )
-    "美食" = @(
-        @{ title = "家庭版红烧肉做法"; content = "关键是要炒糖色，还有要小火慢炖，肥而不腻。" },
-        @{ title = "探店网红火锅"; content = "排队两小时才吃到，味道确实不错，服务也很好。" },
-        @{ title = "自制提拉米苏"; content = "不用烤箱也能做的甜点，手指饼干吸满了咖啡酒，味道很正宗。" },
-        @{ title = "深夜食堂泡面法则"; content = "加个荷包蛋，再加根火腿肠，简直是人间美味。" }
-    )
-}
+$targetCount = 100
+$created = 0
+$attempts = 0
+$maxAttempts = $targetCount * 3
 
-# 3. Create Posts
 Write-Host "Creating posts..."
-
-$rnd = New-Object System.Random
-
-foreach ($tag in $categories.Keys) {
-    Write-Host "Processing tag: $tag"
-    $items = $categories[$tag]
-    
-    foreach ($item in $items) {
-        # Pick a random user
-        $userKey = $users[$rnd.Next(0, $users.Count)]
-        $token = $userTokens[$userKey]
-        
-        $postBody = @{
-            title = $item.title
-            content = $item.content
-            tags = @($tag)
-            # No images for pure text posts
-            imageUrls = @() 
-        } | ConvertTo-Json -Depth 10
-
-        try {
-             Invoke-RestMethod -Uri "$baseUrl/api/posts" -Method Post -Body $postBody -ContentType "application/json" -Headers @{ Authorization = "Bearer $token" }
-             Write-Host "  [OK] Created post: $($item.title) by $userKey"
-        } catch {
-             Write-Error "  [FAIL] Failed to create post: $($item.title) - $_"
-        }
-        
-        Start-Sleep -Milliseconds 200
+while ($created -lt $targetCount -and $attempts -lt $maxAttempts) {
+    $attempts++
+    $tag = $tags | Get-Random
+    $title = New-Title $tag ($created + 1)
+    $content = New-Content $tag ($created + 1)
+    $userKey = $userTokens.Keys | Get-Random
+    $token = $userTokens[$userKey]
+    $bytes = New-CoverImageBytes $title
+    $url = Upload-Image $bytes $token
+    if (-not $url) { continue }
+    $postBody = @{
+        title = $title
+        content = $content
+        tags = @($tag)
+        imageUrls = @($url)
+        coverUrl = $url
+    } | ConvertTo-Json -Depth 10
+    try {
+        $response = Invoke-RestMethod -Uri "$baseUrl/api/posts" -Method Post -Body $postBody -ContentType "application/json" -Headers @{ Authorization = "Bearer $token" }
+        $created++
+        Write-Host "[OK] $created/$targetCount $title $tag $userKey"
+    } catch {
+        Write-Host "[FAIL] $($_.Exception.Message)"
     }
+    Start-Sleep -Milliseconds 100
 }
 
-Write-Host "Batch creation completed."
+Write-Host "Batch creation completed. Created: $created"

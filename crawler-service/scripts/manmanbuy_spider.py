@@ -237,6 +237,12 @@ def get_manmanbuy_products(keyword, limit=0):
             chrome_options.add_argument('--blink-settings=imagesEnabled=true')
             chrome_options.page_load_strategy = 'eager'
 
+            # Explicitly set binary location for Alpine/Docker
+            if os.path.exists("/usr/bin/chromium-browser"):
+                chrome_options.binary_location = "/usr/bin/chromium-browser"
+            elif os.path.exists("/usr/bin/chromium"):
+                chrome_options.binary_location = "/usr/bin/chromium"
+
             try:
                 service = None
                 if os.path.exists("/usr/bin/chromedriver"):

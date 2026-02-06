@@ -13,6 +13,7 @@ import yan.goodshare.entity.User;
 import yan.goodshare.search.SearchService;
 
 import yan.goodshare.service.NotificationService;
+import yan.goodshare.service.UserTagWeightService;
 
 import java.util.List;
 
@@ -24,13 +25,15 @@ public class LikeService {
     private final UserMapper userMapper;
     private final NotificationService notificationService;
     private final SearchService searchService;
+    private final UserTagWeightService userTagWeightService;
 
-    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, SearchService searchService) {
+    public LikeService(LikeMapper likeMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, SearchService searchService, UserTagWeightService userTagWeightService) {
         this.likeMapper = likeMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
         this.searchService = searchService;
+        this.userTagWeightService = userTagWeightService;
     }
 
     public void likePost(Long postId) {
@@ -59,6 +62,8 @@ public class LikeService {
         like.setPostId(postId);
 
         likeMapper.insert(like);
+
+        userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.like");
         
         // Create notification
         notificationService.createNotification(post.getUserId(), user.getId(), "LIKE", postId);

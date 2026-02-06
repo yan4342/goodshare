@@ -41,13 +41,17 @@
                 @click="handleRefresh"
                 style="margin-left: 10px;"
             >
-                <el-icon><Refresh /></el-icon> 重新爬取
+                <el-icon><Refresh /></el-icon> {{ loading ? '正在爬取...' : '重新爬取' }}
             </el-button>
           </div>
         </div>
 
         <div v-if="loading" class="loading-state">
-          <el-skeleton :rows="5" animated />
+            <el-skeleton :rows="5" animated />
+            <div class="loading-text" style="margin-top: 20px; color: #666;">
+                <p>正在全网爬取最新价格，可能需要 10-30 秒...</p>
+                <p style="font-size: 12px; color: #999;">请耐心等待，不要关闭页面</p>
+            </div>
         </div>
 
         <div v-else-if="results.length > 0" class="results-container">
@@ -142,6 +146,36 @@ const handleSearch = async () => {
         ElMessage.error('搜索耗时较长，请稍后重试或尝试再次搜索')
     } else {
         ElMessage.error('获取比价数据失败，请重试')
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleRefresh = async () => {
+  if (!searchKeyword.value.trim()) return
+  
+  loading.value = true
+  searched.value = true
+  results.value = []
+  
+  try {
+    const res = await request.get(`/prices/search`, {
+      params: { keyword: searchKeyword.value, refresh: true },
+      timeout: 120000
+    })
+    if (Array.isArray(res.data)) {
+      results.value = [...res.data]
+    } else {
+      results.value = []
+    }
+    ElMessage.success('已重新爬取最新数据')
+  } catch (err) {
+    console.error('Failed to refresh prices', err)
+    if (err.code === 'ECONNABORTED') {
+      ElMessage.error('重新爬取超时，请稍后重试')
+    } else {
+      ElMessage.error('重新爬取失败，请重试')
     }
   } finally {
     loading.value = false

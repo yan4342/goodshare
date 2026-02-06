@@ -51,6 +51,10 @@
                         <span>{{ post.viewCount }}</span>
                     </div>
                     </div>
+                    <button class="dislike-btn" @click.stop="handleDislike(post)">
+                        <el-icon><CircleClose /></el-icon>
+                        <span>不喜欢</span>
+                    </button>
                 </div>
                 </div>
             </div>
@@ -120,8 +124,9 @@ import PostDetail from './PostDetail.vue'
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import request from '../utils/request'
 import { getThumbnailUrl } from '../utils/image'
-import { Star, UserFilled, View, Refresh } from '@element-plus/icons-vue'
+import { Star, UserFilled, View, Refresh, CircleClose } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import authStore from '../stores/auth'
 import homeStore from '../stores/home'
 
@@ -297,6 +302,21 @@ const getCoverUrl = (post) => {
     return getThumbnailUrl(url)
 }
 
+const handleDislike = async (post) => {
+    if (!authStore.state.isAuthenticated) {
+        ElMessage.warning('请先登录')
+        router.push('/login')
+        return
+    }
+    try {
+        await request.post(`/posts/${post.id}/dislike`)
+        homeStore.removePost(post.id)
+    } catch (err) {
+        console.error('Failed to dislike post', err)
+        ElMessage.error('操作失败')
+    }
+}
+
 onMounted(async () => {
     updateColumnCount()
     window.addEventListener('resize', updateColumnCount)
@@ -449,6 +469,20 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 3px;
+}
+.dislike-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+}
+.dislike-btn:hover {
+  color: var(--el-color-danger);
 }
 .empty-state {
     padding: 100px 0;

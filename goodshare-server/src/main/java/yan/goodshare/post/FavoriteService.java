@@ -10,6 +10,7 @@ import yan.goodshare.mapper.FavoriteMapper;
 import yan.goodshare.mapper.PostMapper;
 import yan.goodshare.mapper.UserMapper;
 import yan.goodshare.entity.User;
+import yan.goodshare.service.UserTagWeightService;
 
 import java.util.List;
 
@@ -19,11 +20,13 @@ public class FavoriteService {
     private final FavoriteMapper favoriteMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final UserTagWeightService userTagWeightService;
 
-    public FavoriteService(FavoriteMapper favoriteMapper, PostMapper postMapper, UserMapper userMapper) {
+    public FavoriteService(FavoriteMapper favoriteMapper, PostMapper postMapper, UserMapper userMapper, UserTagWeightService userTagWeightService) {
         this.favoriteMapper = favoriteMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
+        this.userTagWeightService = userTagWeightService;
     }
 
     public void favoritePost(Long postId) {
@@ -52,6 +55,8 @@ public class FavoriteService {
         favorite.setPostId(postId);
 
         favoriteMapper.insert(favorite);
+
+        userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.favorite");
     }
 
     public void unfavoritePost(Long postId) {

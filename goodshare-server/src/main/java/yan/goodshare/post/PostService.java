@@ -18,6 +18,7 @@ import yan.goodshare.entity.PostView;
 import yan.goodshare.entity.Tag;
 import yan.goodshare.entity.User;
 import yan.goodshare.entity.Notification;
+import yan.goodshare.service.UserTagWeightService;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -35,8 +36,9 @@ public class PostService {
     private final ObjectMapper objectMapper;
     private final PostViewMapper postViewMapper;
     private final NotificationMapper notificationMapper;
+    private final UserTagWeightService userTagWeightService;
 
-    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper, ObjectMapper objectMapper, PostViewMapper postViewMapper, NotificationMapper notificationMapper) {
+    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper, ObjectMapper objectMapper, PostViewMapper postViewMapper, NotificationMapper notificationMapper, UserTagWeightService userTagWeightService) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.searchService = searchService;
@@ -44,6 +46,7 @@ public class PostService {
         this.objectMapper = objectMapper;
         this.postViewMapper = postViewMapper;
         this.notificationMapper = notificationMapper;
+        this.userTagWeightService = userTagWeightService;
     }
 
     @Transactional
@@ -78,6 +81,7 @@ public class PostService {
                     postView.setUserId(user.getId());
                     postView.setCreatedAt(LocalDateTime.now());
                     postViewMapper.insert(postView);
+                    userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.view");
                 } catch (Exception e) {
                     // In case of race condition where duplicate insert fails, stop here
                     return;
@@ -98,6 +102,23 @@ public class PostService {
         } catch (Exception e) {
             System.err.println("Failed to update search index for post " + postId + ": " + e.getMessage());
         }
+    }
+
+    public void dislikePost(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new RuntimeException("Post not found");
+        }
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = userDetails.getUsername();
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+        if (user.getId().equals(post.getUserId())) {
+            return;
+        }
+        userTagWeightService.applyDislike(user.getId(), postId);
     }
 
     public Post createPost(PostRequest postRequest) {
@@ -323,23 +344,34 @@ public class PostService {
 
     @Transactional
     public void deletePost(Long postId) {
+        deletePostInternal(postId, true);
+    }
+
+    @Transactional
+    public void deletePostAsAdmin(Long postId) {
+        deletePostInternal(postId, false);
+    }
+
+    private void deletePostInternal(Long postId, boolean enforcePermission) {
         Post post = postMapper.selectById(postId);
         if (post == null) {
             throw new RuntimeException("Post not found");
         }
 
-        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        User currentUser = userMapper.selectOne(new QueryWrapper<User>().eq("username", userDetails.getUsername()));
-        
-        if (currentUser == null) {
-            throw new RuntimeException("User not found");
-        }
+        if (enforcePermission) {
+            UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            User currentUser = userMapper.selectOne(new QueryWrapper<User>().eq("username", userDetails.getUsername()));
+            
+            if (currentUser == null) {
+                throw new RuntimeException("User not found");
+            }
 
-        boolean isAdmin = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            boolean isAdmin = userDetails.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        if (!post.getUserId().equals(currentUser.getId()) && !isAdmin) {
-            throw new RuntimeException("You don't have permission to delete this post");
+            if (!post.getUserId().equals(currentUser.getId()) && !isAdmin) {
+                throw new RuntimeException("You don't have permission to delete this post");
+            }
         }
 
         // Delete images
@@ -419,11 +451,44 @@ public class PostService {
         if (url != null && url.contains("/uploads/")) {
             String filename = url.substring(url.lastIndexOf("/") + 1);
             try {
-                java.nio.file.Path path = java.nio.file.Paths.get("uploads").resolve(filename);
-                java.nio.file.Files.deleteIfExists(path);
+                deleteFileByName(filename);
+                String thumbFilename = getThumbFilename(filename);
+                if (!thumbFilename.equals(filename)) {
+                    deleteFileByName(thumbFilename);
+                }
+                String originalFromThumb = getOriginalFilename(filename);
+                if (originalFromThumb != null && !originalFromThumb.equals(filename)) {
+                    deleteFileByName(originalFromThumb);
+                }
             } catch (java.io.IOException e) {
                 // Ignore deletion errors
             }
         }
+    }
+
+    private void deleteFileByName(String filename) throws java.io.IOException {
+        java.nio.file.Path path = java.nio.file.Paths.get("uploads").resolve(filename);
+        java.nio.file.Files.deleteIfExists(path);
+    }
+
+    private String getThumbFilename(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex == -1) return filename + "_thumb";
+        return filename.substring(0, dotIndex) + "_thumb" + filename.substring(dotIndex);
+    }
+
+    private String getOriginalFilename(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex == -1) {
+            if (filename.endsWith("_thumb")) {
+                return filename.substring(0, filename.length() - 6);
+            }
+            return null;
+        }
+        String base = filename.substring(0, dotIndex);
+        if (base.endsWith("_thumb")) {
+            return base.substring(0, base.length() - 6) + filename.substring(dotIndex);
+        }
+        return null;
     }
 }

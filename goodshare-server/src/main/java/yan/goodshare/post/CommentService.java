@@ -16,6 +16,7 @@ import java.util.List;
 
 import yan.goodshare.service.NotificationService;
 import yan.goodshare.search.SearchService;
+import yan.goodshare.service.UserTagWeightService;
 
 @Service
 public class CommentService {
@@ -26,14 +27,16 @@ public class CommentService {
     private final NotificationService notificationService;
     private final yan.goodshare.mapper.CommentLikeMapper commentLikeMapper;
     private final SearchService searchService;
+    private final UserTagWeightService userTagWeightService;
 
-    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, yan.goodshare.mapper.CommentLikeMapper commentLikeMapper, SearchService searchService) {
+    public CommentService(CommentMapper commentMapper, PostMapper postMapper, UserMapper userMapper, NotificationService notificationService, yan.goodshare.mapper.CommentLikeMapper commentLikeMapper, SearchService searchService, UserTagWeightService userTagWeightService) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
         this.commentLikeMapper = commentLikeMapper;
         this.searchService = searchService;
+        this.userTagWeightService = userTagWeightService;
     }
 
     public Comment createComment(Long postId, CommentRequest commentRequest) {
@@ -58,6 +61,8 @@ public class CommentService {
         comment.setCreatedAt(LocalDateTime.now());
 
         commentMapper.insert(comment);
+
+        userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.comment");
         
         // Create notification
         // If it's a reply, notify the comment author? 
