@@ -1,6 +1,5 @@
 <template>
   <div class="appraisal-list-container">
-    <Sidebar />
     <div class="main-content">
       <div class="header">
         <h2>鉴别大厅</h2>
@@ -66,7 +65,6 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import Sidebar from '../components/Sidebar.vue'
 import request from '../utils/request'
 
 const appraisals = ref([])

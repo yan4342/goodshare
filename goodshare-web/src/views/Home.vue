@@ -1,6 +1,5 @@
 <template>
   <div class="home-container">
-    <Sidebar v-if="isAuthenticated" />
     <el-scrollbar height="100vh" @scroll="handleScroll" ref="scrollbarRef">
       <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }" ref="scrollContent">
         <Navbar />
@@ -24,17 +23,54 @@
             </span>
           </div>
 
+        <!-- Skeleton Grid (Initial Load) -->
+        <div v-if="loading && posts.length === 0" class="waterfall-grid">
+            <div class="column" v-for="colIndex in columnCount" :key="'col-'+colIndex">
+                <div v-for="n in 3" :key="'skel-'+n" class="post-card skeleton-card">
+                    <el-skeleton animated>
+                        <template #template>
+                            <el-skeleton-item variant="image" class="skeleton-image" :style="{ height: (200 + Math.random() * 100) + 'px' }" />
+                            <div class="p-2">
+                                <el-skeleton-item variant="h3" style="width: 80%; margin-bottom: 8px" />
+                                <div style="display: flex; justify-content: space-between; align-items: center">
+                                    <div style="display: flex; align-items: center; gap: 4px">
+                                        <el-skeleton-item variant="circle" style="width: 16px; height: 16px" />
+                                        <el-skeleton-item variant="text" style="width: 40px" />
+                                    </div>
+                                    <el-skeleton-item variant="text" style="width: 30px" />
+                                </div>
+                            </div>
+                        </template>
+                    </el-skeleton>
+                </div>
+            </div>
+        </div>
+
         <!-- Waterfall Grid -->
-        <div class="waterfall-grid">
+        <div class="waterfall-grid" v-else>
           <div class="column" v-for="(colPosts, index) in columns" :key="index">
-            <div v-for="post in colPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
-                <img v-if="getCoverUrl(post)" :src="getCoverUrl(post)" class="cover-image" loading="lazy" />
+            <div 
+                v-for="(post, pIndex) in colPosts" 
+                :key="post.id" 
+                class="post-card animated-card" 
+                :class="{ 'no-image': !getCoverUrl(post) }" 
+                :style="{ animationDelay: `${pIndex * 0.05}s` }"
+                @click="openPost(post, $event)"
+            >
+                <el-image v-if="getCoverUrl(post)" :src="getCoverUrl(post)" class="cover-image" lazy>
+                    <template #placeholder>
+                        <img :src="placeholderImg" class="placeholder-image" />
+                    </template>
+                    <template #error>
+                        <img :src="placeholderImg" class="placeholder-image" />
+                    </template>
+                </el-image>
                 <div class="card-info">
                 <h3 class="post-title">{{ post.title }}</h3>
                 <div class="post-meta">
                     <div class="author">
                     <el-avatar :size="16" icon="UserFilled" :src="post.user?.avatarUrl || '../assests/avatar.png'" />
-                    <span class="author-name" v-if="post.user">{{ post.user.nickname || post.user.username || '用户' }}</span>
+                    <span class="author-name" :class="{ 'followed-author': post.isFollowedAuthor }" v-if="post.user">{{ post.user.nickname || post.user.username || '用户' }}</span>
                     <span class="author-name" v-else>用户</span>
                     </div>
                     <div class="metrics">
@@ -119,7 +155,6 @@
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
-import Sidebar from '../components/Sidebar.vue'
 import PostDetail from './PostDetail.vue'
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import request from '../utils/request'
@@ -129,6 +164,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import authStore from '../stores/auth'
 import homeStore from '../stores/home'
+import placeholderImg from '../assets/placeholder.png'
 
 const router = useRouter()
 // Use store state for persistence
@@ -460,6 +496,10 @@ onUnmounted(() => {
     text-overflow: ellipsis;
     max-width: 80px;
 }
+.followed-author {
+    color: var(--el-color-danger);
+    font-weight: bold;
+}
 .metrics {
     display: flex;
     gap: 6px;
@@ -513,5 +553,41 @@ onUnmounted(() => {
   -webkit-line-clamp: 4; /* Show more lines for text-only posts */
   margin-bottom: 10px;
   flex: 1;
+}
+
+.placeholder-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.skeleton-card {
+    background: #fff;
+    padding: 10px;
+    border-radius: 12px;
+}
+.skeleton-image {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+.p-2 {
+    padding: 0 4px;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animated-card {
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 </style>

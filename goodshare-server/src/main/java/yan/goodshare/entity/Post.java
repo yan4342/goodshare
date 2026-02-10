@@ -44,6 +44,9 @@ public class Post {
     @TableField(exist = false)
     private Integer commentCount = 0;
 
+    @TableField(exist = false)
+    private Boolean isFollowedAuthor = false;
+
     @TableField("view_count")
     private Integer viewCount = 0;
 
@@ -85,6 +88,14 @@ public class Post {
 
     public void setCommentCount(Integer commentCount) {
         this.commentCount = commentCount;
+    }
+
+    public Boolean getIsFollowedAuthor() {
+        return isFollowedAuthor;
+    }
+
+    public void setIsFollowedAuthor(Boolean isFollowedAuthor) {
+        this.isFollowedAuthor = isFollowedAuthor;
     }
 
     public Long getId() {

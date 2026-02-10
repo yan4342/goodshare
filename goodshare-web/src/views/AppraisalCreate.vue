@@ -1,6 +1,5 @@
 <template>
   <div class="appraisal-create-container">
-    <Sidebar />
     <div class="main-content">
         <div class="create-card">
             <h2>发布鉴别请求</h2>
@@ -48,7 +47,6 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import Sidebar from '../components/Sidebar.vue'
 import request from '../utils/request'
 import authStore from '../stores/auth'
 import { useRouter } from 'vue-router'

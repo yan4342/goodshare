@@ -1,6 +1,5 @@
 <template>
   <div class="home-container">
-    <Sidebar v-if="isAuthenticated" />
     <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }">
       
       <div class="content-body">
@@ -103,7 +102,6 @@
 </template>
 
 <script setup>
-import Sidebar from '../components/Sidebar.vue'
 import { ref, computed, nextTick } from 'vue'
 import request from '../utils/request'
 import { Search, TrendCharts, Refresh } from '@element-plus/icons-vue'

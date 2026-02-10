@@ -93,7 +93,7 @@ public class CommentService {
         return comment;
     }
 
-    public List<Comment> getCommentsByPostId(Long postId) {
+    public List<Comment> getCommentsByPostId(Long postId, String sort) {
         List<Comment> comments = commentMapper.selectCommentsWithUser(postId);
         
         // Populate like info
@@ -115,6 +115,21 @@ public class CommentService {
                 comment.setIsLiked(false);
             }
         }
+
+        // Sorting
+        if ("hot".equalsIgnoreCase(sort)) {
+            comments.sort((c1, c2) -> {
+                int likeCompare = c2.getLikeCount().compareTo(c1.getLikeCount());
+                if (likeCompare != 0) return likeCompare;
+                return c2.getCreatedAt().compareTo(c1.getCreatedAt()); // Tie-break with time (newest first)
+            });
+        } else if ("desc".equalsIgnoreCase(sort)) {
+            comments.sort((c1, c2) -> c2.getCreatedAt().compareTo(c1.getCreatedAt()));
+        } else {
+            // Default ASC (already sorted by DB usually, but ensure it)
+            comments.sort((c1, c2) -> c1.getCreatedAt().compareTo(c2.getCreatedAt()));
+        }
+
         return comments;
     }
 

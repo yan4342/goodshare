@@ -22,8 +22,8 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
     libxtst
 
 # Install Python dependencies
-# Use Aliyun mirror for pip
-RUN pip install selenium webdriver-manager --break-system-packages -i https://mirrors.aliyun.com/pypi/simple/
+# Use Tsinghua mirror for pip
+RUN pip install selenium webdriver-manager --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 WORKDIR /app
 

@@ -48,11 +48,6 @@ const routes = [
     component: () => import('../views/Search.vue')
   },
   {
-    path: '/test-canvas',
-    name: 'TestCanvas',
-    component: () => import('../views/TestCanvas.vue')
-  },
-  {
     path: '/price-compare',
     name: 'PriceCompare',
     component: () => import('../views/PriceCompare.vue')

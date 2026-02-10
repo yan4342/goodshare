@@ -1,6 +1,5 @@
 <template>
   <div class="publish-container">
-    <Sidebar />
     <div class="publish-layout">
       <!-- Left: Form -->
       <div class="publish-card form-section">
@@ -77,42 +76,41 @@
 
           <el-form-item label="封面样式 (仅纯文字帖生效)" v-if="fileList.length === 0 && !hasContentImage">
               <div class="style-group">
-                  <div class="style-label">背景风格</div>
-                  <div class="cover-styles">
+                  <div class="cover-styles-grid">
                       <div 
-                        v-for="(style, index) in coverStyles" 
+                        v-for="(tpl, index) in coverTemplates" 
                         :key="index"
-                        class="style-option"
-                        :class="{ active: selectedCoverStyle === index }"
-                        @click="selectedCoverStyle = index"
-                        :style="{ background: style.type === 'solid' ? style.colors[0] : `linear-gradient(135deg, ${style.colors[0]}, ${style.colors[1]})` }"
+                        class="style-card"
+                        :class="{ active: selectedTemplateIndex === index }"
+                        @click="selectedTemplateIndex = index"
                       >
-                        <span class="style-name" :style="{ color: style.type === 'solid' && style.colors[0] === '#ffffff' ? '#333' : 'white' }">{{ style.name }}</span>
-                        <el-icon v-if="selectedCoverStyle === index" class="check-icon"><Check /></el-icon>
+                        <div class="style-preview-mini" :class="tpl.id" :style="getMiniPreviewStyle(tpl.id)">
+                            <span class="mini-text" v-if="tpl.id !== 'illustration' && tpl.id !== 'memo' && tpl.id !== 'border' && tpl.id !== 'book'">Aa</span>
+                            <div v-if="tpl.id === 'illustration'" class="mini-img">🖼️</div>
+                            <div v-if="tpl.id === 'memo'" class="mini-icon">📝</div>
+                            <div v-if="tpl.id === 'book'" class="mini-icon">📖</div>
+                            <div v-if="tpl.id === 'border'" class="mini-border-inner"></div>
+                            <span v-if="tpl.id === 'border' || tpl.id === 'illustration' || tpl.id === 'memo' || tpl.id === 'book'" class="mini-text-small">Aa</span>
+                        </div>
+                        <span class="style-name">{{ tpl.name }}</span>
+                        <el-icon v-if="selectedTemplateIndex === index" class="check-icon"><Check /></el-icon>
                       </div>
                   </div>
-              </div>
-
-              <div class="style-group" style="margin-top: 20px;">
-                  <div class="style-label">文字样式</div>
-                  <div class="cover-styles">
-                      <div 
-                        v-for="(style, index) in textStyles" 
-                        :key="index"
-                        class="style-option"
-                        :class="{ active: selectedTextStyle === index }"
-                        @click="selectedTextStyle = index"
-                        :style="{ background: '#f5f7fa' }"
-                      >
-                        <span class="style-name" :style="{ 
-                            color: style.color, 
-                            fontFamily: style.font, 
-                            fontWeight: style.weight,
-                            textShadow: style.shadow ? `1px 1px 2px ${style.shadowColor || 'rgba(0,0,0,0.5)'}` : 'none',
-                            fontSize: '16px'
-                        }">Abc</span>
-                        <el-icon v-if="selectedTextStyle === index" class="check-icon"><Check /></el-icon>
-                      </div>
+                  
+                  <div class="color-picker-section" v-if="currentTemplateColors.length > 0">
+                       <div class="color-label">配色方案</div>
+                       <div class="color-options">
+                           <div 
+                                v-for="(color, index) in currentTemplateColors" 
+                                :key="index" 
+                                class="color-circle"
+                                :class="{ active: selectedColorIndex === index }"
+                                :style="{ background: color.preview || color.bg }"
+                                @click="selectedColorIndex = index"
+                           >
+                                <el-icon v-if="selectedColorIndex === index"><Check /></el-icon>
+                           </div>
+                       </div>
                   </div>
               </div>
           </el-form-item>
@@ -128,17 +126,20 @@
           <div class="post-detail-preview">
              <div class="content-flex">
                  <!-- Left: Image Section -->
-                 <div v-if="fileList.length > 0 || previewCoverUrl" class="image-section">
+                 <div class="image-section">
                      <el-carousel v-if="fileList.length > 0" height="100%" arrow="hover" :autoplay="false" indicator-position="none">
                          <el-carousel-item v-for="(file, index) in fileList" :key="index">
                              <div class="image-wrapper" :style="{ backgroundImage: `url('${file.url || (file.response && file.response.url)}')` }"></div>
                          </el-carousel-item>
                      </el-carousel>
-                     <div v-else class="image-wrapper" :style="{ backgroundImage: `url('${previewCoverUrl}')` }"></div>
+                     <div v-else-if="previewCoverUrl" class="image-wrapper" :style="{ backgroundImage: `url('${previewCoverUrl}')` }"></div>
+                     <div v-else class="image-wrapper placeholder">
+                         <span>封面预览</span>
+                     </div>
                  </div>
 
                  <!-- Right: Info -->
-                 <div class="info-section" :class="{ 'full-width': fileList.length === 0 && !previewCoverUrl }">
+                 <div class="info-section">
                      <!-- Author Header -->
                      <div class="author-header">
                          <el-avatar :size="40" src="https://placehold.co/100x100?text=Me" />
@@ -174,10 +175,6 @@
                                  <el-icon :size="24"><Collection /></el-icon>
                                  <span>收藏</span>
                              </div>
-                             <!-- <div class="action-btn">
-                                 <el-icon :size="24"><ChatDotRound /></el-icon>
-                                 <span>评论</span>
-                             </div> -->
                          </div>
                          <div class="comment-input-area">
                              <el-input placeholder="说点什么..." class="comment-input">
@@ -250,10 +247,6 @@
                             <el-icon :size="24"><Collection /></el-icon>
                             <span>收藏</span>
                         </div>
-                        <!-- <div class="preview-action-btn">
-                            <el-icon :size="24"><ChatDotRound /></el-icon>
-                            <span>评论</span>
-                        </div> -->
                     </div>
                     <div class="preview-comment-input-area">
                         <el-input placeholder="说点什么..." class="preview-comment-input">
@@ -272,16 +265,96 @@
             </div>
         </template>
     </el-dialog>
+
+    <!-- Hidden Canvas Capture Area -->
+    <div class="canvas-capture-container">
+        <div class="capture-content" ref="captureRef" :class="'template-' + currentTemplate.id">
+             <!-- Basic -->
+             <template v-if="currentTemplate.id === 'basic'">
+                 <div class="bg-layer basic-bg" :style="getCurrentStyle('basic')"></div>
+                 <div class="content-layer">
+                     <div class="quote-icon" :style="{ color: getCurrentColor('basic', 'accent') }">“</div>
+                     <div class="text-main" :style="{ color: getCurrentColor('basic', 'text') }">{{ form.title || '这是标题啊' }}</div>
+                     <div class="underline-icon" :style="{ color: getCurrentColor('basic', 'accent') }">_</div>
+                 </div>
+             </template>
+
+             <!--Now Book/Paper-->
+             <template v-if="currentTemplate.id === 'book'">
+                 <div class="bg-layer book-bg" :style="getCurrentStyle('book')">
+                     <div class="book-texture"></div>
+                 </div>
+                 <div class="content-layer">
+                     <div class="book-header">Chapter 1</div>
+                     <div class="text-book">{{ form.title || '这是标题啊' }}</div>
+                     <div class="book-footer">- GoodShare -</div>
+                 </div>
+             </template>
+
+             <!-- Memo -->
+             <template v-if="currentTemplate.id === 'memo'">
+                 <div class="bg-layer memo-bg" :style="getCurrentStyle('memo')"></div>
+                 <div class="content-layer">
+                     <div class="memo-header">
+                         <span class="memo-date">{{ new Date().toLocaleDateString() }}</span>
+                         <span class="memo-dots">...</span>
+                     </div>
+                     <div class="text-handwriting">{{ form.title || '这是标题啊' }}</div>
+                     <div class="sticker-icon">🐱</div>
+                 </div>
+             </template>
+
+             <!-- Border -->
+             <template v-if="currentTemplate.id === 'border'">
+                 <div class="bg-layer border-bg" :style="getCurrentStyle('border')">
+                     <div class="inner-card">
+                         <div class="emoji-icon">😊</div>
+                         <div class="text-main">{{ form.title || '这是标题啊' }}</div>
+                         <div class="footer-info" :style="{ color: getCurrentColor('border', 'accent') }">
+                             <span>Saturday</span>
+                             <span>Text Note</span>
+                         </div>
+                     </div>
+                 </div>
+             </template>
+
+             <!-- Handwriting -->
+             <template v-if="currentTemplate.id === 'handwriting'">
+                 <div class="bg-layer handwriting-bg" :style="getCurrentStyle('handwriting')">
+                     <div class="paint-stroke" :style="{ background: getCurrentColor('handwriting', 'stroke') }"></div>
+                 </div>
+                 <div class="content-layer">
+                     <div class="date-stamp">Date: {{ new Date().getDate() }}.{{ new Date().getMonth() + 1 }}</div>
+                     <div class="text-handwriting-stroke" :style="{ color: getCurrentColor('handwriting', 'text') }">{{ form.title || '这是标题啊' }}</div>
+                     <div class="doodle-icon">❤️</div>
+                 </div>
+             </template>
+
+             <!-- Scribble -->
+             <template v-if="currentTemplate.id === 'scribble'">
+                 <div class="bg-layer scribble-bg" :style="getCurrentStyle('scribble')"></div>
+                 <div class="content-layer centered">
+                     <div class="scribble-container">
+                         <template v-for="(part, idx) in processedScribbleTitle" :key="idx">
+                             <span class="scribble-part" :class="{ highlight: part.highlight }" :style="part.highlight ? { background: getCurrentColor('scribble', 'highlight') } : {}">
+                                 {{ part.text }}
+                             </span>
+                         </template>
+                     </div>
+                 </div>
+             </template>
+        </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, Check, Star, StarFilled, Collection, CollectionTag, ChatDotRound, MagicStick } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { Plus, Check, Star, StarFilled, Collection, CollectionTag, ChatDotRound, MagicStick, Refresh } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import Sidebar from '../components/Sidebar.vue'
+import html2canvas from 'html2canvas'
 
 const router = useRouter()
 const loading = ref(false)
@@ -295,6 +368,7 @@ const hasContentImage = ref(false)
 const previewCoverUrl = ref('')
 const aiKeyword = ref('')
 const aiLoading = ref(false)
+const captureRef = ref(null)
 let quill = null
 
 const form = ref({
@@ -308,6 +382,156 @@ const previewData = ref({
     images: []
 })
 
+// Cover Templates
+const selectedTemplateIndex = ref(0)
+const coverTemplates = [
+    { id: 'basic', name: '基础' },
+    { id: 'book', name: '书本' }, // Renamed from Illustration
+    { id: 'memo', name: '备忘' },
+    { id: 'border', name: '边框' },
+    { id: 'handwriting', name: '手写' },
+    { id: 'scribble', name: '涂写' },
+]
+
+// Color Themes Configuration
+const selectedColorIndex = ref(0)
+const colorThemes = {
+    basic: [
+        { bg: 'linear-gradient(180deg, #e6ffe6 0%, #ccffcc 100%)', text: '#333', accent: '#a3e6a3', border: '#52c41a' }, // Green Border
+        { bg: 'linear-gradient(180deg, #e6f7ff 0%, #bae7ff 100%)', text: '#0050b3', accent: '#91d5ff', border: '#1890ff' },
+        { bg: 'linear-gradient(180deg, #fff0f6 0%, #ffd6e7 100%)', text: '#c41d7f', accent: '#ffadd2', border: '#eb2f96' },
+        { bg: 'linear-gradient(180deg, #fffbe6 0%, #ffe58f 100%)', text: '#d48806', accent: '#ffe58f', border: '#faad14' }
+    ],
+    book: [
+        { bg: '#fdfbf7', text: '#2c3e50', shadow: 'rgba(0,0,0,0.1)' }, // Warm White
+        { bg: '#f4e4bc', text: '#4a3b2a', shadow: 'rgba(92, 64, 51, 0.15)' }, // Sepia/Old Paper
+        { bg: '#eef2f3', text: '#2d3436', shadow: 'rgba(0,0,0,0.15)' }, // Cool Grey
+        { bg: '#2c3e50', text: '#ecf0f1', shadow: 'rgba(255,255,255,0.1)' } // Dark Mode
+    ],
+    memo: [
+        { bg: '#fff', text: '#333', accent: '#f1c40f' },
+        { bg: '#fff0f5', text: '#333', accent: '#ff69b4' },
+        { bg: '#f0f8ff', text: '#333', accent: '#4682b4' },
+        { bg: '#f5f5dc', text: '#333', accent: '#8b4513' }
+    ],
+    border: [
+        { bg: '#2d9bf0', accent: '#2d9bf0', text: '#333' },
+        { bg: '#ff6b6b', accent: '#ff6b6b', text: '#333' },
+        { bg: '#1dd1a1', accent: '#1dd1a1', text: '#333' },
+        { bg: '#5f27cd', accent: '#5f27cd', text: '#333' }
+    ],
+    handwriting: [
+        { bg: '#fdfdfd', stroke: '#e0f7fa', text: '#333' },
+        { bg: '#fff8e1', stroke: '#ffecb3', text: '#4e342e' },
+        { bg: '#f3e5f5', stroke: '#e1bee7', text: '#4a148c' },
+        { bg: '#e8f5e9', stroke: '#c8e6c9', text: '#1b5e20' }
+    ],
+    scribble: [
+        { bg: '#f9f9f9', highlight: '#fff100' }, // Yellow
+        { bg: '#f0fff4', highlight: '#68d391' }, // Green
+        { bg: '#fff5f5', highlight: '#fc8181' }, // Red
+        { bg: '#ebf8ff', highlight: '#63b3ed' }  // Blue
+    ]
+}
+
+const currentTemplateColors = computed(() => {
+    return colorThemes[currentTemplate.value.id] || []
+})
+
+// Reset color selection when template changes
+watch(selectedTemplateIndex, () => {
+    selectedColorIndex.value = 0
+})
+
+const getCurrentStyle = (templateId) => {
+    if (templateId !== currentTemplate.value.id) return {}
+    const colors = colorThemes[templateId]
+    if (!colors) return {}
+    const color = colors[selectedColorIndex.value] || colors[0]
+    
+    if (templateId === 'basic') return { background: color.bg, borderColor: color.border }
+    if (templateId === 'book') return { background: color.bg, color: color.text }
+    if (templateId === 'memo') return { backgroundColor: color.bg } // Use backgroundColor to preserve background-image lines
+    if (templateId === 'border') return { background: color.bg }
+    if (templateId === 'handwriting') return { background: color.bg }
+    if (templateId === 'scribble') return { background: color.bg }
+    return {}
+}
+
+const getCurrentColor = (templateId, key) => {
+    if (templateId !== currentTemplate.value.id) return ''
+    const colors = colorThemes[templateId]
+    if (!colors) return ''
+    const color = colors[selectedColorIndex.value] || colors[0]
+    return color[key]
+}
+
+const getMiniPreviewStyle = (templateId) => {
+    const colors = colorThemes[templateId]
+    if (!colors) return {}
+    // Use the first color for preview
+    const color = colors[0]
+    if (templateId === 'basic') return { background: 'linear-gradient(135deg, #e6ffe6 0%, #ccffcc 100%)', borderColor: color.border }
+    if (templateId === 'book') return { background: color.bg }
+    if (templateId === 'memo') return { background: color.bg }
+    if (templateId === 'border') return { background: color.bg }
+    if (templateId === 'handwriting') return { background: color.bg }
+    if (templateId === 'scribble') return { background: color.bg }
+    return {}
+}
+
+// Smart Scribble Highlight Logic
+const processedScribbleTitle = computed(() => {
+    const text = form.value.title || '这是标题啊'
+    // Simple heuristic: split by spaces or punctuation
+    // For Chinese, we might want to split by segmenter if supported, or just random
+    // Fallback: Split by non-word characters or treat each character as potential? 
+    // Let's assume standard space separation for English, and for Chinese we might just highlight random chunks if no spaces.
+    
+    // Heuristic:
+    // 1. If text has spaces, split by spaces.
+    // 2. If no spaces (likely Chinese/Japanese), try to split by punctuation.
+    // 3. If no punctuation, split into chunks of 2-4 chars.
+    
+    let parts = []
+    // 如果有空格（通常是英文），直接按空格分
+    if (text.includes(' ')) {
+        parts = text.split(' ').map(t => ({ text: t, highlight: false }))
+    } else {
+        // 如果没有空格（通常是中文），模拟分词 Mock segmentation for demo: random split 2-3 chars
+        let remaining = text
+        while (remaining.length > 0) {
+            const len = Math.floor(Math.random() * 3) + 2 // 2 to 4 chars
+            const chunk = remaining.slice(0, len)
+            parts.push({ text: chunk, highlight: false })
+            remaining = remaining.slice(len)
+        }
+    }
+    
+    // "Smart" Highlight: highlight longer words or every other word
+    // Let's highlight the last segment (punchline) and maybe one in the middle
+    if (parts.length > 0) {
+        // Always highlight the last part if it's substantial
+        parts[parts.length - 1].highlight = true
+        
+        // Randomly highlight others
+        if (parts.length > 2) {
+            const randomIndex = Math.floor(Math.random() * (parts.length - 1))
+            parts[randomIndex].highlight = true
+        }
+    }
+    
+    return parts
+})
+
+// Debounce update for color change too
+watch(selectedColorIndex, () => {
+    clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(updatePreviewCover, 500)
+})
+
+const currentTemplate = computed(() => coverTemplates[selectedTemplateIndex.value])
+
 const handleAiGenerate = async () => {
     if (!aiKeyword.value.trim()) {
         ElMessage.warning('请输入商品名或主题')
@@ -316,11 +540,7 @@ const handleAiGenerate = async () => {
 
     aiLoading.value = true
     try {
-        // Use Fetch API for streaming response
-        // Try user token first, then admin token
         const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
-        console.log('AI Generation - Token being used:', token ? token.substring(0, 10) + '...' : 'None');
-
         const response = await fetch('/api/ai/generate-stream', {
             method: 'POST',
             headers: {
@@ -337,7 +557,7 @@ const handleAiGenerate = async () => {
         }
 
         if (!response.ok) {
-            throw new Error('AI request failed: ' + response.statusText)
+            throw new Error('AI request failed')
         }
 
         const reader = response.body.getReader()
@@ -345,8 +565,6 @@ const handleAiGenerate = async () => {
         let accumulatedContent = ''
         let buffer = ''
         
-        // Clear current content if needed, or just append? 
-        // Let's start fresh for the generated part
         if (quill) {
              quill.root.innerHTML = '<p>AI 正在思考...</p>'
         }
@@ -358,11 +576,11 @@ const handleAiGenerate = async () => {
             
             buffer += decoder.decode(value, { stream: true })
             const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep the last partial line
+            buffer = lines.pop() || '' 
             
             for (const line of lines) {
                 if (line.trim().startsWith('data:')) {
-                    const content = line.trim().slice(5) // Remove "data:"
+                    const content = line.trim().slice(5) 
                     if (content.includes('[DONE]')) {
                         isDone = true
                         break
@@ -370,8 +588,6 @@ const handleAiGenerate = async () => {
                     accumulatedContent += content
                     
                     if (quill) {
-                        // Update Quill content in real-time
-                        // Since we request HTML, we set innerHTML
                         quill.root.innerHTML = accumulatedContent
                     } else {
                         form.value.content = accumulatedContent
@@ -380,12 +596,9 @@ const handleAiGenerate = async () => {
             }
         }
         
-        // Process any remaining buffer
         if (!isDone && buffer.trim().startsWith('data:')) {
              const content = buffer.trim().slice(5)
-             if (content.includes('[DONE]')) {
-                 isDone = true
-             } else {
+             if (!content.includes('[DONE]')) {
                  accumulatedContent += content
              }
         }
@@ -396,7 +609,6 @@ const handleAiGenerate = async () => {
              form.value.content = accumulatedContent
         }
 
-        // Auto fill title if empty
         if (!form.value.title) {
             form.value.title = aiKeyword.value + ' 测评分享'
         }
@@ -411,288 +623,89 @@ const handleAiGenerate = async () => {
     }
 }
 
-const selectedCoverStyle = ref(0)
-const selectedTextStyle = ref(0)
-
-const textStyles = [
-    { name: '经典白', color: '#FFFFFF', font: 'sans-serif', weight: 'bold', shadow: true },
-    { name: '极简黑', color: '#000000', font: 'sans-serif', weight: 'bold', shadow: false },
-    { name: '衬线雅', color: '#FFFFFF', font: 'serif', weight: 'bold', shadow: true },
-    { name: '活力黄', color: '#FFD700', font: 'sans-serif', weight: '900', shadow: true, shadowColor: 'rgba(0,0,0,0.8)' },
-    { name: '清新绿', color: '#E0FFEB', font: 'monospace', weight: 'bold', shadow: true, shadowColor: '#004d00' },
-    { name: '霓虹粉', color: '#FF00FF', font: 'sans-serif', weight: 'bold', shadow: true, shadowColor: '#00FFFF', glow: true },
-    { name: '描边黑', color: '#FFFFFF', font: 'Impact, sans-serif', weight: 'bold', stroke: '#000000', strokeWidth: 3 }
-]
-
-const coverStyles = [
-    { name: '粉嫩', type: 'gradient', colors: ['#FF9A9E', '#FECFEF'], decoration: 'circles' },
-    { name: '紫罗兰', type: 'gradient', colors: ['#a18cd1', '#fbc2eb'], decoration: 'circles' },
-    { name: '清新', type: 'gradient', colors: ['#84fab0', '#8fd3f4'], decoration: 'circles' },
-    { name: '暗黑', type: 'gradient', colors: ['#434343', '#000000'], decoration: 'grid' },
-    { name: '日落', type: 'gradient', colors: ['#fa709a', '#fee140'], decoration: 'lines' },
-    { name: '幽蓝', type: 'gradient', colors: ['#30cfd0', '#330867'], decoration: 'bubbles' },
-    { name: '纯净白', type: 'solid', colors: ['#ffffff'], decoration: 'border', defaultTextIndex: 1 },
-    { name: '复古纸张', type: 'solid', colors: ['#f4e4bc'], decoration: 'noise', defaultTextIndex: 1 },
-    { name: '科技蓝', type: 'gradient', colors: ['#000428', '#004e92'], decoration: 'grid' },
-    { name: '派对', type: 'solid', colors: ['#FFF5E6'], decoration: 'confetti', defaultTextIndex: 1 },
-    { name: '几何', type: 'gradient', colors: ['#2E3192', '#1BFFFF'], decoration: 'geometric' },
-    { name: '赛博', type: 'solid', colors: ['#000000'], decoration: 'neon', defaultTextIndex: 5 }
-]
-
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('token')
   return token ? { Authorization: 'Bearer ' + token } : {}
 })
 
-const drawCanvasContent = (ctx, w, h, text) => {
-    const bgStyle = coverStyles[selectedCoverStyle.value]
-    const txtStyle = textStyles[selectedTextStyle.value]
-
-    // 1. Draw Background
-    if (bgStyle.type === 'solid') {
-        ctx.fillStyle = bgStyle.colors[0]
-        ctx.fillRect(0, 0, w, h)
-    } else {
-        const grd = ctx.createLinearGradient(0, 0, w, h)
-        grd.addColorStop(0, bgStyle.colors[0])
-        grd.addColorStop(1, bgStyle.colors[1])
-        ctx.fillStyle = grd
-        ctx.fillRect(0, 0, w, h)
-    }
+// Generate Cover Image using html2canvas
+const generateCoverDataUrl = async () => {
+    if (!captureRef.value) return ''
     
-    // 2. Draw Decorations
-    ctx.save()
-    if (bgStyle.decoration === 'circles' || bgStyle.decoration === 'bubbles') {
-        ctx.fillStyle = 'rgba(255,255,255,0.1)'
-        const count = bgStyle.decoration === 'bubbles' ? 30 : 50
-        for(let i=0; i<count; i++) {
-            ctx.beginPath()
-            const r = Math.random() * (bgStyle.decoration === 'bubbles' ? 80 : 50)
-            ctx.arc(Math.random()*w, Math.random()*h, r, 0, 2*Math.PI)
-            ctx.fill()
-        }
-    } else if (bgStyle.decoration === 'grid') {
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'
-        ctx.lineWidth = 2
-        const step = 50
-        // Vertical lines
-        for(let x=0; x<=w; x+=step) {
-            ctx.beginPath()
-            ctx.moveTo(x, 0)
-            ctx.lineTo(x, h)
-            ctx.stroke()
-        }
-        // Horizontal lines
-        for(let y=0; y<=h; y+=step) {
-            ctx.beginPath()
-            ctx.moveTo(0, y)
-            ctx.lineTo(w, y)
-            ctx.stroke()
-        }
-    } else if (bgStyle.decoration === 'lines') {
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-        ctx.lineWidth = 3
-        for(let i=0; i<20; i++) {
-            ctx.beginPath()
-            const x = Math.random() * w
-            const y = Math.random() * h
-            ctx.moveTo(x, y)
-            ctx.lineTo(x + 200, y + 200)
-            ctx.stroke()
-        }
-    } else if (bgStyle.decoration === 'border') {
-        ctx.strokeStyle = txtStyle.color === '#FFFFFF' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'
-        ctx.lineWidth = 20
-        ctx.strokeRect(20, 20, w-40, h-40)
-        ctx.lineWidth = 2
-        ctx.strokeRect(50, 50, w-100, h-100)
-    } else if (bgStyle.decoration === 'noise') {
-        ctx.fillStyle = 'rgba(0,0,0,0.05)'
-        for(let i=0; i<5000; i++) {
-            ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2)
-        }
-    } else if (bgStyle.decoration === 'confetti') {
-        const colors = ['#FFC700', '#FF0000', '#2E3192', '#009E00', '#FF00FF']
-        for(let i=0; i<100; i++) {
-            ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)]
-            ctx.save()
-            ctx.translate(Math.random() * w, Math.random() * h)
-            ctx.rotate(Math.random() * Math.PI * 2)
-            ctx.fillRect(0, 0, 8 + Math.random() * 8, 4 + Math.random() * 4)
-            ctx.restore()
-        }
-    } else if (bgStyle.decoration === 'geometric') {
-        for(let i=0; i<15; i++) {
-            ctx.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.1})`
-            ctx.beginPath()
-            ctx.moveTo(Math.random() * w, Math.random() * h)
-            ctx.lineTo(Math.random() * w, Math.random() * h)
-            ctx.lineTo(Math.random() * w, Math.random() * h)
-            ctx.fill()
-        }
-    } else if (bgStyle.decoration === 'neon') {
-        ctx.strokeStyle = '#00FFFF'
-        ctx.shadowColor = '#00FFFF'
-        ctx.shadowBlur = 20
-        ctx.lineWidth = 2
-        for(let i=0; i<5; i++) {
-            ctx.beginPath()
-            const y = Math.random() * h
-            ctx.moveTo(0, y)
-            ctx.bezierCurveTo(w/3, y - 100, 2*w/3, y + 100, w, y)
-            ctx.stroke()
-        }
-        ctx.strokeStyle = '#FF00FF'
-        ctx.shadowColor = '#FF00FF'
-        for(let i=0; i<5; i++) {
-            ctx.beginPath()
-            const x = Math.random() * w
-            ctx.moveTo(x, 0)
-            ctx.bezierCurveTo(x - 100, h/3, x + 100, 2*h/3, x, h)
-            ctx.stroke()
-        }
-        ctx.shadowBlur = 0
-    }
-    ctx.restore()
-
-    // 3. Draw Text
-    ctx.fillStyle = txtStyle.color
-    ctx.font = `${txtStyle.weight} 56px ${txtStyle.font}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    // Wait for DOM update
+    await nextTick()
     
-    if (txtStyle.glow) {
-        ctx.shadowColor = txtStyle.shadowColor || 'white'
-        ctx.shadowBlur = 20
-    } else if (txtStyle.shadow) {
-        ctx.shadowColor = txtStyle.shadowColor || 'rgba(0,0,0,0.3)'
-        ctx.shadowBlur = 10
-        ctx.shadowOffsetX = 2
-        ctx.shadowOffsetY = 2
-    } else {
-        ctx.shadowColor = 'transparent'
-        ctx.shadowBlur = 0
-        ctx.shadowOffsetX = 0
-        ctx.shadowOffsetY = 0
+    try {// 核心：调用 html2canvas 将 DOM 转换为 canvas 对象
+        const canvas = await html2canvas(captureRef.value, {
+            scale: 1, // Capture at 1:1 of the 600x800 element
+            useCORS: true,
+            backgroundColor: null
+        })
+        // 转换为 Base64 图片链接
+        return canvas.toDataURL('image/jpeg', 0.8)
+    } catch (e) {
+        console.error('Capture failed', e)
+        return ''
     }
-
-    // Wrap text
-    const words = text.split('')
-    let line = ''
-    const lines = []
-    const maxWidth = w - 120
-    const lineHeight = 70
-
-    for(let n = 0; n < words.length; n++) {
-        const testLine = line + words[n]
-        const metrics = ctx.measureText(testLine)
-        const testWidth = metrics.width
-        if (testWidth > maxWidth && n > 0) {
-            lines.push(line)
-            line = words[n]
-        } else {
-            line = testLine
-        }
-    }
-    lines.push(line)
-
-    const totalHeight = lines.length * lineHeight
-    let startY = (h - totalHeight) / 2
-
-    for(let i = 0; i < lines.length; i++) {
-        if (txtStyle.stroke) {
-            ctx.lineWidth = txtStyle.strokeWidth || 2
-            ctx.strokeStyle = txtStyle.stroke
-            ctx.strokeText(lines[i], w / 2, startY + (i * lineHeight))
-        }
-        ctx.fillText(lines[i], w / 2, startY + (i * lineHeight))
-    }
-    
-    // 4. Add "GoodShare" watermark
-    ctx.font = `24px ${txtStyle.font}`
-    ctx.shadowBlur = 0 // Remove shadow for watermark
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-    ctx.fillStyle = txtStyle.color
-    ctx.globalAlpha = 0.6
-    ctx.fillText('GoodShare', w / 2, h - 50)
-    ctx.globalAlpha = 1.0
 }
 
-const generateCoverDataUrl = async (text) => {
-    const canvas = document.createElement('canvas')
-    const width = 600
-    const height = 800
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
+const generateAndUploadCover = async () => {
+    if (!captureRef.value) return ''
     
-    drawCanvasContent(ctx, width, height, text)
+    await nextTick()
     
-    return canvas.toDataURL('image/jpeg', 0.8)
+    try {
+        const canvas = await html2canvas(captureRef.value, {
+            scale: 1,
+            useCORS: true
+        })
+        
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    reject(new Error('Canvas creation failed'))
+                    return
+                }
+                const formData = new FormData()
+                formData.append('file', blob, 'cover.jpg')
+                
+                try {
+                    const res = await request.post('/upload', formData, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    })
+                    resolve(res.data ? res.data.url : '') 
+                } catch (err) {
+                    reject(err)
+                }
+            }, 'image/jpeg', 0.8)
+        })
+    } catch (e) {
+        console.error('Upload failed', e)
+        throw e
+    }
 }
 
-const generateAndUploadCover = async (text) => {
-    const canvas = document.createElement('canvas')
-    const width = 600
-    const height = 800
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    
-    drawCanvasContent(ctx, width, height, text)
-    
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(async (blob) => {
-            if (!blob) {
-                reject(new Error('Canvas creation failed'))
-                return
-            }
-            const formData = new FormData()
-            formData.append('file', blob, 'cover.jpg')
-            
-            try {
-                const res = await request.post('/upload', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                })
-                resolve(res.data ? res.data.url : '') 
-            } catch (err) {
-                reject(err)
-            }
-        }, 'image/jpeg', 0.8)
-    })
-}
-
-// Real-time preview cover update
 const updatePreviewCover = async () => {
     if (fileList.value.length === 0 && !hasContentImage.value) {
-        previewCoverUrl.value = await generateCoverDataUrl(form.value.title || '无标题')
+        // Debounce slightly to allow DOM to render
+        setTimeout(async () => {
+             previewCoverUrl.value = await generateCoverDataUrl()
+        }, 100)
     }
 }
+
 let debounceTimer = null
-watch([() => form.value.title, selectedCoverStyle, selectedTextStyle], () => {
+watch([() => form.value.title, selectedTemplateIndex], () => {
     clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(updatePreviewCover, 300)
+    debounceTimer = setTimeout(updatePreviewCover, 500)
 }, { immediate: true })
 
 watch(() => fileList.value.length, () => {
     updatePreviewCover()
 })
 
-
-
-watch(selectedCoverStyle, (newVal) => {
-    const style = coverStyles[newVal]
-    if (style.defaultTextIndex !== undefined) {
-        selectedTextStyle.value = style.defaultTextIndex
-    }
-})
-
-
-
-// Check for images in content
 watch(() => form.value.content, (newVal) => {
     const imgRegex = /<img[^>]+src="([^">]+)"/g
     hasContentImage.value = imgRegex.test(newVal)
@@ -701,7 +714,6 @@ watch(() => form.value.content, (newVal) => {
 const route = useRoute()
 
 onMounted(async () => {
-    // Helper to load external scripts
     const loadScript = (src) => {
         return new Promise((resolve, reject) => {
             if (document.querySelector(`script[src^="${src}"]`)) {
@@ -709,14 +721,13 @@ onMounted(async () => {
                 return
             }
             const script = document.createElement('script')
-            script.src = src + '?t=' + new Date().getTime() // Cache busting
+            script.src = src + '?t=' + new Date().getTime() 
             script.onload = resolve
             script.onerror = reject
             document.head.appendChild(script)
         })
     }
 
-    // Helper to load styles
     const loadStyle = (href) => {
         if (document.querySelector(`link[href^="${href}"]`)) return
         const link = document.createElement('link')
@@ -726,15 +737,11 @@ onMounted(async () => {
     }
 
     try {
-        // Load Quill resources dynamically
         loadStyle('/quill/quill.snow.css')
         await loadScript('/quill/quill.min.js')
-
-        // Load Emoji
         loadStyle('/quill/quill-emoji.css')
         await loadScript('/quill/quill-emoji.js')
 
-        // Initialize Quill
         if (window.Quill && editorContainer.value) {
             quill = new window.Quill(editorContainer.value, {
                 theme: 'snow',
@@ -760,7 +767,6 @@ onMounted(async () => {
                 form.value.content = quill.root.innerHTML
             })
 
-            // Load existing post if in edit mode
             if (route.query.id) {
                 try {
                     const res = await request.get('/posts/' + route.query.id)
@@ -768,7 +774,6 @@ onMounted(async () => {
                     form.value.title = post.title
                     form.value.content = post.content
                     if (quill) {
-                         // Use clipboard or insertHTML to set content safely
                          quill.root.innerHTML = post.content
                     }
                     
@@ -782,33 +787,23 @@ onMounted(async () => {
                             fileList.value = imgs.map((url, index) => ({ 
                                 name: 'img_' + index, 
                                 url: url,
-                                response: { url: url } // Mock response structure for uniformity
+                                response: { url: url }
                             }))
                         } catch(e) {
                             console.error("Failed to parse images", e)
                         }
-                    } else if (post.coverUrl) {
-                         // If only coverUrl and no images list (legacy or text post with cover)
-                         // But usually we treat fileList as sources.
-                         // If it's a generated cover, we might leave fileList empty.
                     }
                     
                     form.value.coverUrl = post.coverUrl
                 } catch (err) {
-                    console.error('Failed to load post', err)
                     ElMessage.error('加载帖子失败')
                 }
             }
 
         } else {
-            console.error('Quill init failed: ', { 
-                hasQuill: !!window.Quill, 
-                hasContainer: !!editorContainer.value 
-            })
             ElMessage.error('编辑器初始化失败')
         }
     } catch (error) {
-        console.error('Failed to load Quill resources', error)
         ElMessage.error('编辑器资源加载失败')
     }
 
@@ -821,7 +816,7 @@ onMounted(async () => {
 })
 
 const handleUploadSuccess = (response, uploadFile) => {
-  // Element Plus handles fileList update automatically
+  // handled by fileList
 }
 
 const handleRemove = (uploadFile, uploadFiles) => {
@@ -853,7 +848,6 @@ const getFirstContentImage = (html) => {
 
 const handlePreview = async () => {
     showPreview.value = true
-    // Determine images for preview
     const uploadedUrls = fileList.value.map(file => file.response?.url || file.url).filter(u => u)
     
     if (uploadedUrls.length > 0) {
@@ -863,8 +857,7 @@ const handlePreview = async () => {
         if (contentImg) {
              previewData.value.images = [contentImg]
         } else {
-             // Generate a temporary cover for preview
-             const cover = await generateCoverDataUrl(form.value.title || '无标题')
+             const cover = await generateCoverDataUrl()
              previewData.value.images = [cover]
         }
     }
@@ -876,10 +869,9 @@ const prePublish = async () => {
       return
   }
 
-  // Extract URLs from fileList
   const urls = fileList.value
-    .map(file => file.response?.url) // 只获取服务器返回的 url
-    .filter(u => u && !u.startsWith('data:')); // 过滤掉所有 data: URI
+    .map(file => file.response?.url)
+    .filter(u => u && !u.startsWith('data:'));
   const isContentEmpty = !form.value.content || form.value.content === '<p><br></p>' || form.value.content.trim() === '';
 
   if (isContentEmpty && urls.length === 0) {
@@ -896,23 +888,19 @@ const prePublish = async () => {
 }
 
 const confirmPublish = async () => {
-  // Extract URLs from fileList
   const urls = fileList.value
-    .map(file => file.response?.url) // 只获取服务器返回的 url
-    .filter(u => u && !u.startsWith('data:')); // 过滤掉所有 data: URI
+    .map(file => file.response?.url)
+    .filter(u => u && !u.startsWith('data:'));
 
   loading.value = true
   try {
-    // 1. Check for uploaded images
     if (urls.length === 0) {
-        // 2. Check for content images
         const contentImg = getFirstContentImage(form.value.content)
         if (contentImg) {
             form.value.coverUrl = contentImg
         } else {
-            // 3. Generate cover
             try {
-                const generatedCoverUrl = await generateAndUploadCover(form.value.title || '无标题')
+                const generatedCoverUrl = await generateAndUploadCover()
                 urls.push(generatedCoverUrl)
             } catch (e) {
                 console.error('Cover generation failed', e)
@@ -938,8 +926,6 @@ const confirmPublish = async () => {
     showPreview.value = false
   }
 }
-
-
 </script>
 
 <style scoped>
@@ -1017,6 +1003,15 @@ const confirmPublish = async () => {
     background-position: center;
 }
 
+.post-detail-preview .image-wrapper.placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 14px;
+    background: #333;
+}
+
 .post-detail-preview :deep(.el-carousel) {
     width: 100%;
     height: 100%;
@@ -1029,10 +1024,6 @@ const confirmPublish = async () => {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-}
-
-.post-detail-preview .info-section.full-width {
-    height: 100%;
 }
 
 .post-detail-preview .author-header {
@@ -1197,45 +1188,435 @@ const confirmPublish = async () => {
     border-color: #e61f3c;
 }
 
-/* Cover Styles */
-.cover-styles {
+/* New Cover Styles Grid */
+.cover-styles-grid {
     display: flex;
-    gap: 12px;
+    gap: 16px;
     flex-wrap: wrap;
     margin-top: 8px;
 }
-.style-option {
-    width: 100px;
-    height: 60px;
-    border-radius: 8px;
+.style-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     cursor: pointer;
+    position: relative;
+    width: 80px;
+}
+.style-preview-mini {
+    width: 80px;
+    height: 100px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 2px solid transparent;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-direction: column;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     position: relative;
-    border: 2px solid transparent;
-    transition: all 0.2s;
+    overflow: hidden;
 }
-.style-option.active {
+.style-card.active .style-preview-mini {
     border-color: #ff2442;
     transform: scale(1.05);
 }
-.style-name {
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-.check-icon {
+.style-card.active .check-icon {
     position: absolute;
-    top: -8px;
-    right: -8px;
+    top: -5px;
+    right: -5px;
     background: #ff2442;
     color: white;
     border-radius: 50%;
     padding: 2px;
     width: 16px;
     height: 16px;
+    z-index: 10;
+}
+.style-name {
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+/* Mini Previews CSS */
+.style-preview-mini.basic {
+    background: linear-gradient(135deg, #e6ffe6 0%, #ccffcc 100%);
+    color: #333;
+    font-weight: bold;
+    border: 3px solid #ff4d4f;
+}
+.style-preview-mini.illustration {
+    background: #f8f9fa;
+}
+.style-preview-mini.illustration .mini-img {
+    font-size: 24px;
+}
+.style-preview-mini.memo {
+    background: #fff;
+    border: 1px solid #eee;
+}
+.style-preview-mini.memo .mini-icon {
+    font-size: 24px;
+}
+.style-preview-mini.border {
+    background: #2d9bf0;
+}
+.style-preview-mini .mini-border-inner {
+    width: 60%;
+    height: 60%;
+    background: white;
+    border-radius: 4px;
+}
+.style-preview-mini.handwriting {
+    background: #fdfdfd;
+}
+.style-preview-mini.scribble {
+    background: #f9f9f9;
+}
+.style-preview-mini.scribble .mini-text {
+    background: #fff100;
+    padding: 2px;
+}
+.mini-text-small {
+    font-size: 10px;
+    color: #333;
+    position: absolute;
+    bottom: 5px;
+}
+
+/* Color Picker */
+.color-picker-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px dashed var(--border-color);
+}
+.color-label {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+    margin-bottom: 8px;
+}
+.color-options {
+    display: flex;
+    gap: 12px;
+}
+.color-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white; /* For check icon */
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+.color-circle:hover {
+    transform: scale(1.1);
+}
+.color-circle.active {
+    border-color: var(--text-color);
+    transform: scale(1.1);
+}
+
+/* Book Style */
+.book-bg {
+    background: #fdfbf7;
+    position: relative;
+    box-shadow: inset 20px 0 50px rgba(0,0,0,0.05); /* Spine shadow */
+}
+.template-book .book-texture {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+    opacity: 0.5;
+}
+.template-book .book-header {
+    font-family: 'Times New Roman', serif;
+    font-size: 24px;
+    color: inherit;
+    opacity: 0.6;
+    margin-bottom: 60px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+.template-book .text-book {
+    font-family: 'Times New Roman', serif;
+    font-size: 56px;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 60px;
+    line-height: 1.5;
+    color: inherit;
+}
+.template-book .book-footer {
+    font-family: 'Times New Roman', serif;
+    font-size: 18px;
+    margin-top: 80px;
+    opacity: 0.5;
+    font-style: italic;
+}
+.style-preview-mini.book {
+    background: #fdfbf7;
+    border: 1px solid #e0e0e0;
+}
+.style-preview-mini.book .mini-icon {
+    font-size: 24px;
+}
+
+/* Scribble Updates */
+.scribble-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 40px;
+}
+.scribble-part {
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 900;
+    font-size: 60px;
+    color: #000;
+    padding: 5px 10px;
+    position: relative;
+    z-index: 1;
+}
+.scribble-part.highlight {
+    transform: rotate(-1deg);
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+}
+
+/* Canvas Capture & Generation Templates */
+.canvas-capture-container {
+    position: fixed;
+    top: 0;
+    left: -9999px;
+    z-index: -1;
+}
+
+.capture-content {
+    width: 600px;
+    height: 800px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Common Layers */
+.bg-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+.content-layer {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Basic */
+.basic-bg {
+    background: linear-gradient(180deg, #e6ffe6 0%, #ccffcc 100%);
+    border: 10px solid #52c41a;
+    border-radius: 20px;
+    box-sizing: border-box;
+    margin: 10px;
+    width: calc(100% - 20px);
+    height: calc(100% - 20px);
+}
+.template-basic .quote-icon {
+    font-size: 120px;
+    color: #a3e6a3;
+    position: absolute;
+    top: 50px;
+    left: 50px;
+    font-family: serif;
+}
+.template-basic .underline-icon {
+    font-size: 120px;
+    color: #a3e6a3;
+    position: absolute;
+    bottom: 50px;
+    right: 50px;
+    font-family: serif;
+}
+.template-basic .text-main {
+    font-size: 60px;
+    font-weight: bold;
+    color: #333;
+    text-align: center;
+    padding: 0 40px;
+    line-height: 1.4;
+}
+.template-basic .color-badge {
+    position: absolute;
+    bottom: 100px;
+    background: rgba(255,255,255,0.8);
+    padding: 10px 20px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 20px;
+    color: #666;
+}
+
+/* Illustration */
+.illustration-bg {
+    background: #f8f9fa;
+}
+.template-illustration .text-top {
+    font-size: 50px;
+    font-weight: bold;
+    color: #333;
+    margin-top: 100px;
+    margin-bottom: 50px;
+    text-align: center;
+}
+.template-illustration .illustration-img img {
+    width: 400px;
+    height: auto;
+}
+
+/* Memo */
+.memo-bg {
+    background: #fff;
+    background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px);
+    background-size: 100% 40px;
+}
+.template-memo .memo-header {
+    width: 95%;
+    padding: 40px;
+    display: flex;
+    justify-content: space-between;
+    color: #f1c40f;
+    font-size: 30px;
+    font-family: monospace;
+}
+.template-memo .text-handwriting {
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-size: 60px;
+    color: #333;
+    text-align: center;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.template-memo .sticker-icon {
+    font-size: 80px;
+    margin-bottom: 100px;
+}
+
+/* Border */
+.border-bg {
+    background: #2d9bf0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.template-border .inner-card {
+    background: white;
+    width: 80%;
+    height: 80%;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.template-border .emoji-icon {
+    font-size: 60px;
+    margin-bottom: 30px;
+}
+.template-border .text-main {
+    font-size: 50px;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 20px;
+}
+.template-border .footer-info {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    padding: 0 40px;
+    display: flex;
+    justify-content: space-between;
+    color: #2d9bf0;
+    font-weight: bold;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+/* Handwriting */
+.handwriting-bg {
+    background: #fdfdfd;
+}
+.template-handwriting .paint-stroke {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    height: 150px;
+    background: #e0f7fa;
+    border-radius: 10px;
+    filter: blur(10px);
+    opacity: 0.5;
+}
+.template-handwriting .text-handwriting-stroke {
+    font-family: 'KaiTi', 'STKaiti', cursive;
+    font-size: 70px;
+    color: #333;
+    position: relative;
+    z-index: 2;
+    transform: rotate(-2deg);
+}
+.template-handwriting .date-stamp {
+    position: absolute;
+    font-size: 30px;
+    top: 50px;
+    left: 50px;
+    font-family: monospace;
+    color: #666;
+    border-bottom: 1px solid #666;
+}
+
+/* Scribble */
+.scribble-bg {
+    background: #f9f9f9;
+}
+.template-scribble .highlight-text {
+    background: #fff100;
+    padding: 20px 40px;
+    transform: rotate(-1deg);
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+}
+.template-scribble .highlight-text span {
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 900;
+    font-size: 60px;
+    color: #000;
+}
+.template-scribble .content-layer.centered {
+    justify-content: center;
 }
 
 /* Preview Dialog */
@@ -1416,7 +1797,7 @@ const confirmPublish = async () => {
     font-size: 16px;
     width: 100%;
     box-sizing: border-box;
-    min-height: 200px; /* Ensure content area has height */
+    min-height: 200px;
     background-color: var(--bg-color-overlay);
     color: var(--text-color);
 }

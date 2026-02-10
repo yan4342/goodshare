@@ -1,9 +1,11 @@
 <template>
   <div class="chat-container">
-    <Sidebar />
     <div class="chat-layout">
         <div class="chat-sidebar">
             <div class="chat-header">
+                <el-button link @click="router.back()" style="margin-right: 8px;">
+                    <el-icon :size="20"><ArrowLeft /></el-icon>
+                </el-button>
                 <h3>消息列表</h3>
             </div>
             <div class="conversation-list" v-loading="loadingConversations">
@@ -100,10 +102,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Sidebar from '../components/Sidebar.vue'
 import request from '../utils/request'
 import authStore from '../stores/auth'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import SockJS from 'sockjs-client/dist/sockjs.min.js'
 import Stomp from 'stompjs'
@@ -392,6 +393,8 @@ const updateConversationList = (msg) => {
 .chat-header {
     padding: 20px;
     border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
 }
 .chat-header h3 {
     margin: 0;

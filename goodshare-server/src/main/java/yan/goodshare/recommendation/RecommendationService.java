@@ -437,6 +437,35 @@ public class RecommendationService {
             }
         }
 
+        // --- INJECT FOLLOWED USER POST (PAGE 1 ONLY) ---
+        if (page == 1) {
+            // Check if we have space or just insert it at top (usually at top or 2nd position)
+            // Fetch one recent post from followed users that is NOT viewed and NOT owned
+            // Combine excludedPostIds + already selected IDs in finalPosts
+            List<Long> currentExcluded = new ArrayList<>(excludedPostIds);
+            finalPosts.forEach(p -> currentExcluded.add(p.getId()));
+
+            List<Post> followedPosts = postMapper.selectRecentFollowedPosts(userId, 5, currentExcluded);
+            if (!followedPosts.isEmpty()) {
+                // Pick one randomly or the latest
+                Post injectedPost = followedPosts.get(random.nextInt(followedPosts.size()));
+                injectedPost.setIsFollowedAuthor(true); // Flag for frontend red name
+
+                // Insert at position 1 (2nd item) if possible, or 0 if list empty
+                if (!finalPosts.isEmpty()) {
+                    finalPosts.add(Math.min(1, finalPosts.size()), injectedPost);
+                } else {
+                    finalPosts.add(injectedPost);
+                }
+                
+                // If we exceeded size, remove last
+                if (finalPosts.size() > size) {
+                    finalPosts.remove(finalPosts.size() - 1);
+                }
+            }
+        }
+        // -----------------------------------------------
+
         if (finalPosts.size() < size) {
             int needed = size - finalPosts.size();
             System.out.println("Recommendations insufficient (" + finalPosts.size() + "/" + size + "). Filling with " + needed + " hot posts.");

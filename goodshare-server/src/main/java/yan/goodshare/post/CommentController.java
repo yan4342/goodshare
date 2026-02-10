@@ -28,8 +28,8 @@ public class CommentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Comment>> getCommentsByPostId(@PathVariable Long postId) {
-        return ResponseEntity.ok(commentService.getCommentsByPostId(postId));
+    public ResponseEntity<List<Comment>> getCommentsByPostId(@PathVariable Long postId, @RequestParam(defaultValue = "hot") String sort) {
+        return ResponseEntity.ok(commentService.getCommentsByPostId(postId, sort));
     }
 
     @PostMapping("/{commentId}/like")

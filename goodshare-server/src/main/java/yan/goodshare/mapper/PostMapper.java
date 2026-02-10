@@ -91,6 +91,45 @@ public interface PostMapper extends BaseMapper<Post> {
     })
     List<Post> selectPostsByTagName(String tagName);
 
+    @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url " +
+            "FROM posts p " +
+            "JOIN users u ON p.user_id = u.id " +
+            "JOIN follows f ON p.user_id = f.followed_id " +
+            "WHERE f.follower_id = #{userId} AND (p.status != 2 OR p.status IS NULL) " +
+            "ORDER BY p.created_at DESC")
+    @Results({
+            @Result(property = "user.username", column = "username"),
+            @Result(property = "user.nickname", column = "nickname"),
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
+    })
+    IPage<Post> selectFollowedPostsPage(IPage<Post> page, @Param("userId") Long userId);
+
+    @Select("<script>" +
+            "SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url " +
+            "FROM posts p " +
+            "JOIN users u ON p.user_id = u.id " +
+            "JOIN follows f ON p.user_id = f.followed_id " +
+            "WHERE f.follower_id = #{userId} AND (p.status != 2 OR p.status IS NULL) " +
+            "<if test='excludedPostIds != null and !excludedPostIds.isEmpty()'>" +
+            "AND p.id NOT IN " +
+            "<foreach item='item' index='index' collection='excludedPostIds' open='(' separator=',' close=')'>" +
+            "#{item}" +
+            "</foreach>" +
+            "</if>" +
+            "ORDER BY p.created_at DESC LIMIT #{limit}" +
+            "</script>")
+    @Results({
+            @Result(property = "user.username", column = "username"),
+            @Result(property = "user.nickname", column = "nickname"),
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count")
+    })
+    List<Post> selectRecentFollowedPosts(@Param("userId") Long userId, @Param("limit") int limit, @Param("excludedPostIds") List<Long> excludedPostIds);
+
+
     @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id JOIN post_tags pt ON p.id = pt.post_id JOIN tags t ON pt.tag_id = t.id WHERE t.name = #{tagName} AND (p.status != 2 OR p.status IS NULL) ORDER BY p.created_at DESC")
     @Results({
             @Result(property = "user.username", column = "username"),

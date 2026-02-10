@@ -68,8 +68,19 @@
             <el-divider />
             
             <!-- Comments Section -->
-            <div class="comments-section">
-              <div class="comment-count">共 {{ comments.length }} 条评论</div>
+          <div class="comments-section" id="comments">
+            <div class="comments-header">
+                <div class="comment-count">共 {{ comments.length }} 条评论</div>
+                <div class="comment-sort">
+                    <span :class="{ active: currentSort === 'hot' }" @click="changeSort('hot')">最热</span>
+                    <span class="divider">|</span>
+                    <span :class="{ active: currentSort === 'desc' }" @click="changeSort('desc')">最新</span>
+                    <span class="divider">|</span>
+                    <span :class="{ active: currentSort === 'asc' }" @click="changeSort('asc')">最早</span>
+                </div>
+            </div>
+            
+            <div v-loading="commentsLoading" class="comments-list">
               <div v-if="comments.length === 0" class="no-comments">暂无评论，快来抢沙发吧~</div>
               <div v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'is-reply': comment.parentId }">
                 <el-avatar :size="comment.parentId ? 24 : 32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
@@ -96,6 +107,7 @@
                 </div>
               </div>
             </div>
+          </div>
           </div>
           
           <!-- Bottom Actions -->
@@ -252,6 +264,8 @@ const likeCount = ref(0)
 const isFavorited = ref(false)
 const isFollowing = ref(false)
 const followLoading = ref(false)
+const currentSort = ref('hot')
+const commentsLoading = ref(false)
 
 const emojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -337,12 +351,23 @@ const fetchPost = async (id) => {
 }
 
 const fetchComments = async (id) => {
+    commentsLoading.value = true
     try {
-        const res = await request.get(`/posts/${id}/comments`)
+        const res = await request.get(`/posts/${id}/comments`, {
+            params: { sort: currentSort.value }
+        })
         comments.value = res.data
     } catch (err) {
         console.error('Failed to load comments', err)
+    } finally {
+        commentsLoading.value = false
     }
+}
+
+const changeSort = (sortType) => {
+    if (currentSort.value === sortType) return
+    currentSort.value = sortType
+    fetchComments(post.value.id || props.postId || route.params.id)
 }
 
 const fetchLikeInfo = async (id) => {
@@ -740,11 +765,42 @@ const handleClose = () => {
 .comments-section {
     margin-top: 20px;
 }
+
+.comments-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
 .comment-count {
     font-size: 14px;
     color: var(--text-color-secondary);
-    margin-bottom: 12px;
 }
+
+.comment-sort {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comment-sort span {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.comment-sort span.active {
+    color: var(--text-color);
+    font-weight: bold;
+}
+
+.comment-sort .divider {
+    color: var(--border-color);
+    cursor: default;
+}
+
 .no-comments {
     text-align: center;
     color: var(--text-color-secondary);

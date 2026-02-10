@@ -1,6 +1,5 @@
 <template>
   <div class="home-container">
-    <Sidebar v-if="isAuthenticated" />
     <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }">
       <Navbar />
       
@@ -58,7 +57,6 @@
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
-import Sidebar from '../components/Sidebar.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import request from '../utils/request'
 import { Star, UserFilled, Trophy } from '@element-plus/icons-vue'

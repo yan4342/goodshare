@@ -1,8 +1,13 @@
 <template>
   <div class="me-container">
-      <Sidebar />
     <!-- Profile Header -->
     <div class="profile-header">
+      <div v-if="!isCurrentUser" class="header-nav" style="margin-bottom: 20px;">
+          <el-button link @click="router.back()">
+            <el-icon :size="24"><ArrowLeft /></el-icon>
+            <span style="font-size: 16px; margin-left: 4px;">返回</span>
+          </el-button>
+      </div>
       <div class="profile-info">
         <div class="avatar-wrapper">
           <el-upload
@@ -286,9 +291,8 @@ import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
 import authStore from '../stores/auth'
 import homeStore from '../stores/home'
-import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check } from '@element-plus/icons-vue'
+import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import Sidebar from "../components/Sidebar.vue";
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 import { getThumbnailUrl } from '../utils/image'

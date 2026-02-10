@@ -409,6 +409,11 @@ public class PostService {
         return postMapper.selectPendingPostsPage(pageParam);
     }
 
+    public IPage<Post> getFollowedPosts(Long userId, int page, int size) {
+        Page<Post> pageParam = new Page<>(page, size);
+        return postMapper.selectFollowedPostsPage(pageParam, userId);
+    }
+
     public void updatePostStatus(Long postId, Integer status) {
         Post post = postMapper.selectById(postId);
         if (post == null) {

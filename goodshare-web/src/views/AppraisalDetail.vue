@@ -1,6 +1,5 @@
 <template>
   <div class="appraisal-detail-container">
-    <Sidebar />
     <div class="main-content" v-loading="loading">
         <div v-if="appraisal" class="detail-card">
             <div class="page-header-wrapper">
@@ -74,7 +73,6 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import Sidebar from '../components/Sidebar.vue'
 import request from '../utils/request'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
