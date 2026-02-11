@@ -11,12 +11,11 @@
             <el-upload
               v-model:file-list="fileList"
               class="image-uploader"
-              action="/api/upload"
-              :headers="uploadHeaders"
+              action="#"
+              :http-request="customUpload"
               list-type="picture-card"
               :on-preview="handlePictureCardPreview"
               :on-remove="handleRemove"
-              :on-success="handleUploadSuccess"
               :before-upload="beforeUpload"
               multiple
             >
@@ -355,6 +354,7 @@ import request from '../utils/request'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import html2canvas from 'html2canvas'
+import { compressImage } from '../utils/compress'
 
 const router = useRouter()
 const loading = ref(false)
@@ -816,7 +816,9 @@ onMounted(async () => {
 })
 
 const handleUploadSuccess = (response, uploadFile) => {
-  // handled by fileList
+  // Ensure the file object in fileList gets the response
+  uploadFile.response = response
+  uploadFile.url = (typeof response === 'string' ? response : response.url)
 }
 
 const handleRemove = (uploadFile, uploadFiles) => {
@@ -824,8 +826,64 @@ const handleRemove = (uploadFile, uploadFiles) => {
 }
 
 const handlePictureCardPreview = (uploadFile) => {
-  dialogImageUrl.value = uploadFile.url || uploadFile.response.url
+  dialogImageUrl.value = uploadFile.url || (uploadFile.response && uploadFile.response.url) || uploadFile.response
   dialogVisible.value = true
+}
+
+const customUpload = async (options) => {
+    const { file, onSuccess, onError } = options
+    
+    try {
+        ElMessage.info('正在处理图片...')
+        const compressedFile = await compressImage(file)
+        
+        // Update file object size to reflect compression (for UI/Console clarity)
+        if (compressedFile.size !== file.size) {
+            // file is a reactive proxy or object from el-upload
+            // We can try to update its size property if it's writable
+            try {
+                file.size = compressedFile.size
+            } catch (e) {
+                // Ignore if read-only
+            }
+        }
+
+        const formData = new FormData()
+        formData.append('file', compressedFile)
+        
+        const res = await request.post('/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+        
+        // Handle success
+        const response = res.data
+        
+        // Explicitly set response on the file object immediately
+        // This ensures confirmPublish can find it even if el-upload's internal sync is slow
+        file.response = response
+        file.url = (typeof response === 'string' ? response : response.url)
+        
+        // Manual sync to fileList to ensure reactivity and persistence
+        const uploadFile = fileList.value.find(f => f.uid === file.uid)
+        if (uploadFile) {
+            uploadFile.response = response
+            uploadFile.url = (typeof response === 'string' ? response : response.url)
+            uploadFile.status = 'success'
+        }
+        
+        onSuccess(response)
+        ElMessage.success('图片上传成功')
+    } catch (err) {
+        console.error('Upload failed', err)
+        onError(err)
+        if (err.response && err.response.status === 413) {
+            ElMessage.error('图片文件过大，请尝试上传更小的图片')
+        } else {
+            ElMessage.error('图片上传失败，请重试')
+        }
+    }
 }
 
 const beforeUpload = (file) => {
@@ -833,11 +891,12 @@ const beforeUpload = (file) => {
   if (!isJPG) {
     ElMessage.error('Avatar picture must be JPG format!')
   }
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isLt10M) {
-    ElMessage.error('Picture size can not exceed 10MB!')
+  // Allow larger files since we compress them, but keep a reasonable hard limit (e.g. 20MB)
+  const isLt20M = file.size / 1024 / 1024 < 20
+  if (!isLt20M) {
+    ElMessage.error('Picture size can not exceed 20MB!')
   }
-  return isJPG && isLt10M
+  return isJPG && isLt20M
 }
 
 const getFirstContentImage = (html) => {
@@ -848,7 +907,12 @@ const getFirstContentImage = (html) => {
 
 const handlePreview = async () => {
     showPreview.value = true
-    const uploadedUrls = fileList.value.map(file => file.response?.url || file.url).filter(u => u)
+    const uploadedUrls = fileList.value.map(file => {
+        if (file.response) {
+            return typeof file.response === 'string' ? file.response : file.response.url
+        }
+        return file.url
+    }).filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
     
     if (uploadedUrls.length > 0) {
         previewData.value.images = uploadedUrls
@@ -870,8 +934,17 @@ const prePublish = async () => {
   }
 
   const urls = fileList.value
-    .map(file => file.response?.url)
-    .filter(u => u && !u.startsWith('data:'));
+    .map(file => {
+        if (file.response) {
+            return typeof file.response === 'string' ? file.response : file.response.url
+        }
+        if (file.raw && file.raw.response) {
+            const rawResp = file.raw.response
+            return typeof rawResp === 'string' ? rawResp : rawResp.url
+        }
+        return file.url
+    })
+    .filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'));
   const isContentEmpty = !form.value.content || form.value.content === '<p><br></p>' || form.value.content.trim() === '';
 
   if (isContentEmpty && urls.length === 0) {
@@ -889,8 +962,23 @@ const prePublish = async () => {
 
 const confirmPublish = async () => {
   const urls = fileList.value
-    .map(file => file.response?.url)
-    .filter(u => u && !u.startsWith('data:'));
+    .map(file => {
+        // Handle various response formats
+        // Check file.response (UploadFile wrapper)
+        if (file.response) {
+            return typeof file.response === 'string' ? file.response : file.response.url
+        }
+        // Check file.raw.response (Raw file attached by customUpload)
+        if (file.raw && file.raw.response) {
+            const rawResp = file.raw.response
+            return typeof rawResp === 'string' ? rawResp : rawResp.url
+        }
+        // Fallback to url if not blob/data
+        return file.url
+    })
+    .filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'));
+
+  console.log('Publishing with URLs:', urls)
 
   loading.value = true
   try {

@@ -296,6 +296,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 import { getThumbnailUrl } from '../utils/image'
+import { compressImage } from '../utils/compress'
 
 
 const router = useRouter()
@@ -394,7 +395,7 @@ const fetchUserProfile = async () => {
 const checkFollowStatus = async (userId) => {
     try {
         const res = await request.get(`/users/${userId}/is-following`)
-        isFollowing.value = res.data
+        isFollowing.value = res.data.isFollowing
     } catch (error) {
         console.error('Failed to check follow status', error)
     }
@@ -707,12 +708,18 @@ const confirmCrop = () => {
             ElMessage.success('头像更新成功')
             showCropper.value = false
             
-            // Release object URL
-            URL.revokeObjectURL(localPreviewUrl)
+            // Release object URL with a slight delay to allow DOM update
+            setTimeout(() => {
+                URL.revokeObjectURL(localPreviewUrl)
+            }, 1000)
             
         } catch (err) {
             console.error('Upload failed', err)
-            ElMessage.error('头像上传失败')
+            if (err.response && err.response.status === 413) {
+                ElMessage.error('图片文件过大，请尝试上传更小的图片')
+            } else {
+                ElMessage.error('头像上传失败')
+            }
             
             // Revert on failure
             userProfile.value.avatarUrl = originalAvatarUrl
@@ -741,95 +748,6 @@ const handleAvatarSuccess = async (response, uploadFile) => {
     } catch (err) {
         ElMessage.error('头像保存失败')
     }
-}
-
-const compressImage = (file) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (e) => {
-            const img = new Image();
-            img.src = e.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                // Max dimensions for avatar (500x500 is sufficient for display)
-                const MAX_WIDTH = 500;
-                const MAX_HEIGHT = 500;
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // Convert to JPEG for better compression
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        // Rename to .jpg
-                        const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-                        const newFile = new File([blob], newName, {
-                            type: 'image/jpeg',
-                            lastModified: Date.now(),
-                        });
-                        resolve(newFile);
-                    } else {
-                        reject(new Error('Canvas to Blob failed'));
-                    }
-                }, 'image/jpeg', 0.8);
-            };
-            img.onerror = (err) => reject(err);
-        };
-        reader.onerror = (err) => reject(err);
-    });
-};
-
-const beforeAvatarUpload = async (rawFile) => {
-    const isJPG = rawFile.type === 'image/jpeg' || rawFile.type === 'image/jpg';
-    const isPNG = rawFile.type === 'image/png';
-
-    if (!isJPG && !isPNG) {
-        ElMessage.error('头像必须是 JPG 或 PNG 格式!')
-        return false
-    }
-
-    // Check if file is larger than 2MB, if so try to compress
-    if (rawFile.size / 1024 / 1024 > 2) {
-        try {
-            ElMessage.info('图片较大，正在自动压缩...')
-            const compressedFile = await compressImage(rawFile);
-            
-            // Check compressed size
-            if (compressedFile.size / 1024 / 1024 > 2) {
-                 ElMessage.error('图片压缩后仍然超过 2MB，请更换图片');
-                 return false;
-            }
-            return compressedFile;
-        } catch (e) {
-            console.error('Compression failed', e);
-            ElMessage.error('图片处理失败');
-            return false;
-        }
-    }
-    
-    // Even if < 2MB, we can optionally resize to optimize if it's still somewhat large (e.g. > 500KB)
-    // but strict requirement was "fit limits". 
-    // Let's stick to the limit logic to be safe.
-    
-    return true
 }
 
 const saveProfile = async () => {

@@ -102,10 +102,12 @@
           <el-table-column label="封面" width="100">
              <template #default="scope">
                 <el-image 
+                    v-if="getCoverUrl(scope.row)"
                     style="width: 60px; height: 60px; border-radius: 4px;" 
-                    :src="scope.row.coverUrl" 
-                    :preview-src-list="[scope.row.coverUrl]"
+                    :src="getCoverUrl(scope.row)" 
+                    :preview-src-list="[getOriginalCoverUrl(scope.row)]"
                     fit="cover"
+                    preview-teleported
                 />
              </template>
           </el-table-column>
@@ -142,8 +144,9 @@
                     v-if="getCoverUrl(scope.row)"
                     style="width: 60px; height: 60px; border-radius: 4px;" 
                     :src="getCoverUrl(scope.row)" 
-                    :preview-src-list="[scope.row.coverUrl]"
+                    :preview-src-list="[getOriginalCoverUrl(scope.row)]"
                     fit="cover"
+                    preview-teleported
                 />
                 <div v-else style="width: 60px; height: 60px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999;">无图</div>
              </template>
@@ -674,6 +677,12 @@ const formatDate = (dateStr) => {
 }
 
 const getCoverUrl = (post) => {
+    let url = getOriginalCoverUrl(post)
+    return getThumbnailUrl(url)
+}
+
+const getOriginalCoverUrl = (post) => {
+    if (!post) return ''
     let url = null
     if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
         url = post.coverUrl
@@ -683,7 +692,7 @@ const getCoverUrl = (post) => {
             if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
         } catch (e) {}
     }
-    return getThumbnailUrl(url)
+    return url
 }
 
 const logout = () => {

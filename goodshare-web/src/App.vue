@@ -19,7 +19,8 @@ const showSidebar = computed(() => {
   // Show sidebar if user is authenticated and not on guest pages (Login/Register)
   // Also check if the route explicitly hides sidebar (optional)
   const isGuestPage = ['Login', 'Register', 'AdminLogin'].includes(route.name)
-  return authStore.state.isAuthenticated && !isGuestPage
+  const isAdminPage = route.path.startsWith('/admin')
+  return authStore.state.isAuthenticated && !isGuestPage && !isAdminPage
 })
 
 onMounted(() => {

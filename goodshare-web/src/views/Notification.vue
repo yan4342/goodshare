@@ -1,46 +1,36 @@
 <template>
   <div class="notifications-container">
     <div class="notifications-layout">
-        <!-- Left Sidebar -->
-        <div class="notification-sidebar">
-            <div class="sidebar-header">
+        <!-- Top Navigation -->
+        <div class="notification-nav">
+            <div class="nav-header">
                 <h2>消息中心</h2>
             </div>
-            <div class="sidebar-menu">
-                <div class="menu-item" :class="{ active: activeTab === 'dynamic' }" @click="activeTab = 'dynamic'">
-                    <div class="menu-icon-wrapper dynamic-icon">
-                        <el-icon><Compass /></el-icon>
-                    </div>
-                    <span class="menu-label">关注动态</span>
+            <div class="nav-menu">
+                <div class="nav-item" :class="{ active: activeTab === 'dynamic' }" @click="activeTab = 'dynamic'">
+                    <el-icon><Compass /></el-icon>
+                    <span>关注动态</span>
                 </div>
-                <div class="menu-item" :class="{ active: activeTab === 'likes' }" @click="activeTab = 'likes'">
-                    <div class="menu-icon-wrapper like-icon">
-                        <el-icon><StarFilled /></el-icon>
-                    </div>
-                    <span class="menu-label">收到的赞</span>
+                <div class="nav-item" :class="{ active: activeTab === 'likes' }" @click="activeTab = 'likes'">
+                    <el-icon><StarFilled /></el-icon>
+                    <span>收到的赞</span>
                 </div>
-                <div class="menu-item" :class="{ active: activeTab === 'follows' }" @click="activeTab = 'follows'">
-                    <div class="menu-icon-wrapper follow-icon">
-                        <el-icon><UserFilled /></el-icon>
-                    </div>
-                    <span class="menu-label">新增关注</span>
+                <div class="nav-item" :class="{ active: activeTab === 'follows' }" @click="activeTab = 'follows'">
+                    <el-icon><UserFilled /></el-icon>
+                    <span>新增关注</span>
                 </div>
-                <div class="menu-item" :class="{ active: activeTab === 'comments' }" @click="activeTab = 'comments'">
-                    <div class="menu-icon-wrapper comment-icon">
-                        <el-icon><Comment /></el-icon>
-                    </div>
-                    <span class="menu-label">评论</span>
+                <div class="nav-item" :class="{ active: activeTab === 'comments' }" @click="activeTab = 'comments'">
+                    <el-icon><Comment /></el-icon>
+                    <span>评论</span>
                 </div>
-                 <div class="menu-item" :class="{ active: activeTab === 'messages' }" @click="activeTab = 'messages'">
-                    <div class="menu-icon-wrapper message-icon">
-                        <el-icon><Message /></el-icon>
-                    </div>
-                    <span class="menu-label">私信</span>
+                 <div class="nav-item" :class="{ active: activeTab === 'messages' }" @click="activeTab = 'messages'">
+                    <el-icon><Message /></el-icon>
+                    <span>私信</span>
                 </div>
             </div>
         </div>
 
-        <!-- Right Content -->
+        <!-- Content Area -->
         <div class="notification-content-area">
              <div class="content-header">
                 <h3>{{ getTabTitle(activeTab) }}</h3>
@@ -51,20 +41,69 @@
                 <div v-if="activeTab === 'dynamic'">
                      <div v-if="dynamicPosts.length > 0" class="feed-list">
                         <div v-for="post in dynamicPosts" :key="post.id" class="feed-card" @click="openPostModal(post, $event)">
+                             <!-- Header -->
                              <div class="feed-header">
-                                <el-avatar :size="40" :src="post.user?.avatarUrl || defaultAvatar" class="avatar" />
-                                <div class="feed-meta">
-                                    <span class="username">{{ post.user?.nickname || post.user?.username }}</span>
-                                    <span class="time">{{ formatTime(post.createdAt) }}</span>
+                                <div class="header-left">
+                                    <el-avatar :size="40" :src="post.user?.avatarUrl || defaultAvatar" class="avatar clickable" @click.stop="goToUser(post.user?.id)" />
+                                    <div class="user-info">
+                                        <span class="username clickable" @click.stop="goToUser(post.user?.id)">{{ post.user?.nickname || post.user?.username }}</span>
+                                        <span class="time">{{ formatTime(post.createdAt) }}</span>
+                                    </div>
+                                </div>
+                                <div class="header-right">
+                                     <el-dropdown trigger="click" @command="handleFeedAction($event, post)">
+                                        <div class="more-btn-wrapper" @click.stop>
+                                            <el-icon class="more-btn"><MoreFilled /></el-icon>
+                                        </div>
+                                        <template #dropdown>
+                                            <el-dropdown-menu>
+                                                <el-dropdown-item command="unfollow">取消关注</el-dropdown-item>
+                                            </el-dropdown-menu>
+                                        </template>
+                                    </el-dropdown>
                                 </div>
                              </div>
+
+                             <!-- Content -->
                              <div class="feed-body">
-                                <div class="feed-content-wrapper">
-                                    <h4 class="feed-title">{{ post.title }}</h4>
-                                    <p class="feed-snippet" v-if="post.content">{{ getSnippet(post.content) }}</p>
+                                <div class="feed-text" :class="{ collapsed: !post.expanded }" v-html="processContent(post.content)">
                                 </div>
-                                <div class="feed-cover" v-if="getCoverUrl(post)" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                                <div v-if="shouldShowExpand(post.content)" class="expand-control" @click.stop="toggleExpand(post)">
+                                    {{ post.expanded ? '收起' : '...全文' }}
+                                </div>
+                                
+                                <!-- Image Grid -->
+                                <div class="image-grid" v-if="getPostImages(post).length > 0" :class="gridClass(getPostImages(post).length)" @click.stop>
+                                     <div v-for="(img, idx) in getPostImages(post).slice(0, 9)" :key="idx" class="grid-image-wrapper">
+                                        <el-image 
+                                            :src="img" 
+                                            :preview-src-list="getPostImages(post)"
+                                            :initial-index="idx"
+                                            fit="cover"
+                                            class="grid-image"
+                                            hide-on-click-modal
+                                            preview-teleported
+                                            @click.stop
+                                        />
+                                     </div>
+                                </div>
                              </div>
+
+                             <!-- Action Bar -->
+                             <div class="feed-actions">
+                                <div class="action-btn" :class="{ active: post.isLiked }" @click.stop="handleLike(post)">
+                                    <el-icon><StarFilled v-if="post.isLiked" /><Star v-else /></el-icon>
+                                    <span>{{ post.likeCount || 0 }}</span>
+                                </div>
+                                <div class="action-btn" @click.stop="handleComment(post)">
+                                    <el-icon><ChatDotRound /></el-icon>
+                                    <span>{{ post.commentCount || 0 }}</span>
+                                </div>
+                                 <div class="action-btn" :class="{ active: post.isFavorited }" @click.stop="handleFavorite(post)">
+                                    <el-icon><CollectionTag v-if="post.isFavorited" /><Collection v-else /></el-icon>
+                                    <span>{{ post.isFavorited ? '已收藏' : '收藏' }}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div v-else class="empty-state">
@@ -162,6 +201,7 @@
       v-if="showPostDetail" 
       :post-id="selectedPostId"
       :origin-rect="clickedRect" 
+      :focus-comment="shouldFocusComment"
       @close="closePostModal"
     />
   </div>
@@ -172,8 +212,10 @@ import { ref, computed, onMounted } from 'vue'
 import request from '../utils/request'
 import { useRouter } from 'vue-router'
 import { getThumbnailUrl } from '../utils/image'
-import { Compass, StarFilled, UserFilled, Comment, Message } from '@element-plus/icons-vue'
+import { Compass, StarFilled, UserFilled, Comment, Message, MoreFilled, Star, ChatDotRound, Collection, CollectionTag } from '@element-plus/icons-vue'
 import PostDetail from './PostDetail.vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import authStore from '../stores/auth'
 
 const router = useRouter()
 const activeTab = ref('dynamic')
@@ -186,6 +228,7 @@ const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e5
 const showPostDetail = ref(false)
 const selectedPostId = ref(null)
 const clickedRect = ref(null)
+const shouldFocusComment = ref(false)
 
 const getTabTitle = (tab) => {
     const titles = {
@@ -216,10 +259,135 @@ const fetchFollowedPosts = async () => {
                 size: 20
             }
         })
-        dynamicPosts.value = res.data?.records || []
+        dynamicPosts.value = (res.data?.records || []).map(p => ({ ...p, expanded: false }))
     } catch (error) {
         console.error('Failed to fetch followed posts', error)
         dynamicPosts.value = []
+    }
+}
+
+const getPostImages = (post) => {
+    if (!post) return []
+    if (post._parsedImages) return post._parsedImages
+    
+    let imgs = []
+    
+    // 1. Extract images from JSON field
+    if (post.images) {
+        try {
+            imgs = typeof post.images === 'string' ? JSON.parse(post.images) : post.images
+        } catch (e) {}
+    }
+    
+    // 2. Extract images from Content
+    if (post.content) {
+        const contentImgs = []
+        const regex = /<img[^>]+src=['"]([^'"]+)['"][^>]*>/gi
+        let match
+        while ((match = regex.exec(post.content)) !== null) {
+            if (match[1]) {
+                contentImgs.push(match[1])
+            }
+        }
+        if (contentImgs.length > 0) {
+            imgs = [...imgs, ...contentImgs]
+        }
+    }
+
+    // Filter out placeholders if needed, or keeping them
+    imgs = imgs.filter(url => url && !url.includes('placehold.co'))
+    
+    // Deduplicate images
+    imgs = [...new Set(imgs)]
+    
+    post._parsedImages = imgs
+    return imgs
+}
+
+const gridClass = (count) => {
+    if (count === 1) return 'grid-1'
+    if (count === 2) return 'grid-2'
+    if (count === 4) return 'grid-2' // 2x2
+    return 'grid-3' // 3 columns for 3, 5-9
+}
+
+const handleFeedAction = (command, post) => {
+    if (command === 'unfollow') {
+        handleUnfollow(post)
+    }
+}
+
+const handleUnfollow = async (post) => {
+    try {
+        const userId = post.user?.id || post.userId
+        if (!userId) {
+            console.error('Cannot find user ID to unfollow', post)
+            ElMessage.error('无法获取用户信息')
+            return
+        }
+
+        await ElMessageBox.confirm(
+            `确定要取消关注 ${post.user?.nickname || post.user?.username} 吗？`,
+            '提示',
+            {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning',
+            }
+        )
+        
+        await request.post(`/users/${userId}/unfollow`)
+        ElMessage.success('已取消关注')
+        // Remove posts from this user from the feed locally
+        dynamicPosts.value = dynamicPosts.value.filter(p => (p.user?.id || p.userId) !== userId)
+        
+    } catch (error) {
+        if (error !== 'cancel') {
+             console.error('Unfollow failed', error)
+             ElMessage.error('操作失败')
+        }
+    }
+}
+
+const handleLike = async (post) => {
+    if (!authStore.state.isAuthenticated) {
+        ElMessage.warning('请先登录')
+        return
+    }
+    
+    try {
+        if (post.isLiked) {
+            await request.delete(`/posts/${post.id}/likes`)
+            post.isLiked = false
+            post.likeCount = Math.max(0, (post.likeCount || 0) - 1)
+        } else {
+            await request.post(`/posts/${post.id}/likes`)
+            post.isLiked = true
+            post.likeCount = (post.likeCount || 0) + 1
+        }
+    } catch (error) {
+        console.error('Like failed', error)
+        ElMessage.error('操作失败')
+    }
+}
+
+const handleFavorite = async (post) => {
+    if (!authStore.state.isAuthenticated) {
+        ElMessage.warning('请先登录')
+        return
+    }
+
+    try {
+        if (post.isFavorited) {
+            await request.delete(`/favorites/${post.id}`)
+            post.isFavorited = false
+        } else {
+            await request.post(`/favorites/${post.id}`)
+            post.isFavorited = true
+        }
+    } catch (error) {
+        console.error('Favorite failed', error)
+        ElMessage.error('操作失败')
     }
 }
 
@@ -254,11 +422,29 @@ const formatTime = (timeStr) => {
     return date.toLocaleDateString()
 }
 
+const processContent = (content) => {
+    if (!content) return ''
+    // Remove img tags but keep others
+    return content.replace(/<img[^>]*>/gi, '')
+}
+
+const shouldShowExpand = (content) => {
+    if (!content) return false
+    // Simple check on length of processed content
+    return processContent(content).length > 100
+}
+
+const toggleExpand = (post) => {
+    post.expanded = !post.expanded
+}
+
+const handleComment = (post) => {
+    openPostModal(post, null, true)
+}
+
 const getSnippet = (content) => {
     if (!content) return ''
-    // Strip HTML tags and replace with space
-    const plainText = content.replace(/<[^>]+>/g, ' ')
-    return plainText.length > 60 ? plainText.substring(0, 60) + '...' : plainText
+    return processContent(content).substring(0, 60) + '...'
 }
 
 const goToUser = (userId) => {
@@ -317,7 +503,8 @@ const goToChat = (userId) => {
 
 .notifications-layout {
     display: flex;
-    width: 1000px;
+    flex-direction: column;
+    width: 800px;
     max-width: 95%;
     margin-top: 20px;
     height: calc(100vh - 40px);
@@ -327,74 +514,68 @@ const goToChat = (userId) => {
     overflow: hidden;
 }
 
-/* Sidebar */
-.notification-sidebar {
-    width: 240px;
-    border-right: 1px solid var(--border-color);
+/* Top Navigation */
+.notification-nav {
     display: flex;
-    flex-direction: column;
-    padding: 20px 0;
-    background-color: var(--bg-color-overlay);
+    align-items: center;
+    padding: 0 20px;
+    background-color: #fff;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
-.sidebar-header {
-    padding: 0 24px;
-    margin-bottom: 24px;
+.nav-header {
+    margin-right: 40px;
 }
 
-.sidebar-header h2 {
-    font-size: 20px;
+.nav-header h2 {
+    font-size: 18px;
     font-weight: 600;
     margin: 0;
     color: var(--text-color);
 }
 
-.sidebar-menu {
-    flex: 1;
+.nav-menu {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 0 12px;
+    gap: 10px;
+    overflow-x: auto;
 }
 
-.menu-item {
+.nav-item {
     display: flex;
     align-items: center;
-    padding: 12px 16px;
-    border-radius: 12px;
+    padding: 15px 12px;
     cursor: pointer;
-    transition: all 0.2s;
-    color: var(--text-color);
+    color: var(--text-color-secondary);
+    font-weight: 500;
+    position: relative;
+    white-space: nowrap;
+    transition: all 0.3s;
 }
 
-.menu-item:hover {
-    background-color: var(--bg-color);
+.nav-item:hover {
+    color: var(--el-color-primary);
 }
 
-.menu-item.active {
-    background-color: var(--bg-color-active, rgba(0,0,0,0.05));
+.nav-item.active {
+    color: var(--el-color-primary);
     font-weight: 600;
 }
 
-.menu-icon-wrapper {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 12px;
-    font-size: 18px;
+.nav-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 3px;
+    background-color: var(--el-color-primary);
+    border-radius: 3px 3px 0 0;
 }
 
-.dynamic-icon { background-color: rgba(255, 99, 71, 0.1); color: #ff6347; }
-.like-icon { background-color: rgba(255, 69, 58, 0.1); color: #ff453a; }
-.follow-icon { background-color: rgba(10, 132, 255, 0.1); color: #0a84ff; }
-.comment-icon { background-color: rgba(48, 209, 88, 0.1); color: #30d158; }
-.message-icon { background-color: rgba(191, 90, 242, 0.1); color: #bf5af2; }
-
-.menu-label {
-    font-size: 15px;
+.nav-item .el-icon {
+    font-size: 18px;
+    margin-right: 6px;
 }
 
 /* Content Area */
@@ -403,17 +584,11 @@ const goToChat = (userId) => {
     display: flex;
     flex-direction: column;
     background-color: var(--bg-color-overlay);
+    overflow: hidden;
 }
 
 .content-header {
-    padding: 20px 30px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.content-header h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
+    display: none; /* Hidden since we have top tabs now */
 }
 
 .content-list {
@@ -428,6 +603,7 @@ const goToChat = (userId) => {
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.2s;
+    background: #fff;
 }
 
 .feed-card:hover {
@@ -436,65 +612,136 @@ const goToChat = (userId) => {
 
 .feed-header {
     display: flex;
-    align-items: center;
+    justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 12px;
 }
 
-.feed-meta {
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.user-info {
     margin-left: 12px;
     display: flex;
     flex-direction: column;
 }
 
-.feed-meta .username {
+.user-info .username {
     font-weight: 600;
-    font-size: 14px;
+    font-size: 15px;
     color: var(--text-color);
+    line-height: 1.2;
 }
 
-.feed-meta .time {
+.user-info .time {
     font-size: 12px;
     color: var(--text-color-secondary);
-    margin-top: 2px;
+    margin-top: 4px;
+}
+
+.more-btn-wrapper {
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-color-secondary);
+}
+
+.more-btn-wrapper:hover {
+    color: var(--text-color);
 }
 
 .feed-body {
-    display: flex;
-    justify-content: space-between;
+    margin-bottom: 12px;
 }
 
-.feed-content-wrapper {
-    flex: 1;
-    margin-right: 20px;
-}
-
-.feed-title {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.4;
+.feed-text {
+    font-size: 15px;
+    line-height: 1.6;
     color: var(--text-color);
+    white-space: pre-wrap;
+    margin-bottom: 8px;
 }
 
-.feed-snippet {
-    margin: 0;
-    font-size: 14px;
-    color: var(--text-color-secondary);
-    line-height: 1.5;
+.feed-text.collapsed {
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-.feed-cover {
-    width: 100px;
-    height: 100px;
-    border-radius: 8px;
-    background-size: cover;
-    background-position: center;
+.expand-control {
+    color: var(--el-color-primary);
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 12px;
+    display: inline-block;
+}
+
+.image-grid {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    width: 100%;
+    max-width: 500px; /* Limit width for aesthetics */
+}
+
+.grid-1 {
+    grid-template-columns: 1fr;
+    max-width: 300px;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-image-wrapper {
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 4px;
     background-color: var(--border-color);
-    flex-shrink: 0;
+}
+
+.grid-image {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.3s;
+    cursor: zoom-in;
+}
+
+.grid-image:hover {
+    transform: scale(1.05);
+}
+
+.feed-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly; /* 首尾及中间全部等距 */
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+    width: 100%;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    color: var(--text-color-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.action-btn:hover {
+    color: var(--el-color-primary);
+}
+
+.action-btn .el-icon {
+    font-size: 18px;
+    margin-right: 6px;
 }
 
 /* Notification Item (Likes, Comments, etc) */

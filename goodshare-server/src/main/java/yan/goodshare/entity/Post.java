@@ -47,6 +47,12 @@ public class Post {
     @TableField(exist = false)
     private Boolean isFollowedAuthor = false;
 
+    @TableField(exist = false)
+    private Boolean isLiked = false;
+
+    @TableField(exist = false)
+    private Boolean isFavorited = false;
+
     @TableField("view_count")
     private Integer viewCount = 0;
 
@@ -96,6 +102,22 @@ public class Post {
 
     public void setIsFollowedAuthor(Boolean isFollowedAuthor) {
         this.isFollowedAuthor = isFollowedAuthor;
+    }
+
+    public Boolean getIsLiked() {
+        return isLiked;
+    }
+
+    public void setIsLiked(Boolean isLiked) {
+        this.isLiked = isLiked;
+    }
+
+    public Boolean getIsFavorited() {
+        return isFavorited;
+    }
+
+    public void setIsFavorited(Boolean isFavorited) {
+        this.isFavorited = isFavorited;
     }
 
     public Long getId() {

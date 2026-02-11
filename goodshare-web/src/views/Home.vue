@@ -1,7 +1,7 @@
 <template>
-  <div class="home-container">
+  <div class="home-container" :class="{ 'with-sidebar': isAuthenticated }">
     <el-scrollbar height="100vh" @scroll="handleScroll" ref="scrollbarRef">
-      <div class="main-content" :class="{ 'with-sidebar': isAuthenticated }" ref="scrollContent">
+      <div class="main-content" ref="scrollContent">
         <Navbar />
         
         <div class="content-body">
@@ -380,15 +380,15 @@ onUnmounted(() => {
   height: 100vh;
   overflow: hidden;
   background-color: var(--bg-color-overlay);
-  transition: background-color 0.3s;
+  transition: background-color 0.3s, padding-left 0.3s;
+}
+.home-container.with-sidebar {
+    padding-left: var(--sidebar-width);
 }
 .main-content {
   margin: 0 auto;
-  transition: margin-left 0.3s, width 0.3s;
-}
-.main-content.with-sidebar {
-    margin-left: var(--sidebar-width);
-    width: calc(100% - var(--sidebar-width));
+  transition: width 0.3s;
+  width: 100%;
 }
 .content-body {
     max-width: 1800px;

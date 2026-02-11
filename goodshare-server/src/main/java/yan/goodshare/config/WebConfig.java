@@ -34,14 +34,25 @@ public class WebConfig implements WebMvcConfigurer {
     private static class UploadsThumbFallbackResolver extends PathResourceResolver {
         @Override
         protected org.springframework.core.io.Resource getResource(String resourcePath, org.springframework.core.io.Resource location) throws java.io.IOException {
-            org.springframework.core.io.Resource resource = super.getResource(resourcePath, location);
-            if (resource != null) {
-                return resource;
-            }
-            int thumbIndex = resourcePath.lastIndexOf("_thumb.");
-            if (thumbIndex >= 0) {
-                String originalPath = resourcePath.substring(0, thumbIndex) + "." + resourcePath.substring(thumbIndex + 7);
-                return super.getResource(originalPath, location);
+            try {
+                org.springframework.core.io.Resource resource = super.getResource(resourcePath, location);
+                if (resource != null && resource.exists() && resource.isReadable()) {
+                    return resource;
+                }
+                
+                // If not found, check if it is a thumbnail request and try to return the original image
+                int thumbIndex = resourcePath.lastIndexOf("_thumb.");
+                if (thumbIndex >= 0) {
+                    // Reconstruct original filename: image_thumb.png -> image.png
+                    String originalPath = resourcePath.substring(0, thumbIndex) + "." + resourcePath.substring(thumbIndex + 7);
+                    org.springframework.core.io.Resource originalResource = super.getResource(originalPath, location);
+                    if (originalResource != null && originalResource.exists() && originalResource.isReadable()) {
+                        return originalResource;
+                    }
+                }
+            } catch (Exception e) {
+                // Log and ignore to avoid 500 error, allow 404 to happen naturally if null is returned
+                System.err.println("Error resolving resource " + resourcePath + ": " + e.getMessage());
             }
             return null;
         }

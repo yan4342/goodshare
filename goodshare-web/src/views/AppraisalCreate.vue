@@ -7,8 +7,8 @@
                 <el-form-item label="上传图片 (细节图越多越好)">
                     <el-upload
                             v-model:file-list="fileList"
-                            action="/api/upload"
-                            :headers="uploadHeaders"
+                            action="#"
+                            :http-request="customUpload"
                             list-type="picture-card"
                             :on-preview="handlePictureCardPreview"
                             :on-remove="handleRemove"
@@ -52,6 +52,7 @@ import authStore from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { compressImage } from '../utils/compress'
 
 const router = useRouter()
 const fileList = ref([])
@@ -79,15 +80,52 @@ const handleRemove = (uploadFile, uploadFiles) => {
 }
 
 const handleUploadSuccess = (response, uploadFile) => {
-    // Assuming response is the URL string or object with url
-    // Adjust based on your actual upload API response
-    // If backend returns plain string:
-    // uploadFile.url = response 
-    // If backend returns object { url: '...' }:
-    if (response && response.url) {
-        uploadFile.url = response.url
-    } else if (typeof response === 'string') {
-        uploadFile.url = response
+    // Ensure the file object in fileList gets the response
+    uploadFile.response = response
+    uploadFile.url = (typeof response === 'string' ? response : response.url)
+}
+
+const customUpload = async (options) => {
+    const { file, onSuccess, onError } = options
+    
+    try {
+        ElMessage.info('正在处理图片...')
+        const compressedFile = await compressImage(file)
+        
+        // Update file object size to reflect compression
+        if (compressedFile.size !== file.size) {
+            try {
+                file.size = compressedFile.size
+            } catch (e) {}
+        }
+
+        const formData = new FormData()
+        formData.append('file', compressedFile)
+        
+        const res = await request.post('/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+        
+        // Manual sync to fileList
+        const uploadFile = fileList.value.find(f => f.uid === file.uid)
+        if (uploadFile) {
+            uploadFile.response = response
+            uploadFile.url = (typeof response === 'string' ? response : response.url)
+            uploadFile.status = 'success'
+        }
+        
+        onSuccess(response)
+        ElMessage.success('图片上传成功')
+    } catch (err) {
+        console.error('Upload failed', err)
+        onError(err)
+        if (err.response && err.response.status === 413) {
+            ElMessage.error('图片文件过大，请尝试上传更小的图片')
+        } else {
+            ElMessage.error('图片上传失败，请重试')
+        }
     }
 }
 
@@ -103,7 +141,18 @@ const submit = async () => {
 
     submitting.value = true
     try {
-        const imageUrls = fileList.value.map(file => file.url || (file.response && file.response.url) || file.response)
+        const imageUrls = fileList.value
+            .map(file => {
+                if (file.response) {
+                    return typeof file.response === 'string' ? file.response : file.response.url
+                }
+                if (file.raw && file.raw.response) {
+                    const rawResp = file.raw.response
+                    return typeof rawResp === 'string' ? rawResp : rawResp.url
+                }
+                return file.url
+            })
+            .filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
         
         await request.post('/appraisals', {
             productName: form.value.productName,

@@ -12,10 +12,20 @@
         <div class="content-flex">
         <!-- Left: Image Section -->
         <div v-if="imageList.length > 0" class="image-section">
-          <el-carousel v-if="imageList.length > 1" trigger="click" height="100%" :autoplay="false" arrow="always">
+          <el-carousel 
+            v-if="imageList.length > 1" 
+            ref="carousel"
+            trigger="click" 
+            height="100%" 
+            :autoplay="false" 
+            arrow="always"
+            :initial-index="0"
+          >
             <el-carousel-item v-for="(img, index) in imageList" :key="index">
-              <img :src="img" class="blurred-bg" />
-              <img :src="img" class="post-image" alt="Post image" />
+              <div class="carousel-item-wrapper">
+                <img :src="img" class="blurred-bg" />
+                <img :src="img" class="post-image" alt="Post image" />
+              </div>
             </el-carousel-item>
           </el-carousel>
           <template v-else>
@@ -169,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
 import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View } from '@element-plus/icons-vue'
@@ -184,6 +194,10 @@ const props = defineProps({
     originRect: {
         type: Object,
         default: null
+    },
+    focusComment: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -221,7 +235,32 @@ const onEnter = (el, done) => {
     el.style.transform = 'translate(0, 0) scale(1, 1)'
     el.style.opacity = '1'
     
-    el.addEventListener('transitionend', done, { once: true })
+    const finishTransition = () => {
+        done()
+        // Trigger resize after transition to ensure correct dimensions
+        // Use multiple attempts to be robust against rendering delays
+        const triggerResize = () => {
+             if (carousel.value) {
+                 if (typeof carousel.value.resize === 'function') {
+                     carousel.value.resize()
+                 } else {
+                     window.dispatchEvent(new Event('resize'))
+                 }
+                 // Force update if needed
+                 if (carousel.value.setActiveItem) {
+                    carousel.value.setActiveItem(0)
+                 }
+             }
+        }
+        
+        triggerResize()
+        setTimeout(triggerResize, 100)
+        setTimeout(triggerResize, 300)
+    }
+    
+    el.addEventListener('transitionend', finishTransition, { once: true })
+    // Fallback if transitionend fails
+    setTimeout(finishTransition, 350)
 }
 
 const onLeave = (el, done) => {
@@ -255,6 +294,7 @@ const onLeave = (el, done) => {
 const route = useRoute()
 const router = useRouter()
 const visible = ref(false)
+const carousel = ref(null)
 const post = ref({})
 const comments = ref([])
 const newComment = ref('')
@@ -322,6 +362,18 @@ const imageList = computed(() => {
         return [post.value.coverUrl]
     }
     return []
+})
+
+watch(imageList, () => {
+    nextTick(() => {
+        if (carousel.value) {
+            if (typeof carousel.value.resize === 'function') {
+                carousel.value.resize()
+            } else {
+                window.dispatchEvent(new Event('resize'))
+            }
+        }
+    })
 })
 
 const handleTagClick = (tagName) => {
@@ -552,6 +604,18 @@ onMounted(() => {
         fetchLikeInfo(id)
         fetchFavoriteStatus(id)
     }
+    
+    if (props.focusComment) {
+        setTimeout(() => {
+            const commentsSection = document.getElementById('comments')
+            if (commentsSection) {
+                commentsSection.scrollIntoView({ behavior: 'smooth' })
+                // Also focus input if possible
+                const inputEl = document.querySelector('.comment-input input')
+                if (inputEl) inputEl.focus()
+            }
+        }, 500) // Wait for transition and fetch
+    }
 })
 
 const handleClose = () => {
@@ -656,10 +720,14 @@ const handleClose = () => {
 }
 
 .image-section :deep(.el-carousel__item) {
+    height: 100%;
+}
+.carousel-item-wrapper {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100%;
+    width: 100%;
     overflow: hidden;
     position: relative;
 }
