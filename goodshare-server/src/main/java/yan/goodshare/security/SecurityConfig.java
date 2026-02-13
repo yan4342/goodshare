@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(new AntPathRequestMatcher("/api/tags/**", HttpMethod.GET.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/posts/reindex", HttpMethod.POST.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/crawler/**")).permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/upload/**", HttpMethod.DELETE.name())).authenticated() // Ensure DELETE /api/upload requires auth
                         .requestMatchers(new AntPathRequestMatcher("/ws/**")).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/error")).permitAll()
                         // Allow OPTIONS requests for all endpoints to fix CORS preflight issues

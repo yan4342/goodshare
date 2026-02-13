@@ -519,7 +519,7 @@ const goToChat = (userId) => {
     display: flex;
     align-items: center;
     padding: 0 20px;
-    background-color: #fff;
+    background-color: var(--bg-color-overlay);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 }
@@ -603,11 +603,11 @@ const goToChat = (userId) => {
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.2s;
-    background: #fff;
+    background: var(--bg-color-overlay);
 }
 
 .feed-card:hover {
-    background-color: var(--bg-color-hover, #fafafa);
+    background-color: var(--bg-color-hover);
 }
 
 .feed-header {
@@ -722,7 +722,7 @@ const goToChat = (userId) => {
     align-items: center;
     justify-content: space-evenly; /* 首尾及中间全部等距 */
     padding-top: 12px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-color);
     width: 100%;
 }
 
@@ -765,7 +765,7 @@ const goToChat = (userId) => {
 }
 
 .notification-item:hover {
-    background-color: var(--bg-color-hover, #fafafa);
+    background-color: var(--bg-color-hover);
 }
 
 .item-content {

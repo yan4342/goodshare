@@ -16,6 +16,7 @@
               list-type="picture-card"
               :on-preview="handlePictureCardPreview"
               :on-remove="handleRemove"
+              :on-success="handleUploadSuccess"
               :before-upload="beforeUpload"
               multiple
             >
@@ -355,6 +356,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import html2canvas from 'html2canvas'
 import { compressImage } from '../utils/compress'
+import authStore from '../stores/auth'
 
 const router = useRouter()
 const loading = ref(false)
@@ -713,7 +715,86 @@ watch(() => form.value.content, (newVal) => {
 
 const route = useRoute()
 
+const loadDraft = () => {
+    const draft = localStorage.getItem('post_draft')
+    if (draft) {
+        try {
+            const data = JSON.parse(draft)
+            if (data.userId !== authStore.state.user?.id) return // Don't load other user's draft
+
+            // Check if draft has meaningful content
+            const hasTitle = data.title && data.title.trim()
+            const hasContent = data.content && data.content.trim() && data.content !== '<p><br></p>'
+            const hasTags = data.tags && data.tags.length > 0
+            const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0
+
+            if (!hasTitle && !hasContent && !hasTags && !hasImages) {
+                return
+            }
+
+            ElMessage.info('已恢复上次未发布的草稿')
+            form.value.title = data.title || ''
+            form.value.content = data.content || ''
+            form.value.tags = data.tags || []
+            if (quill) {
+                quill.root.innerHTML = form.value.content
+            }
+            
+            // Restore images if possible
+            if (data.images && Array.isArray(data.images)) {
+                fileList.value = data.images.map((url, index) => ({
+                    name: 'draft_img_' + index,
+                    url: url,
+                    response: { url: url },
+                    status: 'success',
+                    uid: Date.now() + index
+                }))
+            }
+        } catch (e) {
+            console.error('Failed to load draft', e)
+        }
+    }
+}
+
+const saveDraft = () => {
+    if (!authStore.state.isAuthenticated) return
+    
+    // Extract image URLs
+    const images = fileList.value.map(file => {
+        if (file.response) return typeof file.response === 'string' ? file.response : file.response.url
+        return file.url
+    }).filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
+
+    const draftData = {
+        userId: authStore.state.user?.id,
+        title: form.value.title,
+        content: form.value.content,
+        tags: form.value.tags,
+        images: images,
+        timestamp: Date.now()
+    }
+    
+    localStorage.setItem('post_draft', JSON.stringify(draftData))
+}
+
+const clearDraft = () => {
+    localStorage.removeItem('post_draft')
+}
+
+// Auto-save draft watcher
+watch(
+    [() => form.value.title, () => form.value.content, () => form.value.tags, () => fileList.value.length],
+    () => {
+        // Debounce save
+        clearTimeout(draftTimer)
+        draftTimer = setTimeout(saveDraft, 1000)
+    },
+    { deep: true }
+)
+let draftTimer = null
+
 onMounted(async () => {
+    // ... existing onMounted code ...
     const loadScript = (src) => {
         return new Promise((resolve, reject) => {
             if (document.querySelector(`script[src^="${src}"]`)) {
@@ -813,6 +894,11 @@ onMounted(async () => {
     } catch (error) {
         console.error('Failed to fetch tags', error)
     }
+
+    // Load draft if not editing existing post
+    if (!route.query.id) {
+        loadDraft()
+    }
 })
 
 const handleUploadSuccess = (response, uploadFile) => {
@@ -821,8 +907,33 @@ const handleUploadSuccess = (response, uploadFile) => {
   uploadFile.url = (typeof response === 'string' ? response : response.url)
 }
 
-const handleRemove = (uploadFile, uploadFiles) => {
-  console.log(uploadFile, uploadFiles)
+const handleRemove = async (uploadFile, uploadFiles) => {
+  console.log('Removed file object:', uploadFile)
+  
+  // Try to delete from server immediately
+  // Note: For freshly uploaded files, 'response' property is attached via handleUploadSuccess
+  // For draft restored files, 'response' is manually attached in loadDraft
+  
+  let url = null
+  if (uploadFile.response) {
+      url = typeof uploadFile.response === 'string' ? uploadFile.response : uploadFile.response.url
+  } else if (uploadFile.url && !uploadFile.url.startsWith('blob:')) {
+      // Fallback: try to use the URL directly if it's not a blob
+      url = uploadFile.url
+  }
+
+  console.log('Attempting to delete file with URL:', url)
+
+  if (url) {
+      try {
+          await request.delete('/upload', { params: { url } })
+          console.log('File deleted from server successfully:', url)
+      } catch (e) {
+          console.error('Failed to delete file from server', e)
+      }
+  } else {
+      console.warn('No URL found for file deletion. Response:', uploadFile.response)
+  }
 }
 
 const handlePictureCardPreview = (uploadFile) => {
@@ -1006,6 +1117,7 @@ const confirmPublish = async () => {
 
     await request.post('/posts', form.value)
     ElMessage.success('发布成功')
+    clearDraft() // Clear draft on successful publish
     router.push('/')
   } catch (error) {
     loading.value = false

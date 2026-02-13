@@ -24,9 +24,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestController
 @RequestMapping("/api/upload")
 public class UploadController {
+
+    private static final Logger logger = LoggerFactory.getLogger(UploadController.class);
 
     private final Path fileStorageLocation;
 
@@ -102,6 +109,49 @@ public class UploadController {
             return ResponseEntity.ok(response);
         } catch (IOException ex) {
             return ResponseEntity.internalServerError().body("Could not store file " + fileName + ". Please try again!");
+        }
+    }
+
+    @DeleteMapping
+    public ResponseEntity<?> deleteFile(@RequestParam("url") String fileUrl) {
+        logger.info("Request to delete file with URL: {}", fileUrl);
+        try {
+            if (!fileUrl.contains("/uploads/")) {
+                return ResponseEntity.badRequest().body("Invalid file URL");
+            }
+            
+            String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+            // Decode filename in case it is URL encoded (e.g. spaces, special chars)
+            fileName = URLDecoder.decode(fileName, StandardCharsets.UTF_8.name());
+            
+            Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
+            logger.info("Attempting to delete file at: {}", filePath);
+            
+            // Security check: ensure file is within uploads directory
+            if (!filePath.startsWith(this.fileStorageLocation)) {
+                return ResponseEntity.badRequest().body("Invalid file path");
+            }
+
+            // Delete original file
+            boolean deleted = Files.deleteIfExists(filePath);
+            
+            // Try to delete thumbnail if exists
+            if (isImage(fileName)) {
+                String thumbName = getThumbFilename(fileName);
+                Path thumbPath = this.fileStorageLocation.resolve(thumbName);
+                Files.deleteIfExists(thumbPath);
+            }
+
+            if (deleted) {
+                logger.info("Successfully deleted file: {}", fileName);
+                return ResponseEntity.ok().body("File deleted successfully");
+            } else {
+                logger.warn("File not found for deletion: {}", fileName);
+                return ResponseEntity.status(404).body("File not found or already deleted");
+            }
+        } catch (IOException ex) {
+            logger.error("Error deleting file: {}", ex.getMessage());
+            return ResponseEntity.internalServerError().body("Could not delete file: " + ex.getMessage());
         }
     }
 

@@ -1,13 +1,15 @@
 
 /**
  * Compress image file using Canvas
+ * Strategy: Quality priority, NO resizing (unless strictly necessary for browser limits), pure JPEG compression
  * @param {File} file Original file
  * @returns {Promise<File>} Compressed file
  */
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
-        // If file is small enough, return original (e.g., < 1MB)
-        if (file.size < 1024 * 1024) {
+        // Increase threshold to 2MB - only compress really large files
+        // For files < 2MB, upload original to keep max quality
+        if (file.size < 2 * 1024 * 1024) {
             resolve(file)
             return
         }
@@ -18,45 +20,29 @@ export const compressImage = (file) => {
             const img = new Image()
             img.src = e.target.result
             img.onload = () => {
-                let width = img.width
-                let height = img.height
-                let quality = 0.8
+                // Keep original dimensions
+                const width = img.width
+                const height = img.height
+                
+                // High quality compression only
+                let quality = 0.92 
 
-                // Graded compression strategy
-                const sizeMB = file.size / 1024 / 1024
-
-                if (sizeMB > 5) {
-                    // > 5MB: Aggressive compression
-                    const maxDim = 1600
-                    if (width > maxDim || height > maxDim) {
-                        if (width > height) {
-                            height = (height * maxDim) / width
-                            width = maxDim
-                        } else {
-                            width = (width * maxDim) / height
-                            height = maxDim
-                        }
-                    }
-                    quality = 0.6
-                } else if (sizeMB > 1) {
-                    // 1MB - 5MB: Moderate compression
-                    const maxDim = 1920
-                    if (width > maxDim || height > maxDim) {
-                        if (width > height) {
-                            height = (height * maxDim) / width
-                            width = maxDim
-                        } else {
-                            width = (width * maxDim) / height
-                            height = maxDim
-                        }
-                    }
-                    quality = 0.8
+                // For files > 7MB, use lower quality to save space
+                if (file.size > 7 * 1024 * 1024) {
+                    quality = 0.85
+                } else if (file.size > 5 * 1024 * 1024) {
+                    quality = 0.88
                 }
 
                 const canvas = document.createElement('canvas')
                 canvas.width = width
                 canvas.height = height
                 const ctx = canvas.getContext('2d')
+                
+                // Best interpolation settings
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
                 ctx.drawImage(img, 0, 0, width, height)
 
                 canvas.toBlob((blob) => {
@@ -65,11 +51,12 @@ export const compressImage = (file) => {
                         return
                     }
                     
-                    console.log(`Compression: ${file.name} | Original: ${(file.size/1024/1024).toFixed(2)}MB | Compressed: ${(blob.size/1024/1024).toFixed(2)}MB`)
-
-                    // If compressed blob is somehow larger (rare but possible with low complexity images), return original
-                    if (blob.size > file.size) {
-                        console.log('Compressed file is larger, using original')
+                    console.log(`Compression: ${file.name} | Original: ${(file.size/1024/1024).toFixed(2)}MB | Compressed: ${(blob.size/1024/1024).toFixed(2)}MB | Quality: ${quality}`)
+                    console.log(`Size reduction: ${((1 - blob.size/file.size) * 100).toFixed(2)}%`)
+                    // Strict check: if compression doesn't save significant space (e.g. < 5% savings)
+                    // or actually increases size, return ORIGINAL file
+                    if (blob.size > file.size * 0.95) {
+                        console.log('Compression inefficient, using original file')
                         resolve(file)
                         return
                     }

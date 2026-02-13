@@ -1,11 +1,8 @@
 FROM python:3.11-alpine
 
 # Install Java 21, Chromium, Chromedriver
-# Replace default repositories with Aliyun mirror to improve speed and stability
-# Use sed to preserve the alpine version defined in the base image
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    sed -i 's/https/http/g' /etc/apk/repositories && \
-    apk update && \
+# Use default Alpine repositories instead of mirrors to avoid sync issues
+RUN apk update && \
     apk upgrade && \
     apk add --no-cache \
     openjdk21-jre \
