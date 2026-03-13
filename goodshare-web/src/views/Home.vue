@@ -239,7 +239,7 @@ const loadMore = () => {
     if (loading.value || !hasMore.value) return
     fetchPosts(null, true)
 }
-
+// 刷新帖子列表
 const fetchPosts = async (tag = null, isLoadMore = false, force = false) => {
     if (loading.value && !force) return
     

@@ -53,3 +53,7 @@ goodshare-web/.env.*.local
 goodshare-web/.eslintcache
 goodshare-web/*.local
 goodshare-web/.npm-cache/
+
+### Python 编译文件 ###
+*.pyc
+__pycache__/

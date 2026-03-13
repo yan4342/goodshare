@@ -1,7 +1,7 @@
 <template>
   <div class="publish-container">
     <div class="publish-layout">
-      <!-- Left: Form -->
+      <!-- Left: Form 发布笔记 -->
       <div class="publish-card form-section">
         <h2 class="page-title">发布笔记</h2>
         
@@ -53,6 +53,23 @@
 
           <el-form-item label="正文">
             <div ref="editorContainer" style="height: 300px;"></div>
+            <div class="editor-actions" style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                 <el-popover placement="top" :width="300" trigger="click">
+                    <template #reference>
+                        <el-button circle class="emoji-btn">
+                            <el-icon :size="18"><ChatDotRound /></el-icon>
+                        </el-button>
+                    </template>
+                    <div class="emoji-picker">
+                        <span 
+                            v-for="emoji in emojis" 
+                            :key="emoji" 
+                            class="emoji-item"
+                            @click="addEmoji(emoji)"
+                        >{{ emoji }}</span>
+                    </div>
+                </el-popover>
+            </div>
           </el-form-item>
 
           <el-form-item label="标签">
@@ -121,7 +138,7 @@
         </el-form>
       </div>
 
-      <!-- Live Preview Panel -->
+      <!-- Live Preview Panel 发布笔记预览 -->
       <div class="publish-preview-panel">
           <div class="post-detail-preview">
              <div class="content-flex">
@@ -138,7 +155,7 @@
                      </div>
                  </div>
 
-                 <!-- Right: Info -->
+                 <!-- Right: Info Section 发布笔记信息 -->
                  <div class="info-section">
                      <!-- Author Header -->
                      <div class="author-header">
@@ -147,7 +164,7 @@
                          <el-button type="primary" round size="small" class="follow-btn">关注</el-button>
                      </div>
 
-                     <!-- Scrollable Content -->
+                     <!-- Scrollable Content 发布笔记内容 -->
                      <div class="scrollable-content">
                          <h1 class="post-title">{{ form.title || '标题' }}</h1>
                          <div class="post-text ql-editor" v-html="form.content"></div>
@@ -191,10 +208,10 @@
       </div>
     </div>
 
-    <!-- Preview Dialog -->
+    <!-- Preview Dialog 发布预览弹窗 -->
     <el-dialog v-model="showPreview" title="发布预览" width="900px" align-center class="preview-dialog" :show-close="true">
         <div class="preview-content-flex">
-            <!-- Left: Image Section -->
+            <!-- Left: Image Section 发布预览图片 -->
             <div class="preview-image-section">
                 <el-carousel v-if="previewData.images && previewData.images.length > 1" trigger="click" height="100%" :autoplay="false" arrow="always">
                     <el-carousel-item v-for="(img, index) in previewData.images" :key="index">
@@ -229,7 +246,7 @@
                     
                     <el-divider />
                     
-                    <!-- Comments Section (Mock) -->
+                    <!-- Comments Section (Mock) 发布预览评论 -->
                     <div class="preview-comments-section">
                         <div class="preview-comment-count">共 0 条评论</div>
                         <div class="preview-no-comments">暂无评论，快来抢沙发吧~</div>
@@ -266,7 +283,7 @@
         </template>
     </el-dialog>
 
-    <!-- Hidden Canvas Capture Area -->
+    <!-- Hidden Canvas Capture Area 发布预览图片捕获区域 -->
     <div class="canvas-capture-container">
         <div class="capture-content" ref="captureRef" :class="'template-' + currentTemplate.id">
              <!-- Basic -->
@@ -284,7 +301,7 @@
                  <div class="bg-layer book-bg" :style="getCurrentStyle('book')">
                      <div class="book-texture"></div>
                  </div>
-                 <div class="content-layer">
+                 <div class="content-layer" :style="{ color: getCurrentColor('book', 'text') }">
                      <div class="book-header">Chapter 1</div>
                      <div class="text-book">{{ form.title || '这是标题啊' }}</div>
                      <div class="book-footer">- GoodShare -</div>
@@ -373,6 +390,31 @@ const aiLoading = ref(false)
 const captureRef = ref(null)
 let quill = null
 
+const emojis = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+    '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+    '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
+    '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
+    '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮',
+    '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓',
+    '🧐', '😕', '😟', '🙁', '😮', '😯', '😲', '😳', '🥺', '😦',
+    '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞',
+    '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿',
+    '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖',
+    '😺', '😸', '😹', '😻', '😼', '😽', '�', '😿', '😾', '👋',
+    '🤚', '🖐', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘',
+    '🤙', '👈', '👉', '👆', '🖕', '👇', '👍', '👎', '✊', '👊',
+    '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '💅', '💪'
+]
+
+const addEmoji = (emoji) => {
+    if (quill) {
+        const range = quill.getSelection(true)
+        quill.insertText(range.index, emoji)
+        quill.setSelection(range.index + emoji.length)
+    }
+}
+
 const form = ref({
   title: '',
   content: '',
@@ -384,7 +426,7 @@ const previewData = ref({
     images: []
 })
 
-// Cover Templates
+// Cover Templates 发布笔记封面模板
 const selectedTemplateIndex = ref(0)
 const coverTemplates = [
     { id: 'basic', name: '基础' },
@@ -395,7 +437,7 @@ const coverTemplates = [
     { id: 'scribble', name: '涂写' },
 ]
 
-// Color Themes Configuration
+// Color Themes Configuration 发布笔记颜色主题
 const selectedColorIndex = ref(0)
 const colorThemes = {
     basic: [
@@ -405,9 +447,9 @@ const colorThemes = {
         { bg: 'linear-gradient(180deg, #fffbe6 0%, #ffe58f 100%)', text: '#d48806', accent: '#ffe58f', border: '#faad14' }
     ],
     book: [
-        { bg: '#fdfbf7', text: '#2c3e50', shadow: 'rgba(0,0,0,0.1)' }, // Warm White
+        { bg: '#fdfbf7', text: '#000000', shadow: 'rgba(0,0,0,0.1)' }, // Warm White
         { bg: '#f4e4bc', text: '#4a3b2a', shadow: 'rgba(92, 64, 51, 0.15)' }, // Sepia/Old Paper
-        { bg: '#eef2f3', text: '#2d3436', shadow: 'rgba(0,0,0,0.15)' }, // Cool Grey
+        { bg: '#eef2f3', text: '#000000', shadow: 'rgba(0,0,0,0.15)' }, // Cool Grey
         { bg: '#2c3e50', text: '#ecf0f1', shadow: 'rgba(255,255,255,0.1)' } // Dark Mode
     ],
     memo: [
@@ -440,7 +482,7 @@ const currentTemplateColors = computed(() => {
     return colorThemes[currentTemplate.value.id] || []
 })
 
-// Reset color selection when template changes
+// Reset color selection when template changes 发布笔记封面模板切换时重置颜色选择
 watch(selectedTemplateIndex, () => {
     selectedColorIndex.value = 0
 })
@@ -526,7 +568,7 @@ const processedScribbleTitle = computed(() => {
     return parts
 })
 
-// Debounce update for color change too
+// Update preview cover when color changes 发布笔记颜色主题切换时更新预览封面
 watch(selectedColorIndex, () => {
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(updatePreviewCover, 500)
@@ -740,7 +782,7 @@ const loadDraft = () => {
                 quill.root.innerHTML = form.value.content
             }
             
-            // Restore images if possible
+            // Restore images if possible 发布笔记草稿图片恢复
             if (data.images && Array.isArray(data.images)) {
                 fileList.value = data.images.map((url, index) => ({
                     name: 'draft_img_' + index,
@@ -820,8 +862,6 @@ onMounted(async () => {
     try {
         loadStyle('/quill/quill.snow.css')
         await loadScript('/quill/quill.min.js')
-        loadStyle('/quill/quill-emoji.css')
-        await loadScript('/quill/quill-emoji.js')
 
         if (window.Quill && editorContainer.value) {
             quill = new window.Quill(editorContainer.value, {
@@ -833,14 +873,9 @@ onMounted(async () => {
                             [{ 'header': [1, 2, false] }],
                             ['bold', 'italic', 'underline', 'strike'],
                             [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                            ['link', 'image'],
-                            ['emoji']
-                        ],
-                        handlers: { 'emoji': function() {} }
-                    },
-                    "emoji-toolbar": true,
-                    "emoji-textarea": false,
-                    "emoji-shortname": true,
+                            ['link', 'image']
+                        ]
+                    }
                 }
             })
             
@@ -1356,7 +1391,7 @@ const confirmPublish = async () => {
 .upload-area {
     margin-bottom: 30px;
 }
-/* Customize Element Plus Upload Picture Card */
+/* 自定义 Element Plus 上传图片卡片 */
 .image-uploader :deep(.el-upload--picture-card) {
     width: 148px;
     height: 148px;
@@ -1462,6 +1497,28 @@ const confirmPublish = async () => {
 .style-preview-mini.border {
     background: #2d9bf0;
 }
+
+.emoji-picker {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.emoji-item {
+    font-size: 20px;
+    cursor: pointer;
+    text-align: center;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.emoji-item:hover {
+    background-color: var(--hover-bg, #f5f7fa);
+}
+
 .style-preview-mini .mini-border-inner {
     width: 60%;
     height: 60%;
@@ -1592,7 +1649,7 @@ const confirmPublish = async () => {
     box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
 }
 
-/* Canvas Capture & Generation Templates */
+/* 画布捕获与生成模板 */
 .canvas-capture-container {
     position: fixed;
     top: 0;
@@ -1730,6 +1787,7 @@ const confirmPublish = async () => {
     align-items: center;
     justify-content: center;
 }
+/*边框模板 发布笔记边框模板*/
 .template-border .inner-card {
     background: white;
     width: 80%;

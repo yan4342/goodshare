@@ -13,8 +13,8 @@
             <div class="header-section">
                 <h1>{{ appraisal.productName }}</h1>
                 <div class="meta-info">
-                    <el-avatar :size="32" :src="appraisal.user?.avatarUrl || 'https://placehold.co/100'" />
-                    <span class="username">{{ appraisal.user?.nickname || '未知用户' }}</span>
+                    <el-avatar :size="32" :src="appraisal.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+                    <span class="username">{{ appraisal.user?.nickname || appraisal.user?.username || '未知用户' }}</span>
                     <span class="time">{{ formatDate(appraisal.createdAt) }}</span>
                 </div>
             </div>
@@ -41,7 +41,7 @@
                         :class="{ active: appraisal.currentUserVote === 1 }"
                         @click="handleVote(1)"
                     >
-                        <span class="icon">👍</span>
+                        <el-icon class="vote-icon"><Check /></el-icon>
                         <span class="text">真</span>
                         <span class="count">{{ appraisal.realVotes }}</span>
                     </button>
@@ -51,7 +51,7 @@
                         :class="{ active: appraisal.currentUserVote === 2 }"
                         @click="handleVote(2)"
                     >
-                        <span class="icon">👎</span>
+                        <el-icon class="vote-icon"><Close /></el-icon>
                         <span class="text">假</span>
                         <span class="count">{{ appraisal.fakeVotes }}</span>
                     </button>
@@ -76,6 +76,7 @@ import { ref, onMounted, computed } from 'vue'
 import request from '../utils/request'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Check, Close } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -241,7 +242,7 @@ onMounted(() => {
     min-width: 120px;
 }
 
-.vote-btn .icon {
+.vote-btn .vote-icon {
     font-size: 24px;
     margin-bottom: 5px;
 }

@@ -24,6 +24,12 @@ from webdriver_manager.microsoft import EdgeChromiumDriverManager
 import os
 os.environ['WDM_LOG_LEVEL'] = '0'
 
+# Unset proxy to avoid ERR_PROXY_CONNECTION_FAILED in Docker
+if 'http_proxy' in os.environ: del os.environ['http_proxy']
+if 'https_proxy' in os.environ: del os.environ['https_proxy']
+if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
+if 'HTTPS_PROXY' in os.environ: del os.environ['HTTPS_PROXY']
+
 def fix_encoding(text):
     if not text: return ""
     try:
@@ -199,84 +205,116 @@ def get_manmanbuy_products(keyword, limit=0):
     start_time = time.time()
     driver = None
     
-    # Try Edge (Preferred by User)
+    # Try Chrome First (Preferred for Docker)
     try:
-        edge_options = EdgeOptions()
-        edge_options.add_argument("--headless")
-        edge_options.add_argument("--disable-gpu")
-        # Edge-specific options to mimic Chrome behavior
-        edge_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        edge_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        edge_options.add_argument('--blink-settings=imagesEnabled=true')
-        edge_options.page_load_strategy = 'eager'
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        # Anti-detection
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('--blink-settings=imagesEnabled=true')
+        chrome_options.page_load_strategy = 'eager'
+
+        # Explicitly set binary location for Alpine/Docker
+        if os.path.exists("/usr/bin/chromium-browser"):
+            chrome_options.binary_location = "/usr/bin/chromium-browser"
+        elif os.path.exists("/usr/bin/chromium"):
+            chrome_options.binary_location = "/usr/bin/chromium"
 
         try:
-            # Try system default first
-            service = EdgeService()
-            driver = webdriver.Edge(service=service, options=edge_options)
-        except Exception:
-            # Fallback to webdriver_manager
-            try:
-                service = EdgeService(EdgeChromiumDriverManager().install())
-                driver = webdriver.Edge(service=service, options=edge_options)
-            except Exception as e:
-                raise e
-    except Exception as e:
-        print(f"Failed to initialize Edge WebDriver: {e}", file=sys.stderr)
-        
-        # Fallback to Chrome if Edge failed
-        print("Attempting fallback to Chrome...", file=sys.stderr)
-        try:
-            chrome_options = Options()
-            chrome_options.add_argument("--headless")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            chrome_options.add_argument('--blink-settings=imagesEnabled=true')
-            chrome_options.page_load_strategy = 'eager'
-
-            # Explicitly set binary location for Alpine/Docker
-            if os.path.exists("/usr/bin/chromium-browser"):
-                chrome_options.binary_location = "/usr/bin/chromium-browser"
-            elif os.path.exists("/usr/bin/chromium"):
-                chrome_options.binary_location = "/usr/bin/chromium"
-
-            try:
-                service = None
-                if os.path.exists("/usr/bin/chromedriver"):
-                    service = Service("/usr/bin/chromedriver")
-                else:
-                    manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
-                    service = Service(manager.install())
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception as e:
-                raise e
+            service = None
+            if os.path.exists("/usr/bin/chromedriver"):
+                service = Service("/usr/bin/chromedriver")
+            else:
+                manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
+                service = Service(manager.install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
         except Exception as e:
-            print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
+            raise e
+    except Exception as e:
+        # print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
+        
+        # Fallback to Edge if Chrome failed
+        # print("Attempting fallback to Edge...", file=sys.stderr)
+        try:
+            edge_options = EdgeOptions()
+            edge_options.add_argument("--headless")
+            edge_options.add_argument("--disable-gpu")
+            edge_options.add_argument("--ignore-certificate-errors")
+            edge_options.add_argument("--allow-running-insecure-content")
+            edge_options.add_argument("--disable-extensions")
+            edge_options.add_argument("--no-sandbox")
+            edge_options.add_argument("--disable-dev-shm-usage")
+            # Edge-specific options to mimic Chrome behavior
+            edge_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            edge_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            edge_options.add_argument('--blink-settings=imagesEnabled=true')
+            edge_options.page_load_strategy = 'eager'
+
+            try:
+                # Try system default first
+                service = EdgeService()
+                driver = webdriver.Edge(service=service, options=edge_options)
+            except Exception:
+                # Fallback to webdriver_manager
+                try:
+                    service = EdgeService(EdgeChromiumDriverManager().install())
+                    driver = webdriver.Edge(service=service, options=edge_options)
+                except Exception as e:
+                    raise e
+        except Exception as e:
+            # print(f"Failed to initialize Edge WebDriver: {e}", file=sys.stderr)
             # Output empty list to prevent JSON parse error in Java
             print("[]")
             return
 
     # Anti-detection: Hide WebDriver property
-    print(f"Driver initialized in {time.time() - start_time:.2f}s", file=sys.stderr)
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        """
-    })
+    try:
+        # print(f"Driver initialized in {time.time() - start_time:.2f}s", file=sys.stderr)
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                })
+            """
+        })
+    except Exception as e:
+        print(f"Warning: Failed to set anti-detection script: {e}", file=sys.stderr)
 
     results = []
 
     try:
         # Using the PC search URL
-        search_url = f"https://s.manmanbuy.com/pc/search/result?c=discount&keyword={keyword}"
+        # Ensure keyword is URL encoded
+        encoded_keyword = urllib.parse.quote(keyword)
+        search_url = f"https://s.manmanbuy.com/pc/search/result?c=discount&keyword={encoded_keyword}"
+        
+        # Test homepage first to establish session/bypass initial checks
+        try:
+            driver.set_page_load_timeout(30)
+            driver.get("http://www.manmanbuy.com")
+            time.sleep(1)
+        except: pass
+
         t_load = time.time()
-        driver.get(search_url)
-                # Random wait for content to load
+        # Retry logic for main search page
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                driver.get(search_url)
+                break
+            except Exception as e:
+                # print(f"Attempt {attempt+1}/{max_retries} failed: {e}", file=sys.stderr)
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep(2)
+                
+        # Random wait for content to load
         time.sleep(random.uniform(2, 5))
         
         # Scroll to trigger lazy loading with random pause
@@ -289,7 +327,8 @@ def get_manmanbuy_products(keyword, limit=0):
             )
         except:
             pass
-        print(f"Page loaded & ready in {time.time() - t_load:.2f}s", file=sys.stderr)
+        # print(f"Page loaded & ready in {time.time() - t_load:.2f}s", file=sys.stderr)
+        # print(f"Page title: {driver.title}", file=sys.stderr)
 
         # Human-like behavior to reduce anti-scraping risk
         # 1. Random small scroll to simulate user viewing
@@ -301,7 +340,12 @@ def get_manmanbuy_products(keyword, limit=0):
         try:
             next_f = driver.execute_script("return window.self.__next_f")
             if next_f:
+                # print(f"Found __next_f data with length: {len(next_f)}", file=sys.stderr)
                 results = parse_nextjs_data(next_f)
+                # print(f"Extracted {len(results)} items from Next.js data", file=sys.stderr)
+            else:
+                pass
+                # print("No __next_f data found", file=sys.stderr)
         except Exception as e:
             # print(f"Next.js data extraction failed: {e}", file=sys.stderr)
             pass
@@ -309,12 +353,13 @@ def get_manmanbuy_products(keyword, limit=0):
         # Strategy 2: Fallback to DOM crawling if Strategy 1 failed or returned empty
         if not results:
              try:
-                print("Strategy 1 failed/empty. Attempting DOM fallback...", file=sys.stderr)
+                # print("Strategy 1 failed/empty. Attempting DOM fallback...", file=sys.stderr)
                 # Wait for items to be present
                 WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[class*="DiscountItemPC_box"]'))
                 )
                 items = driver.find_elements(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_box"]')
+                # print(f"Found {len(items)} DOM items", file=sys.stderr)
                 for item in items:
                     try:
                         # Title
@@ -370,7 +415,7 @@ def get_manmanbuy_products(keyword, limit=0):
                  print(f"DOM fallback failed: {e}", file=sys.stderr)
              
     except Exception as e:
-        # print(f"Error: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         pass
     finally:
         driver.quit()

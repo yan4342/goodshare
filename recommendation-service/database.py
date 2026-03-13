@@ -36,3 +36,29 @@ def fetch_interactions():
     except Exception as e:
         print(f"Error fetching data: {e}")
         return pd.DataFrame(columns=['user_id', 'post_id', 'score'])
+
+def fetch_post_contents():
+    try:
+        query = """
+            SELECT 
+                p.id AS post_id,
+                p.title,
+                p.content,
+                GROUP_CONCAT(t.name SEPARATOR ' ') AS tags
+            FROM posts p
+            LEFT JOIN post_tags pt ON p.id = pt.post_id
+            LEFT JOIN tags t ON t.id = pt.tag_id
+            WHERE p.status IS NULL OR p.status != 2
+            GROUP BY p.id, p.title, p.content
+        """
+        df = pd.read_sql(query, engine)
+        if df.empty:
+            return pd.DataFrame(columns=['post_id', 'content_text'])
+        df['title'] = df['title'].fillna('')
+        df['content'] = df['content'].fillna('')
+        df['tags'] = df['tags'].fillna('')
+        df['content_text'] = (df['title'] + ' ' + df['content'] + ' ' + df['tags']).str.strip()
+        return df[['post_id', 'content_text']]
+    except Exception as e:
+        print(f"Error fetching post contents: {e}")
+        return pd.DataFrame(columns=['post_id', 'content_text'])

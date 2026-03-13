@@ -2,10 +2,23 @@
   <div class="appraisal-create-container">
     <div class="main-content">
         <div class="create-card">
-            <h2>发布鉴别请求</h2>
-            <el-form :model="form" label-position="top">
-                <el-form-item label="上传图片 (细节图越多越好)">
-                    <el-upload
+            <div class="card-header">
+                <el-button link @click="router.back()">
+                    <el-icon :size="20"><ArrowLeft /></el-icon>
+                </el-button>
+                <h2>发布鉴别请求</h2>
+            </div>
+            
+            <el-form :model="form" label-position="top" class="appraisal-form">
+                <el-form-item>
+                    <template #label>
+                        <div class="form-label">
+                            <el-icon><Picture /></el-icon>
+                            <span>上传图片 (细节图越多越好)</span>
+                        </div>
+                    </template>
+                    <div class="upload-wrapper">
+                        <el-upload
                             v-model:file-list="fileList"
                             action="#"
                             :http-request="customUpload"
@@ -14,30 +27,49 @@
                             :on-remove="handleRemove"
                             :on-success="handleUploadSuccess"
                             multiple
+                            class="custom-uploader"
                         >
-                        <el-icon><Plus /></el-icon>
-                    </el-upload>
+                            <el-icon><Plus /></el-icon>
+                        </el-upload>
+                    </div>
                     <el-dialog v-model="dialogVisible">
                         <img w-full :src="dialogImageUrl" alt="Preview Image" style="width: 100%" />
                     </el-dialog>
                 </el-form-item>
 
-                <el-form-item label="商品名称">
-                    <el-input v-model="form.productName" placeholder="例如：Air Jordan 1 High OG Chicago" />
-                </el-form-item>
-
-                <el-form-item label="描述说明">
+                <el-form-item>
+                    <template #label>
+                        <div class="form-label">
+                            <el-icon><Goods /></el-icon>
+                            <span>商品名称</span>
+                        </div>
+                    </template>
                     <el-input 
-                        v-model="form.description" 
-                        type="textarea" 
-                        :rows="4" 
-                        placeholder="描述购买渠道、价格等信息，有助于大家判断..." 
+                        v-model="form.productName" 
+                        placeholder="例如：Air Jordan 1 High OG Chicago" 
+                        size="large"
                     />
                 </el-form-item>
 
                 <el-form-item>
-                    <el-button type="primary" @click="submit" :loading="submitting">发布</el-button>
-                    <el-button @click="$router.back()">取消</el-button>
+                    <template #label>
+                        <div class="form-label">
+                            <el-icon><Document /></el-icon>
+                            <span>描述说明</span>
+                        </div>
+                    </template>
+                    <el-input 
+                        v-model="form.description" 
+                        type="textarea" 
+                        :rows="6" 
+                        placeholder="描述购买渠道、价格等信息，有助于大家判断..." 
+                        resize="none"
+                    />
+                </el-form-item>
+
+                <el-form-item class="form-actions">
+                    <el-button type="primary" size="large" @click="submit" :loading="submitting" round class="submit-btn">发布请求</el-button>
+                    <el-button size="large" @click="$router.back()" round>取消</el-button>
                 </el-form-item>
             </el-form>
         </div>
@@ -51,7 +83,7 @@ import request from '../utils/request'
 import authStore from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, Picture, Goods, Document } from '@element-plus/icons-vue'
 import { compressImage } from '../utils/compress'
 
 const router = useRouter()
@@ -107,6 +139,8 @@ const customUpload = async (options) => {
                 'Content-Type': 'multipart/form-data'
             }
         })
+
+        const response = res.data
         
         // Manual sync to fileList
         const uploadFile = fileList.value.find(f => f.uid === file.uid)
@@ -174,21 +208,83 @@ const submit = async () => {
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-color);
+  justify-content: center;
 }
 
 .main-content {
-  flex: 1;
-  padding: 20px 40px;
-  margin-left: 272px;
+  width: 100%;
+  max-width: 1000px; /* Increased for better centering */
+  padding: 40px 20px;
+  padding-left: calc(40px + var(--sidebar-width)); /* Adjusted padding */
   display: flex;
   justify-content: center;
 }
 
 .create-card {
     background: var(--bg-color-overlay);
-    padding: 40px;
-    border-radius: 8px;
+    padding: 40px 50px;
+    border-radius: 16px;
     width: 100%;
     max-width: 800px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    border: 1px solid var(--border-color);
+    margin-bottom: 40px; /* Add bottom margin */
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h2 {
+    margin: 0;
+    margin-left: 10px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.appraisal-form {
+    margin-top: 20px;
+}
+
+.form-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.upload-wrapper {
+    background: var(--bg-color);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px dashed var(--border-color);
+}
+
+.custom-uploader :deep(.el-upload--picture-card) {
+    background-color: var(--bg-color-overlay);
+    border: 1px dashed var(--border-color);
+    transition: all 0.3s;
+}
+
+.custom-uploader :deep(.el-upload--picture-card:hover) {
+    border-color: var(--el-color-primary);
+    background-color: var(--hover-bg);
+}
+
+.form-actions {
+    margin-top: 40px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.submit-btn {
+    min-width: 120px;
 }
 </style>

@@ -113,11 +113,11 @@ public class CrawlerService {
             System.err.println("Manmanbuy Crawl failed: " + e.getMessage());
         }
 
-        // 5. Fallback to Mock Data if no results found
-        if (results.isEmpty()) {
-            System.out.println("No real results found, using mock data.");
-            results.addAll(getMockData(keyword));
-        }
+        // 5. Fallback to Mock Data (Deprecated)
+        // if (results.isEmpty()) {
+        //     System.out.println("No real results found, skipping mock data as per request.");
+        //     // results.addAll(getMockData(keyword));
+        // }
         
         // Sort by price ascending
         Collections.sort(results, (p1, p2) -> {
@@ -268,7 +268,13 @@ public class CrawlerService {
             
             // Build command: python3 script.py keyword 8
             // Limit to 20 items to prevent anti-scraping blocks
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", scriptPath, keyword, "8");
+            String pythonCmd = "python3";
+            String os = System.getProperty("os.name").toLowerCase();
+            if (os.contains("win")) {
+                pythonCmd = "python";
+            }
+            
+            ProcessBuilder processBuilder = new ProcessBuilder(pythonCmd, scriptPath, keyword, "8");
             processBuilder.redirectErrorStream(true); // Merge stderr to stdout for debugging
             
             Process process = processBuilder.start();

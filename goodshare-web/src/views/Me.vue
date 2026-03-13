@@ -71,7 +71,7 @@
                 <el-empty description="还没有发布过笔记哦" />
             </div>
             <div v-else class="masonry-grid">
-                <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post)">
+                <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
                     <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }">
                         <div v-if="post.status === 2" class="status-badge rejected">未通过</div>
                         <div v-if="post.status === 0" class="status-badge pending">审核中</div>
@@ -139,15 +139,15 @@
                 <el-empty description="还没有收藏过笔记哦" />
             </div>
             <div v-else class="masonry-grid">
-                <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="$router.push(`/post/${post.id}`)">
+                <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
                     <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
                     <div class="card-content">
                         <h3 class="card-title">{{ post.title }}</h3>
                         <div class="card-footer">
-                    <div class="author">
-                        <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
-                        <span>{{ post.user?.username }}</span>
-                    </div>
+                            <div class="author">
+                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                <span>{{ post.user?.username }}</span>
+                            </div>
                             <div class="stats" style="display: flex; gap: 8px; align-items: center;">
                                 <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
                                     <el-icon><Star /></el-icon>
@@ -168,15 +168,15 @@
                 <el-empty description="还没有赞过笔记哦" />
             </div>
             <div v-else class="masonry-grid">
-                <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="$router.push(`/post/${post.id}`)">
+                <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
                     <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
                     <div class="card-content">
                         <h3 class="card-title">{{ post.title }}</h3>
                         <div class="card-footer">
-                    <div class="author">
-                        <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
-                        <span>{{ post.user?.username }}</span>
-                    </div>
+                            <div class="author">
+                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                <span>{{ post.user?.username }}</span>
+                            </div>
                             <div class="stats" style="display: flex; gap: 8px; align-items: center;">
                                 <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
                                     <el-icon><Star /></el-icon>
@@ -194,6 +194,14 @@
         </el-tab-pane>
       </el-tabs>
     </div>
+    
+    <PostDetail 
+      v-if="showPostDetail" 
+      :post-id="selectedPostId"
+      :origin-rect="clickedRect" 
+      @close="closePost"
+      @update="handlePostUpdate" 
+    />
 
     <!-- Settings Dialog -->
     <el-dialog v-model="showSettings" title="分区推荐权重设置" width="560px">
@@ -286,7 +294,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
 import authStore from '../stores/auth'
@@ -297,7 +305,7 @@ import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 import { getThumbnailUrl } from '../utils/image'
 import { compressImage } from '../utils/compress'
-
+import PostDetail from './PostDetail.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -319,6 +327,11 @@ const showFollowingList = ref(false)
 const showFollowerList = ref(false)
 const followingList = ref([])
 const followerList = ref([])
+
+// Post Detail Animation related refs
+const showPostDetail = ref(false)
+const selectedPostId = ref(null)
+const clickedRect = ref(null)
 
 const isCurrentUser = computed(() => {
     return !route.params.id || (authStore.state.user && route.params.id == authStore.state.user.id)
@@ -790,14 +803,41 @@ const getCoverUrl = (post) => {
     return getThumbnailUrl(url)
 }
 
-const handlePostClick = (post) => {
+const handlePostClick = (post, event) => {
     if (post.status === 2) {
         // Rejected post, go to edit
         router.push(`/publish?id=${post.id}`)
     } else {
-        // Normal post, go to detail
-        router.push(`/post/${post.id}`)
+        // Normal post, open detail with animation
+        if (event && event.currentTarget) {
+            clickedRect.value = event.currentTarget.getBoundingClientRect()
+        }
+        selectedPostId.value = post.id
+        showPostDetail.value = true
     }
+}
+
+const closePost = () => {
+    showPostDetail.value = false
+    selectedPostId.value = null
+    clickedRect.value = null
+}
+
+const handlePostUpdate = (updatedFields) => {
+    // Update local lists
+    const updateList = (list) => {
+        const index = list.findIndex(p => p.id === updatedFields.id)
+        if (index !== -1) {
+            list[index] = { ...list[index], ...updatedFields }
+        }
+    }
+    
+    updateList(posts.value)
+    updateList(favorites.value)
+    updateList(likedPosts.value)
+    
+    // Also update home store if needed
+    homeStore.updatePost(updatedFields)
 }
 
 const handleTabClick = (tab) => {

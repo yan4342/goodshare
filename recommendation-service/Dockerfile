@@ -6,7 +6,10 @@ WORKDIR /app
 
 # Install system dependencies (needed for some python packages like numpy/pandas)
 # netcat is often useful for waiting for DB
-RUN apt-get update && apt-get install -y \
+# Unset proxy to avoid localhost issues
+# If you want to use proxy (e.g. host.docker.internal:7897), remove 'unset ...' and add 'ENV http_proxy=http://host.docker.internal:7897'
+RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
+    apt-get update && apt-get install -y \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
@@ -16,7 +19,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Use Tsinghua mirror for pip
+# If you want to use proxy, remove 'unset ...' and '-i ...'
+RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
+    pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # Copy the current directory contents into the container at /app
 COPY . .
