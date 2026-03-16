@@ -22,12 +22,23 @@ public class SearchController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PostDocument>> searchPosts(@RequestParam String query) {
+    public ResponseEntity<List<PostDocument>> searchPosts(
+        @RequestParam(required = false) String query,
+        @RequestParam(required = false) String tag
+    ) {
+        if ((query == null || query.trim().isEmpty()) && (tag == null || tag.trim().isEmpty())) {
+            return ResponseEntity.ok(List.of());
+        }
         return ResponseEntity.ok(
-            searchService.searchPosts(query).stream()
+            searchService.searchPosts(query, tag).stream()
                 .map(SearchHit::getContent)
                 .collect(Collectors.toList())
         );
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<List<yan.goodshare.entity.User>> searchUsers(@RequestParam String query) {
+        return ResponseEntity.ok(searchService.searchUsers(query));
     }
 
     @GetMapping("/suggest")

@@ -57,3 +57,5 @@ goodshare-web/.npm-cache/
 ### Python 编译文件 ###
 *.pyc
 __pycache__/
+
+goodshare-server/src/main/resources/application.properties

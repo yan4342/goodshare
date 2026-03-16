@@ -34,8 +34,19 @@ public class Comment {
     @TableField(exist = false)
     private Boolean isLiked;
 
+    @TableField(exist = false)
+    private java.util.List<Comment> replies = new java.util.ArrayList<>();
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
+
+    public java.util.List<Comment> getReplies() {
+        return replies;
+    }
+
+    public void setReplies(java.util.List<Comment> replies) {
+        this.replies = replies;
+    }
 
     // Getters and Setters
 

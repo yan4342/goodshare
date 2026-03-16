@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+
 @Service
 public class SearchService {
 
@@ -31,6 +33,28 @@ public class SearchService {
         this.searchStatsService = searchStatsService;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
+    }
+
+    public List<User> searchUsers(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+        
+        // Find users matching username or nickname
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.like("username", query)
+                   .or()
+                   .like("nickname", query);
+        
+        List<User> users = userMapper.selectList(queryWrapper);
+        
+        // Clean sensitive data
+        users.forEach(user -> {
+            user.setPassword(null);
+            user.setEmail(null); // Maybe keep email? Better not for public search.
+        });
+        
+        return users;
     }
 
     public void deleteAllPosts() {
@@ -95,7 +119,18 @@ public class SearchService {
         return postDocument;
     }
 
-    public SearchHits<PostDocument> searchPosts(String query) {
+    public SearchHits<PostDocument> searchPosts(String query, String tag) {
+        if (tag != null && !tag.trim().isEmpty()) {
+            // Tag-based exact search (Partition search)
+             Query tagQuery = new StringQuery(
+                "{\"bool\": {\"must\": [" +
+                "  {\"term\":{\"tags.keyword\":\"" + tag.replace("\"", "\\\"") + "\"}}," +
+                "  {\"term\":{\"status\":1}}" +
+                "]}}"
+            );
+            return elasticsearchOperations.search(tagQuery, PostDocument.class);
+        }
+        
         if (query != null && !query.trim().isEmpty()) {
             searchStatsService.incrementSearchCount(query.trim());
         }
@@ -108,7 +143,7 @@ public class SearchService {
             "{\"bool\": {\"must\": [" +
             "  {\"bool\": {" +
             "    \"should\": [" +
-            "      {\"multi_match\":{\"query\":\"" + safeQuery + "\",\"fields\":[\"title^3\",\"content\"],\"operator\":\"and\"}}," +
+            "      {\"multi_match\":{\"query\":\"" + safeQuery + "\",\"fields\":[\"title^3\",\"content\",\"username\",\"nickname\"],\"operator\":\"and\"}}," +
             "      {\"term\":{\"tags\":\"" + safeQuery + "\"}}," +
             "      {\"term\":{\"tags.keyword\":\"" + safeQuery + "\"}}" +
             "    ]" +

@@ -94,7 +94,7 @@ public class CommentService {
     }
 
     public List<Comment> getCommentsByPostId(Long postId, String sort) {
-        List<Comment> comments = commentMapper.selectCommentsWithUser(postId);
+        List<Comment> allComments = commentMapper.selectCommentsWithUser(postId);
         
         // Populate like info
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -107,7 +107,7 @@ public class CommentService {
             }
         }
 
-        for (Comment comment : comments) {
+        for (Comment comment : allComments) {
             comment.setLikeCount(commentLikeMapper.countByCommentId(comment.getId()));
             if (currentUserId != null) {
                 comment.setIsLiked(commentLikeMapper.existsByCommentIdAndUserId(comment.getId(), currentUserId));
@@ -116,21 +116,70 @@ public class CommentService {
             }
         }
 
-        // Sorting
+        // Build hierarchy
+        List<Comment> rootComments = new java.util.ArrayList<>();
+        java.util.Map<Long, Comment> commentMap = new java.util.HashMap<>();
+        
+        // First pass: Map all comments
+        for (Comment c : allComments) {
+            commentMap.put(c.getId(), c);
+        }
+        
+        // Second pass: Assign children to parents
+        for (Comment c : allComments) {
+            if (c.getParentId() != null) {
+                // Find root
+                Comment root = findRoot(c, commentMap);
+                if (root != null) {
+                    // Only add to root's replies list
+                    // If c is a direct child of root, it goes to root.replies
+                    // If c is a child of a child (e.g., A -> B -> C), C goes to A.replies
+                    // This flattens the display as requested: "b, c, d... attached to comment a"
+                    if (root.getReplies() == null) root.setReplies(new java.util.ArrayList<>());
+                    root.getReplies().add(c);
+                } else {
+                    rootComments.add(c);
+                }
+            } else {
+                rootComments.add(c);
+            }
+        }
+
+        // Sorting Root Comments
         if ("hot".equalsIgnoreCase(sort)) {
-            comments.sort((c1, c2) -> {
+            rootComments.sort((c1, c2) -> {
                 int likeCompare = c2.getLikeCount().compareTo(c1.getLikeCount());
                 if (likeCompare != 0) return likeCompare;
                 return c2.getCreatedAt().compareTo(c1.getCreatedAt()); // Tie-break with time (newest first)
             });
         } else if ("desc".equalsIgnoreCase(sort)) {
-            comments.sort((c1, c2) -> c2.getCreatedAt().compareTo(c1.getCreatedAt()));
+            rootComments.sort((c1, c2) -> c2.getCreatedAt().compareTo(c1.getCreatedAt()));
         } else {
-            // Default ASC (already sorted by DB usually, but ensure it)
-            comments.sort((c1, c2) -> c1.getCreatedAt().compareTo(c2.getCreatedAt()));
+            // Default ASC (Oldest first)
+            rootComments.sort((c1, c2) -> c1.getCreatedAt().compareTo(c2.getCreatedAt()));
+        }
+        
+        // Sort Replies (Always Oldest First to keep conversation flow)
+        for (Comment root : rootComments) {
+            if (root.getReplies() != null && !root.getReplies().isEmpty()) {
+                root.getReplies().sort((c1, c2) -> c1.getCreatedAt().compareTo(c2.getCreatedAt()));
+            }
         }
 
-        return comments;
+        return rootComments;
+    }
+
+    private Comment findRoot(Comment c, java.util.Map<Long, Comment> map) {
+        Comment current = c;
+        // Safety counter to prevent infinite loops in case of circular references (though unlikely in DB)
+        int depth = 0;
+        while (current.getParentId() != null && depth < 100) {
+            Comment parent = map.get(current.getParentId());
+            if (parent == null) return null; // Parent missing
+            current = parent;
+            depth++;
+        }
+        return current;
     }
 
     public void likeComment(Long commentId) {

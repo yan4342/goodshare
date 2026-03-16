@@ -57,6 +57,10 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/goodshare?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
+      # Proxy settings (uncomment and set your proxy if needed)
+      - HTTP_PROXY=http://host.docker.internal:7890
+      - HTTPS_PROXY=http://host.docker.internal:7890
+      - NO_PROXY=localhost,127.0.0.1,goodshare-server,crawler-service,gateway-service,nacos,redis,elasticsearch,recommendation-service,host.docker.internal
     depends_on:
       - nacos
       - redis
@@ -78,6 +82,10 @@ services:
       - SPRING_DATASOURCE_PASSWORD=123456
       - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
       - SPRING_DATA_REDIS_HOST=redis
+      # Proxy settings
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - NO_PROXY=localhost,127.0.0.1,goodshare-server,crawler-service,gateway-service,nacos,redis,elasticsearch,recommendation-service,host.docker.internal
     depends_on:
       - nacos
       - redis

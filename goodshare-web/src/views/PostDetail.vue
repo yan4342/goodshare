@@ -92,28 +92,60 @@
             
             <div v-loading="commentsLoading" class="comments-list">
               <div v-if="comments.length === 0" class="no-comments">暂无评论，快来抢沙发吧~</div>
-              <div v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'is-reply': comment.parentId }">
-                <el-avatar :size="comment.parentId ? 24 : 32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-                <div class="comment-content">
-                  <div class="comment-user">
-                    {{ comment.user?.username || '用户' }}
-                    <span v-if="comment.parentId" class="reply-target">
-                        <span class="reply-text">回复</span> <span class="at-user">@{{ getParentUser(comment.parentId) || '用户' }}</span>
-                    </span>
-                  </div>
-                  <div class="comment-text">{{ comment.content }}</div>
-                  <div class="comment-footer">
-                    <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
-                    <div class="comment-actions">
-                        <span class="action-item" @click="toggleCommentLike(comment)" :class="{ liked: comment.isLiked }">
-                            <el-icon><component :is="comment.isLiked ? 'StarFilled' : 'Star'" /></el-icon>
-                            <span v-if="comment.likeCount > 0">{{ comment.likeCount }}</span>
-                        </span>
-                        <span class="action-item" @click="handleReply(comment)">
-                            回复
-                        </span>
+              
+              <!-- Root Comments -->
+              <div v-for="comment in comments" :key="comment.id" class="comment-group">
+                <!-- Parent Comment -->
+                <div class="comment-item">
+                    <el-avatar :size="32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(comment.userId)"/>
+                    <div class="comment-content">
+                    <div class="comment-user">
+                        <span class="username" @click="goToUser(comment.userId)">{{ comment.user?.username || '用户' }}</span>
+                        <span v-if="comment.user?.id === post.userId" class="author-badge">作者</span>
                     </div>
-                  </div>
+                    <div class="comment-text" @click="handleReply(comment)">{{ comment.content }}</div>
+                    <div class="comment-footer">
+                        <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+                        <div class="comment-actions">
+                            <span class="action-item" @click="toggleCommentLike(comment)" :class="{ liked: comment.isLiked }">
+                                <el-icon><component :is="comment.isLiked ? 'StarFilled' : 'Star'" /></el-icon>
+                                <span v-if="comment.likeCount > 0">{{ comment.likeCount }}</span>
+                            </span>
+                            <span class="action-item" @click="handleReply(comment)">
+                                回复
+                            </span>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Replies (Nested) -->
+                <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
+                    <div v-for="reply in comment.replies" :key="reply.id" class="comment-item is-reply">
+                         <el-avatar :size="24" :src="reply.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(reply.userId)"/>
+                        <div class="comment-content">
+                            <div class="comment-user">
+                                <span class="username" @click="goToUser(reply.userId)">{{ reply.user?.username || '用户' }}</span>
+                                <span v-if="reply.user?.id === post.userId" class="author-badge">作者</span>
+                                <span v-if="reply.parentId && reply.parentId !== comment.id" class="reply-target">
+                                    <span class="reply-text">回复</span> <span class="at-user">@{{ getParentUser(reply.parentId) || '用户' }}</span>
+                                </span>
+                            </div>
+                            <div class="comment-text" @click="handleReply(reply)">{{ reply.content }}</div>
+                            <div class="comment-footer">
+                                <span class="comment-date">{{ formatDate(reply.createdAt) }}</span>
+                                <div class="comment-actions">
+                                    <span class="action-item" @click="toggleCommentLike(reply)" :class="{ liked: reply.isLiked }">
+                                        <el-icon><component :is="reply.isLiked ? 'StarFilled' : 'Star'" /></el-icon>
+                                        <span v-if="reply.likeCount > 0">{{ reply.likeCount }}</span>
+                                    </span>
+                                    <span class="action-item" @click="handleReply(reply)">
+                                        回复
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
               </div>
             </div>
@@ -378,7 +410,7 @@ watch(imageList, () => {
 
 const handleTagClick = (tagName) => {
     handleClose()
-    router.push({ path: '/search', query: { q: tagName } })
+    router.push({ path: '/search', query: { tag: tagName } })
 }
 
 const formatDate = (dateStr) => {
@@ -561,8 +593,15 @@ const toggleCommentLike = async (comment) => {
 
 const getParentUser = (parentId) => {
     if (!parentId) return null
-    const parent = comments.value.find(c => c.id === parentId)
-    return parent?.user?.username
+    // Flatten all comments including replies to find user
+    for (const c of comments.value) {
+        if (c.id === parentId) return c.user?.username
+        if (c.replies) {
+            const reply = c.replies.find(r => r.id === parentId)
+            if (reply) return reply.user?.username
+        }
+    }
+    return null
 }
 
 const submitComment = async () => {
@@ -875,18 +914,37 @@ const handleClose = () => {
     padding: 20px 0;
     font-size: 13px;
 }
+.comment-group {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 24px;
+}
+.comment-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.replies-list {
+    margin-top: 12px;
+    padding-left: 42px; /* Indent replies */
+}
 .comment-item {
     display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-    border-radius: 8px;
-    transition: background-color 0.2s;
+    gap: 12px;
+    align-items: flex-start;
 }
 .comment-item.is-reply {
-    margin-left: 40px;
-    background: rgba(128, 128, 128, 0.03);
-    padding: 8px;
-    border-left: 2px solid var(--border-color);
+    margin-left: 0; /* Reset margin since we use padding in container */
+    margin-bottom: 16px;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+.comment-item.is-reply:last-child {
+    margin-bottom: 0;
+}
+.comment-avatar {
+    flex-shrink: 0;
+    cursor: pointer;
 }
 .comment-content {
     flex: 1;
@@ -894,21 +952,35 @@ const handleClose = () => {
 .comment-user {
     font-size: 13px;
     color: var(--text-color-secondary);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.author-badge {
+    background: #ff2442;
+    color: white;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    transform: scale(0.9);
 }
 .comment-text {
     font-size: 14px;
     color: var(--text-color);
-    line-height: 1.4;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    cursor: pointer;
 }
-.comment-date {
-    font-size: 11px;
+.comment-footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
     color: var(--text-color-secondary);
-    /* margin-top removed as it's handled in footer now */
 }
 .reply-target {
-    margin-left: 6px;
-    font-size: 13px;
+    margin-left: 0;
     color: var(--text-color-secondary);
 }
 .reply-text {

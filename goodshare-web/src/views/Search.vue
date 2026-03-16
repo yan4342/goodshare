@@ -6,31 +6,55 @@
       <div class="content-body">
         <div class="search-layout">
           <div class="search-results">
-            <h2 class="search-title">搜索结果: "{{ query }}"</h2>
+            <h2 class="search-title" v-if="tag">标签: #{{ tag }}</h2>
+            <h2 class="search-title" v-else>搜索结果: "{{ query }}"</h2>
 
-            <!-- Waterfall Grid -->
-            <div class="masonry-grid" v-if="posts.length > 0">
-              <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post)">
-                <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
-                <div class="card-info">
-                  <h3 class="post-title">{{ post.title }}</h3>
-                  <div class="post-meta">
-                    <div class="author">
-                      <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-                      <span class="author-name">{{ post.user?.nickname || post.user?.username || '用户' }}</span>
-                    </div>
-                    <div class="likes">
-                      <el-icon><Star /></el-icon>
-                      <span>{{ post.likeCount || 0 }}</span>
+            <el-tabs v-model="activeTab" class="search-tabs">
+              <el-tab-pane label="帖子" name="posts">
+                <!-- Waterfall Grid -->
+                <div class="masonry-grid" v-if="posts.length > 0">
+                  <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post)">
+                    <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                    <div class="card-info">
+                      <h3 class="post-title">{{ post.title }}</h3>
+                      <div class="post-meta">
+                        <div class="author">
+                          <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+                          <span class="author-name">{{ post.user?.nickname || post.user?.username || '用户' }}</span>
+                        </div>
+                        <div class="likes">
+                          <el-icon><Star /></el-icon>
+                          <span>{{ post.likeCount || 0 }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            
-            <div v-else class="empty-state">
-                <el-empty description="未找到相关内容" />
-            </div>
+                
+                <div v-else class="empty-state">
+                    <el-empty description="未找到相关帖子" />
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane label="用户" name="users" v-if="!tag">
+                <div class="user-list" v-if="users.length > 0">
+                  <div v-for="user in users" :key="user.id" class="user-card" @click="openUser(user)">
+                    <el-avatar :size="60" :src="user.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+                    <div class="user-info">
+                      <div class="user-name">
+                        <span class="nickname">{{ user.nickname || user.username }}</span>
+                        <span class="username">@{{ user.username }}</span>
+                      </div>
+                      <div class="user-bio" v-if="user.bio">{{ user.bio }}</div>
+                    </div>
+                    <el-button type="primary" round @click.stop="openUser(user)">查看主页</el-button>
+                  </div>
+                </div>
+                 <div v-else class="empty-state">
+                    <el-empty description="未找到相关用户" />
+                </div>
+              </el-tab-pane>
+            </el-tabs>
           </div>
 
           <!-- Hot Search Sidebar -->
@@ -67,14 +91,32 @@ import { getThumbnailUrl } from '../utils/image'
 const router = useRouter()
 const route = useRoute()
 const posts = ref([])
+const users = ref([])
 const hotKeywords = ref([])
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const query = computed(() => route.query.q || '')
+const tag = computed(() => route.query.tag || '')
+const activeTab = ref('posts')
+
+// Ensure activeTab is correct when tag is present
+const checkActiveTab = () => {
+    if (tag.value) {
+        activeTab.value = 'posts'
+    }
+}
 
 const searchPosts = async () => {
-    if (!query.value) return
+    checkActiveTab() // Ensure tab is correct before searching
+    if (!query.value && !tag.value) return
     try {
-        const res = await request.get(`/search?query=${encodeURIComponent(query.value)}`)
+        let url = '/search'
+        if (tag.value) {
+            url += `?tag=${encodeURIComponent(tag.value)}`
+        } else {
+            url += `?query=${encodeURIComponent(query.value)}`
+        }
+        
+        const res = await request.get(url)
         // Backend now returns List<PostDocument> directly
         if (Array.isArray(res.data)) {
             posts.value = res.data.map(doc => {
@@ -103,6 +145,21 @@ const searchPosts = async () => {
     }
 }
 
+const searchUsers = async () => {
+    // Only search users if there is a text query (not tag search)
+    if (!query.value || tag.value) {
+        users.value = []
+        return
+    }
+    try {
+        const res = await request.get(`/search/users?query=${encodeURIComponent(query.value)}`)
+        users.value = res.data || []
+    } catch (err) {
+        console.error('Failed to search users', err)
+        users.value = []
+    }
+}
+
 const fetchHotKeywords = async () => {
   try {
     const res = await request.get('/search/hot')
@@ -124,16 +181,24 @@ const formatCount = (count) => {
 }
 
 onMounted(() => {
+  checkActiveTab()
   searchPosts()
+  searchUsers()
   fetchHotKeywords()
 })
 
-watch(() => route.query.q, () => {
+watch(() => [route.query.q, route.query.tag], () => {
+    checkActiveTab()
     searchPosts()
+    searchUsers()
 })
 
 const openPost = (post) => {
   router.push(`/post/${post.id}`)
+}
+
+const openUser = (user) => {
+  router.push(`/user/${user.id}`)
 }
 
 const getCoverUrl = (post) => {
@@ -310,11 +375,76 @@ const getCoverUrl = (post) => {
   gap: 4px;
 }
 
-/* Text-only post styling */
+.search-tabs {
+  margin-bottom: 20px;
+}
+.search-tabs :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background-color: var(--border-color);
+}
+.search-tabs :deep(.el-tabs__item) {
+    font-size: 16px;
+    color: var(--text-color-secondary);
+}
+.search-tabs :deep(.el-tabs__item.is-active) {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.user-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--bg-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: 1px solid var(--border-color);
+}
+.user-card:hover {
+  background-color: var(--bg-color-page);
+}
+.user-info {
+  flex: 1;
+  margin-left: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.nickname {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.username {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+}
+.user-bio {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 帖子卡片样式 */
 .post-card.no-image .cover-image {
   display: none;
 }
-
+/* 文本帖子样式 */
 .post-card.no-image {
   background-color: var(--bg-color-overlay);
   border-radius: 16px;

@@ -1,322 +1,321 @@
-import requests
+import pytest
 import time
+import os
 import random
-import io
-from PIL import Image, ImageDraw, ImageFont
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-BASE_URL = "http://localhost:8080"
-PASSWORD = "password123"
+# Configuration
+UI_BASE_URL = "http://localhost:8088"
+API_BASE_URL = "http://localhost:8080"
 
-users = [f"testUser{i}" for i in range(1, 11)]
-user_tokens = {}
+# Unset proxy to avoid ERR_PROXY_CONNECTION_FAILED in Docker or local env
+if 'http_proxy' in os.environ: del os.environ['http_proxy']
+if 'https_proxy' in os.environ: del os.environ['https_proxy']
+if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
+if 'HTTPS_PROXY' in os.environ: del os.environ['HTTPS_PROXY']
 
-text_styles = [
-    { "name": "经典白", "color": "#FFFFFF", "font": "sans-serif", "weight": "bold", "shadow": True },
-    { "name": "极简黑", "color": "#000000", "font": "sans-serif", "weight": "bold", "shadow": False },
-    { "name": "衬线雅", "color": "#FFFFFF", "font": "serif", "weight": "bold", "shadow": True },
-    { "name": "活力黄", "color": "#FFD700", "font": "sans-serif", "weight": "900", "shadow": True, "shadowColor": "rgba(0,0,0,0.8)" },
-    { "name": "清新绿", "color": "#E0FFEB", "font": "monospace", "weight": "bold", "shadow": True, "shadowColor": "#004d00" },
-    { "name": "霓虹粉", "color": "#FF00FF", "font": "sans-serif", "weight": "bold", "shadow": True, "shadowColor": "#00FFFF", "glow": True },
-    { "name": "描边黑", "color": "#FFFFFF", "font": "Impact, sans-serif", "weight": "bold", "stroke": "#000000", "strokeWidth": 3 }
+# Test Data Configuration
+TEST_USERS = [
+    {
+        "username": "test_user_001",
+        "email": "test001@example.com",
+        "password": "password123",
+        "post_title": "评论: iPhone 16 Pro"+str(random.randint(1, 1000)),
+        "post_content": "钛金属外观非常棒！不过电池续航可以更好。"+str(random.randint(1, 1000)),
+        "tags": ["数码"]
+    },
+    {
+        "username": "test_user_"+str(random.randint(1, 10000)),
+        "email": "test_"+str(random.randint(1, 10000))+"@example.com",
+        "password": "password123",
+        "post_title": "我的温馨小窝"+str(random.randint(1, 1000)),
+        "post_content": "刚刚布置好的客厅，阳光洒进来太舒服了！"+str(random.randint(1, 1000)),
+        "tags": ["家居"]
+    },
+    {
+        "username": "test_user_"+str(random.randint(1, 10000)),
+        "email": "test_"+str(random.randint(1, 10000))+"@example.com",
+        "password": "password123",
+        "post_title": "美味家庭烘培"+str(random.randint(1, 1000)),
+        "post_content": "终于掌握了意大利面的做法。关键是使用猪颊肉和佩科里诺奶酪！"+str(random.randint(1, 1000)),
+        "tags": ["美食"]
+    },
+    {
+        "username": "test_user_ai",
+        "email": "ai_user@example.com",
+        "password": "password123",
+        "ai_keyword": "索尼降噪耳机"+str(random.randint(1, 100)),
+        "tags": ["数码"]
+    },
+    {
+        "username": "test_user_style"+str(random.randint(1, 10000)),
+        "email": "style_user_"+str(random.randint(1, 10000))+"@example.com",
+        "password": "password123",
+        "post_title": "今日心情日记"+str(random.randint(1, 1000)),
+        "post_content": "今天天气真好，适合出去散步。"+str(random.randint(1, 1000)),
+        "cover_style": random.choice(["备忘", "书本", "边框", "手写","涂写"]), # random style
+        "cover_color": random.choice(["白色", "黄色", "蓝色", "紫色", "棕色"]), # random color
+        "tags": ["生活"]
+    }
 ]
 
-cover_styles = [
-    { "name": "粉嫩", "type": "gradient", "colors": ["#FF9A9E", "#FECFEF"], "decoration": "circles" },
-    { "name": "紫罗兰", "type": "gradient", "colors": ["#a18cd1", "#fbc2eb"], "decoration": "circles" },
-    { "name": "清新", "type": "gradient", "colors": ["#84fab0", "#8fd3f4"], "decoration": "circles" },
-    { "name": "暗黑", "type": "gradient", "colors": ["#434343", "#000000"], "decoration": "grid" },
-    { "name": "日落", "type": "gradient", "colors": ["#fa709a", "#fee140"], "decoration": "lines" },
-    { "name": "幽蓝", "type": "gradient", "colors": ["#30cfd0", "#330867"], "decoration": "bubbles" },
-    { "name": "纯净白", "type": "solid", "colors": ["#ffffff"], "decoration": "border", "defaultTextIndex": 1 },
-    { "name": "复古纸张", "type": "solid", "colors": ["#f4e4bc"], "decoration": "noise", "defaultTextIndex": 1 },
-    { "name": "科技蓝", "type": "gradient", "colors": ["#000428", "#004e92"], "decoration": "grid" },
-    { "name": "派对", "type": "solid", "colors": ["#FFF5E6"], "decoration": "confetti", "defaultTextIndex": 1 },
-    { "name": "几何", "type": "gradient", "colors": ["#2E3192", "#1BFFFF"], "decoration": "geometric" },
-    { "name": "赛博", "type": "solid", "colors": ["#000000"], "decoration": "neon", "defaultTextIndex": 5 }
-]
-
-tags = ["书籍", "数码", "家居", "玩具", "服装", "文具", "美食", "旅行", "运动", "影音"]
-title_prefix = ["精选", "测评", "分享", "入门", "清单", "指南", "推荐", "体验", "总结", "上手"]
-title_subject = ["心得", "技巧", "搭配", "故事", "避坑", "玩法", "合集", "记录", "对比", "灵感"]
-content_openers = [
-    "这次想聊聊我的真实体验，整体感受",
-    "最近研究了不少资料，发现关键点是",
-    "使用一段时间后，我觉得最重要的是",
-    "整理了几个实用的小技巧，首先是",
-    "从入门到进阶，我的总结是",
-    "这里是我对这次体验的简单回顾",
-    "如果你正准备尝试，建议先关注",
-    "这篇记录了我的实际过程，重点在于"
-]
-content_endings = [
-    "欢迎交流你的看法。",
-    "希望能对你有所帮助。",
-    "有问题可以留言一起讨论。",
-    "如果有更多想法我会继续更新。",
-    "以上是我的个人体验，仅供参考。",
-    "后续有新发现会再补充。"
-]
-
-def register_user(username):
-    url = f"{BASE_URL}/api/auth/register"
-    payload = {
-        "username": username,
-        "password": PASSWORD,
-        "email": f"{username}@example.com",
-        "nickname": f"Nick_{username}"
-    }
+@pytest.fixture(scope="module")
+def driver():
+    """Setup Selenium WebDriver (Chrome preferred, fallback to Edge)"""
+    _driver = None
     try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception:
-        return
-
-def login_user(username):
-    url = f"{BASE_URL}/api/auth/login"
-    payload = {
-        "username": username,
-        "password": PASSWORD
-    }
-    try:
-        res = requests.post(url, json=payload, timeout=10)
-        if res.status_code == 200:
-            return res.json().get("accessToken")
-    except Exception:
-        return None
-    return None
-
-def parse_color(value):
-    if isinstance(value, tuple):
-        return value
-    if value.startswith("#"):
-        hex_color = value.lstrip("#")
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        return (r, g, b, 255)
-    if value.startswith("rgba"):
-        parts = value[value.find("(") + 1:value.find(")")].split(",")
-        r = int(parts[0].strip())
-        g = int(parts[1].strip())
-        b = int(parts[2].strip())
-        a = float(parts[3].strip())
-        return (r, g, b, int(a * 255))
-    if value.startswith("rgb"):
-        parts = value[value.find("(") + 1:value.find(")")].split(",")
-        r = int(parts[0].strip())
-        g = int(parts[1].strip())
-        b = int(parts[2].strip())
-        return (r, g, b, 255)
-    named = {
-        "white": (255, 255, 255, 255),
-        "black": (0, 0, 0, 255)
-    }
-    return named.get(value.lower(), (255, 255, 255, 255))
-
-def create_gradient(width, height, color1, color2):
-    base = Image.new("RGBA", (width, height), color1)
-    top = Image.new("RGBA", (width, height), color2)
-    mask = Image.new("L", (width, height))
-    mask_data = []
-    for y in range(height):
-        for x in range(width):
-            mask_data.append(int(255 * ((x + y) / (width + height))))
-    mask.putdata(mask_data)
-    base.paste(top, (0, 0), mask)
-    return base
-
-def get_font(size):
-    font_names = ["msyh.ttc", "simhei.ttf", "simsun.ttc", "arial.ttf"]
-    for font_name in font_names:
-        try:
-            return ImageFont.truetype(font_name, size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
-
-def measure_text(draw, text, font):
-    try:
-        return draw.textlength(text, font=font)
-    except Exception:
-        bbox = draw.textbbox((0, 0), text, font=font)
-        return bbox[2] - bbox[0]
-
-def draw_canvas_content(text):
-    width, height = 600, 800
-    bg_style = random.choice(cover_styles)
-    text_index = bg_style.get("defaultTextIndex", random.randrange(len(text_styles)))
-    txt_style = text_styles[text_index]
-
-    if bg_style["type"] == "solid":
-        img = Image.new("RGBA", (width, height), parse_color(bg_style["colors"][0]))
-    else:
-        img = create_gradient(width, height, parse_color(bg_style["colors"][0]), parse_color(bg_style["colors"][1]))
-
-    draw = ImageDraw.Draw(img, "RGBA")
-
-    if bg_style["decoration"] in ["circles", "bubbles"]:
-        count = 30 if bg_style["decoration"] == "bubbles" else 50
-        for _ in range(count):
-            r = random.random() * (80 if bg_style["decoration"] == "bubbles" else 50)
-            x = random.random() * width
-            y = random.random() * height
-            draw.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, 25))
-    elif bg_style["decoration"] == "grid":
-        step = 50
-        for x in range(0, width + 1, step):
-            draw.line((x, 0, x, height), fill=(255, 255, 255, 25), width=2)
-        for y in range(0, height + 1, step):
-            draw.line((0, y, width, y), fill=(255, 255, 255, 25), width=2)
-    elif bg_style["decoration"] == "lines":
-        for _ in range(20):
-            x = random.random() * width
-            y = random.random() * height
-            draw.line((x, y, x + 200, y + 200), fill=(255, 255, 255, 38), width=3)
-    elif bg_style["decoration"] == "border":
-        stroke_color = (255, 255, 255, 204) if txt_style["color"] == "#FFFFFF" else (0, 0, 0, 204)
-        draw.rectangle((20, 20, width - 20, height - 20), outline=stroke_color, width=20)
-        draw.rectangle((50, 50, width - 50, height - 50), outline=stroke_color, width=2)
-    elif bg_style["decoration"] == "noise":
-        for _ in range(5000):
-            x = random.random() * width
-            y = random.random() * height
-            draw.rectangle((x, y, x + 2, y + 2), fill=(0, 0, 0, 13))
-    elif bg_style["decoration"] == "confetti":
-        colors = [(255, 199, 0, 200), (255, 0, 0, 200), (46, 49, 146, 200), (0, 158, 0, 200), (255, 0, 255, 200)]
-        for _ in range(100):
-            x = random.random() * width
-            y = random.random() * height
-            w = 8 + random.random() * 8
-            h = 4 + random.random() * 4
-            draw.rectangle((x, y, x + w, y + h), fill=random.choice(colors))
-    elif bg_style["decoration"] == "geometric":
-        for _ in range(15):
-            p1 = (random.random() * width, random.random() * height)
-            p2 = (random.random() * width, random.random() * height)
-            p3 = (random.random() * width, random.random() * height)
-            alpha = int((0.05 + random.random() * 0.1) * 255)
-            draw.polygon([p1, p2, p3], fill=(255, 255, 255, alpha))
-    elif bg_style["decoration"] == "neon":
-        for _ in range(5):
-            y = random.random() * height
-            draw.line((0, y, width, y), fill=(0, 255, 255, 140), width=2)
-        for _ in range(5):
-            x = random.random() * width
-            draw.line((x, 0, x, height), fill=(255, 0, 255, 140), width=2)
-
-    font = get_font(56)
-    text_color = parse_color(txt_style["color"])
-    shadow_color = parse_color(txt_style.get("shadowColor", "rgba(0,0,0,0.3)"))
-    stroke_color = parse_color(txt_style.get("stroke", "#000000"))
-    words = list(text)
-    lines = []
-    line = ""
-    max_width = width - 120
-    for ch in words:
-        test_line = line + ch
-        if measure_text(draw, test_line, font) > max_width and line:
-            lines.append(line)
-            line = ch
-        else:
-            line = test_line
-    lines.append(line)
-
-    line_height = 70
-    total_height = len(lines) * line_height
-    start_y = (height - total_height) / 2
-
-    for i, line in enumerate(lines):
-        y = start_y + i * line_height
-        if txt_style.get("glow"):
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
-                    if dx == 0 and dy == 0:
-                        continue
-                    draw.text((width / 2 + dx, y + dy), line, font=font, fill=shadow_color, anchor="mm")
-        elif txt_style.get("shadow"):
-            draw.text((width / 2 + 2, y + 2), line, font=font, fill=shadow_color, anchor="mm")
-
-        if txt_style.get("stroke"):
-            draw.text((width / 2, y), line, font=font, fill=text_color, stroke_width=int(txt_style.get("strokeWidth", 2)), stroke_fill=stroke_color, anchor="mm")
-        else:
-            draw.text((width / 2, y), line, font=font, fill=text_color, anchor="mm")
-
-    watermark_font = get_font(24)
-    watermark_color = (text_color[0], text_color[1], text_color[2], int(0.6 * 255))
-    draw.text((width / 2, height - 50), "GoodShare", font=watermark_font, fill=watermark_color, anchor="mm")
-
-    img_rgb = img.convert("RGB")
-    img_byte_arr = io.BytesIO()
-    img_rgb.save(img_byte_arr, format="JPEG", quality=80)
-    img_byte_arr.seek(0)
-    return img_byte_arr
-
-def upload_image_file(image_data, token):
-    url = f"{BASE_URL}/api/upload"
-    files = {"file": ("cover.jpg", image_data, "image/jpeg")}
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        res = requests.post(url, files=files, headers=headers, timeout=20)
-        if res.status_code == 200:
-            return res.json().get("url")
-    except Exception:
-        return None
-    return None
-
-def generate_title(tag, index):
-    return f"{tag}{random.choice(title_prefix)}{random.choice(title_subject)} #{index:03d}"
-
-def generate_content(tag, index):
-    return f"{random.choice(content_openers)}{tag}，整体来说#{index:03d} {random.choice(content_endings)}"
-
-print("Setting up users...")
-for u in users:
-    register_user(u)
-    token = login_user(u)
-    if token:
-        user_tokens[u] = token
-
-if not user_tokens:
-    print("No users available. Exiting.")
-    exit(1)
-
-target_count = 100
-created = 0
-attempts = 0
-max_attempts = target_count * 3
-
-print("Creating posts...")
-while created < target_count and attempts < max_attempts:
-    attempts += 1
-    tag = random.choice(tags)
-    title = generate_title(tag, created + 1)
-    content = generate_content(tag, created + 1)
-    user_key = random.choice(list(user_tokens.keys()))
-    token = user_tokens[user_key]
-    img_bytes = draw_canvas_content(title)
-    image_url = upload_image_file(img_bytes, token)
-    if not image_url:
-        continue
-
-    post_body = {
-        "title": title,
-        "content": content,
-        "tags": [tag],
-        "imageUrls": [image_url],
-        "coverUrl": image_url
-    }
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    try:
-        res = requests.post(f"{BASE_URL}/api/posts", json=post_body, headers=headers, timeout=20)
-        if res.status_code == 200:
-            created += 1
-            print(f"[OK] {created}/{target_count} {title} {tag} {user_key}")
-        else:
-            print(f"[FAIL] {res.status_code} {res.text}")
+        print("\nAttempting to start Chrome driver...")
+        options = ChromeOptions()
+        options.add_argument("--start-maximized")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--remote-allow-origins=*")
+        # options.add_argument("--headless") # Optional: Run headless
+        _driver = webdriver.Chrome(options=options)
     except Exception as e:
-        print(f"[FAIL] {e}")
-    time.sleep(0.1)
+        print(f"Chrome driver failed: {e}")
+        try:
+            print("Attempting to start Edge driver...")
+            options = EdgeOptions()
+            options.add_argument("--start-maximized")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--remote-allow-origins=*")
+            _driver = webdriver.Edge(options=options)
+        except Exception as e:
+            print(f"Edge driver failed: {e}")
+            raise Exception("No suitable WebDriver found. Please ensure Chrome or Edge driver is installed.")
+            
+    yield _driver
+    
+    if _driver:
+        print("\nClosing driver...")
+        _driver.quit()
 
-print(f"Batch creation completed. Created: {created}")
+@pytest.fixture(autouse=True)
+def run_around_tests(driver):
+    """Cleanup after each test case automatically"""
+    yield
+    print(f"\nCleaning up session...")
+    try:
+        driver.delete_all_cookies()
+        driver.execute_script("window.localStorage.clear();")
+        driver.execute_script("window.sessionStorage.clear();")
+        driver.refresh()
+        time.sleep(2)
+    except Exception as e:
+        print(f"Cleanup failed: {e}")
+
+def register_user_action(driver, user):
+    """Helper: Register user action"""
+    print(f"Navigating to register page: {UI_BASE_URL}/register")
+    driver.get(f"{UI_BASE_URL}/register")
+    
+    wait = WebDriverWait(driver, 5)
+    
+    try:
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
+        
+        driver.find_element(By.CSS_SELECTOR, "input[type='text']").send_keys(user['username'])
+        driver.find_element(By.CSS_SELECTOR, "input[type='password']").send_keys(user['password'])
+        driver.find_element(By.XPATH, "//input[@placeholder='邮箱']").send_keys(user['email'])
+        driver.find_element(By.XPATH, "//input[@placeholder='确认密码']").send_keys(user['password'])
+        driver.find_element(By.XPATH, "//input[@placeholder='验证码']").send_keys("123456")
+        
+        register_btn = driver.find_element(By.CSS_SELECTOR, "button.register-btn")
+        register_btn.click()
+        
+        try:
+            # Wait for redirect to login
+            # Use a shorter wait initially to catch error messages if they appear quickly
+            wait_short = WebDriverWait(driver, 3)
+            wait_short.until(EC.url_contains("/login"))
+            print("Redirected to login page.")
+            return True
+        except TimeoutException:
+            # Check for error message
+            try:
+                error = driver.find_element(By.CSS_SELECTOR, ".el-message--error")
+                error_text = error.text
+                print(f"Registration message: {error_text}")
+                
+                # Check for various "exists" messages (English or Chinese)
+                # Added 'taken' for "Username is already taken"
+                if any(x in error_text for x in ["exist", "已存在", "重复", "taken", "Duplicate"]):
+                    print("User already exists, proceeding to login.")
+                    # Force navigate to login page if not redirected
+                    driver.get(f"{UI_BASE_URL}/login")
+                    return True
+                return False
+            except NoSuchElementException:
+                # If no error message and no redirect, check URL again just in case
+                if "/login" in driver.current_url:
+                    return True
+                print("Registration timed out or error message missed. Assuming user exists, proceeding to login check.")
+                driver.get(f"{UI_BASE_URL}/login")
+                return True
+            
+    except Exception as e:
+        print(f"Registration exception: {e}")
+        return False
+
+def login_action(driver, username, password):
+    """Helper: Login action"""
+    print(f"Navigating to login page: {UI_BASE_URL}/login")
+    driver.get(f"{UI_BASE_URL}/login")
+    
+    wait = WebDriverWait(driver, 10)
+    
+    try:
+        username_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
+        password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
+        login_btn = driver.find_element(By.CSS_SELECTOR, "button.el-button--primary")
+        
+        username_input.clear()
+        username_input.send_keys(username)
+        password_input.clear()
+        password_input.send_keys(password)
+        
+        login_btn.click()
+        
+        # Wait for redirect
+        wait.until(EC.url_changes(f"{UI_BASE_URL}/login"))
+        time.sleep(2) 
+        return True
+    except Exception as e:
+        print(f"Login exception: {e}")
+        return False
+
+def publish_post_action(driver, user_data):
+    """Helper: Publish post action"""
+    print(f"Navigating to publish page: {UI_BASE_URL}/publish")
+    driver.get(f"{UI_BASE_URL}/publish")
+    
+    wait = WebDriverWait(driver, 15)
+    
+    try:
+        # AI Generation
+        if 'ai_keyword' in user_data:
+            print(f"Using AI Generation with keyword: {user_data['ai_keyword']}")
+            ai_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".ai-input-group input")))
+            ai_input.clear()
+            ai_input.send_keys(user_data['ai_keyword'])
+            
+            # Click Generate Button (inside append slot)
+            generate_btn = driver.find_element(By.CSS_SELECTOR, ".ai-input-group button")
+            generate_btn.click()
+            
+            # Wait for content to be generated
+            print("Waiting for AI generation completion message...")
+            # Wait for success message (toast) containing "AI生成完成"
+            try:
+                # Use a generous timeout as AI generation can be slow
+                ai_wait = WebDriverWait(driver, 60)
+                # XPath to find element containing the specific text
+                success_msg = ai_wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'AI生成完成')]")))
+                print("AI generation completed successfully!")
+                # Give a small buffer for UI updates after message appears
+                time.sleep(2)
+            except TimeoutException:
+                print("Warning: AI generation success message not detected within timeout.")
+        else:
+            # Manual Title & Content
+            if 'post_title' in user_data:
+                title_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='填写标题']")))
+                title_input.send_keys(user_data['post_title'])
+            
+            if 'post_content' in user_data:
+                editor = driver.find_element(By.CSS_SELECTOR, ".ql-editor")
+                editor.click()
+                editor.send_keys(user_data['post_content'])
+        
+        # Cover Style Selection
+        if 'cover_style' in user_data:
+            style_name = user_data['cover_style']
+            print(f"Selecting cover style: {style_name}")
+            # Find style card by text
+            style_cards = driver.find_elements(By.CSS_SELECTOR, ".style-card")
+            for card in style_cards:
+                if style_name in card.text:
+                    card.click()
+                    break
+            time.sleep(1)
+
+        # 配色 (Updated to use index based selection as UI uses color circles without text)
+        if 'cover_color' in user_data:
+            print(f"Selecting a random cover color...")
+            # Find color circles
+            color_circles = driver.find_elements(By.CSS_SELECTOR, ".color-circle")
+            if color_circles:
+                random_index = random.randint(0, len(color_circles) - 1)
+                color_circles[random_index].click()
+                print(f"Selected color index: {random_index}")
+            else:
+                print("No color options found.")
+            time.sleep(1)
+            
+        # Tags (Optional based on config)
+        if 'tags' in user_data and user_data['tags']:
+            print(f"Selecting tags: {user_data['tags']}")
+            tag_select = driver.find_element(By.CSS_SELECTOR, ".el-select")
+            tag_select.click()
+            time.sleep(1)
+            
+            tag_input = driver.find_element(By.CSS_SELECTOR, ".el-select__input")
+            for tag in user_data['tags']:
+                tag_input.send_keys(tag)
+                time.sleep(0.5)
+                tag_input.send_keys(u'\ue007') # Enter
+                time.sleep(0.5)
+                
+            driver.find_element(By.TAG_NAME, "body").click()
+        else:
+            print("Skipping tags selection (Optional)")
+        
+        # Submit
+        print("Clicking submit...")
+        submit_btn = driver.find_element(By.CSS_SELECTOR, ".submit-btn")
+        submit_btn.click()
+        
+        # Confirm
+        print("Waiting for confirm dialog...")
+        confirm_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., '确认发布')]")))
+        confirm_btn.click()
+        
+        # Verify
+        time.sleep(3)
+        return driver.current_url != f"{UI_BASE_URL}/publish"
+            
+    except Exception as e:
+        print(f"Publish exception: {e}")
+        driver.save_screenshot(f"publish_failed_{user_data['username']}.png")
+        return False
+
+@pytest.mark.parametrize("user_data", TEST_USERS)
+def test_user_publish_flow(driver, user_data):
+    """End-to-End Test: Register -> Login -> Publish for each user"""
+    print(f"\n--- Testing User: {user_data['username']} ---")
+    
+    # 1. Register
+    assert register_user_action(driver, user_data) is True, f"Registration failed for {user_data['username']}"
+    
+    # 2. Login
+    assert login_action(driver, user_data['username'], user_data['password']) is True, f"Login failed for {user_data['username']}"
+    
+    # 3. Publish
+    assert publish_post_action(driver, user_data) is True, f"Publish failed for {user_data['username']}"
+    
+    # 4. Logout (Cleanup for next test iteration)
+    # Cleanup handled by autouse fixture now
+
+if __name__ == "__main__":
+    # Allow running directly with python
+    pytest.main(["-v", "-s", __file__])
