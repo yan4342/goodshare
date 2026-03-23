@@ -13,7 +13,7 @@ import yan.goodshare.entity.User;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/auth")// 认证控制器，处理用户登录和注册
 public class AuthController {
 
     private final AuthService authService;
@@ -24,7 +24,7 @@ public class AuthController {
         this.authenticationManager = authenticationManager;
     }
 
-    @PostMapping("/login")
+    @PostMapping("/login")// 登录用户
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         try {
             String jwt = authService.login(loginRequest.getUsername(), loginRequest.getPassword(), authenticationManager);

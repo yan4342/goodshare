@@ -23,10 +23,13 @@ async def periodic_train():
 @app.get("/recommend")
 def get_recommendations(user_id: int, limit: int = 20):
     try:
+        from recommender import logger # 引入日志
+        logger.info(f"接收到推荐请求: user_id={user_id}, limit={limit}")
         recs = recommender.recommend(user_id, top_k=limit)
         return recs
     except Exception as e:
-        print(f"Error generating recommendations: {e}")
+        from recommender import logger
+        logger.error(f"生成推荐时发生错误: {e}")
         return []
 
 @app.get("/health")

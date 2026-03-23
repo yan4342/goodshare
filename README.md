@@ -114,3 +114,19 @@ goodshare/
 - **DeepSeek API Key**: 请在 `application.properties` 中配置有效的 API Key。
 - **Elasticsearch**: 首次启动可能需要初始化索引，系统会自动处理或需手动触发。
 - **Nacos**: 默认端口 8848，控制台账号密码默认 `nacos/nacos` (如开启鉴权)。
+
+
+
+![](C:\Users\16019\Pictures\Screenshots\屏幕截图_23-3-2026_212856_localhost.jpeg)
+
+
+
+![屏幕截图_23-3-2026_212640_localhost](C:\Users\16019\Pictures\Screenshots\屏幕截图_23-3-2026_212640_localhost.jpeg)
+
+
+
+![屏幕截图_23-3-2026_21266_localhost](C:\Users\16019\Pictures\Screenshots\屏幕截图_23-3-2026_21266_localhost.jpeg)
+
+
+
+![屏幕截图_23-3-2026_212452_localhost](C:\Users\16019\Pictures\Screenshots\屏幕截图_23-3-2026_212452_localhost.jpeg)

@@ -1,5 +1,6 @@
 package yan.goodshare.recommendation;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import yan.goodshare.entity.Comment;
@@ -31,6 +32,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 
+@Slf4j
 @Service
 public class RecommendationService {
 
@@ -81,7 +83,7 @@ public class RecommendationService {
                 try {
                     weights.put(config.getConfigKey(), Double.parseDouble(config.getConfigValue()));
                 } catch (NumberFormatException e) {
-                    System.err.println("Invalid weight value for " + config.getConfigKey() + ": " + config.getConfigValue());
+                    log.error("权重值无效: key={}, value={}", config.getConfigKey(), config.getConfigValue());
                 }
             }
             // Ensure defaults
@@ -92,7 +94,7 @@ public class RecommendationService {
             weights.putIfAbsent("weight.content", 1.0);
             weights.putIfAbsent("weight.comment_count", 0.1);
         } catch (Exception e) {
-            System.err.println("Failed to load weights from DB: " + e.getMessage());
+            log.error("从数据库加载权重失败: {}", e.getMessage());
             // Fallback defaults
             weights.put("weight.view", 0.5);
             weights.put("weight.like", 1.0);
@@ -130,6 +132,7 @@ public class RecommendationService {
 
     public List<Post> getRecommendations(Long userId, int page, int size) {
         long startTime = System.currentTimeMillis();
+        log.info("开始为用户 {} 生成推荐 (页码: {}, 数量: {})", userId, page, size);
 
         // Optimize: Fetch all viewed post IDs by this user first
         Set<Long> excludedPostIds = new HashSet<>();
@@ -161,7 +164,7 @@ public class RecommendationService {
         // 0. New User / Cold Start Check
         // If user has no interactions, directly recommend hot posts to avoid unnecessary computation
         if (isNewUser(userId)) {
-            System.out.println("New User detected (no interactions). Returning Hot Posts.");
+            log.info("检测到新用户 {} (无交互数据)。返回热门帖子作为冷启动推荐。", userId);
             int offset = (page - 1) * size;
             // FIX: Pass excludedPostIds to exclude watched/owned content
             return postMapper.selectHotPostsWithUser(size, offset, new ArrayList<>(excludedPostIds));
@@ -170,12 +173,13 @@ public class RecommendationService {
         // 1. Fetch recent interactions (Limit to avoid OOM and Timeouts)
         // Note: For UserCF, we ideally need the target user's full history, but for performance we limit all.
         // A better approach would be: All target user's + Recent others'. For now, simple limit.
+        log.debug("正在从数据库获取近期交互数据...");
         List<Like> likes = likeMapper.selectList(new QueryWrapper<Like>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
         List<Favorite> favorites = favoriteMapper.selectList(new QueryWrapper<Favorite>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
         List<Comment> comments = commentMapper.selectList(new QueryWrapper<Comment>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
         List<PostView> views = postViewMapper.selectList(new QueryWrapper<PostView>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
 
-        System.out.println("Data fetch took: " + (System.currentTimeMillis() - startTime) + "ms");
+        log.debug("交互数据获取完成，耗时: {}ms", (System.currentTimeMillis() - startTime));
         
         // 2. Build User-Item Matrix
         // Map<UserId, Map<PostId, Weight>>
@@ -203,40 +207,65 @@ public class RecommendationService {
 
         // 3. Collaborative Filtering (Python Microservice)
         try {
+            log.info("调用 Python 协同过滤微服务...");
             // Call Python Service
-            String url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=50";
-            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
-                url, 
-                HttpMethod.GET, 
-                null, 
-                new ParameterizedTypeReference<List<Map<String, Object>>>() {}
-            );
+            // 注意：在 Docker 环境中，goodshare-server 访问宿主机的 5000 端口需要用 host.docker.internal 或者服务名
+            // 为了兼容本地和 Docker 环境，优先尝试 recommendation-service，然后回退
+            String url = "http://recommendation-service:5000/recommend?user_id=" + userId + "&limit=50";
             
-            List<Map<String, Object>> cfRecs = response.getBody();
-            if (cfRecs != null) {
-                for (Map<String, Object> rec : cfRecs) {
-                    Long postId = ((Number) rec.get("post_id")).longValue();
-                    Double score = ((Number) rec.get("score")).doubleValue();
-                    
-                    // Filter out items already interacted by target user
-                    if (!targetUserInteractions.containsKey(postId)) {
-                        recommendedPosts.merge(postId, score, (a, b) -> a + b);
+            try {
+                ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                    url, 
+                    HttpMethod.GET, 
+                    null, 
+                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+                );
+                
+                List<Map<String, Object>> cfRecs = response.getBody();
+                if (cfRecs != null) {
+                    log.info("Python 协同过滤微服务返回了 {} 条推荐结果。", cfRecs.size());
+                    for (Map<String, Object> rec : cfRecs) {
+                        Long postId = ((Number) rec.get("post_id")).longValue();
+                        Double score = ((Number) rec.get("score")).doubleValue();
+                        
+                        // Filter out items already interacted by target user
+                        if (!targetUserInteractions.containsKey(postId)) {
+                            recommendedPosts.merge(postId, score, (a, b) -> a + b);
+                        }
+                    }
+                }
+            } catch (Exception innerE) {
+                log.warn("通过 recommendation-service 调用失败，尝试回退到 localhost:5000 : {}", innerE.getMessage());
+                url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=50";
+                ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                    url, 
+                    HttpMethod.GET, 
+                    null, 
+                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+                );
+                
+                List<Map<String, Object>> cfRecs = response.getBody();
+                if (cfRecs != null) {
+                    log.info("Python 协同过滤微服务 (localhost) 返回了 {} 条推荐结果。", cfRecs.size());
+                    for (Map<String, Object> rec : cfRecs) {
+                        Long postId = ((Number) rec.get("post_id")).longValue();
+                        Double score = ((Number) rec.get("score")).doubleValue();
+                        
+                        // Filter out items already interacted by target user
+                        if (!targetUserInteractions.containsKey(postId)) {
+                            recommendedPosts.merge(postId, score, (a, b) -> a + b);
+                        }
                     }
                 }
             }
         } catch (Exception e) {
-            System.err.println("Python Recommendation Service failed: " + e.getMessage());
+            log.error("调用 Python 推荐微服务最终失败: {}", e.getMessage());
             // Fallback: If Python service fails, we might want to use the local logic or just skip CF
             // For now, we log and skip, relying on Hot Posts fallback later.
         }
 
-        /* Legacy Java UserCF Implementation (Replaced by Python Service)
-        if (!targetUserInteractions.isEmpty()) {
-             // ... (Original Java logic removed/commented)
-        }
-        */
-
         // 4. Partition Recommendation (Tag-based Boosting)
+        log.info("开始执行基于标签权重的分区推荐调整...");
         // Use selectList directly to ensure proper mapping (avoid custom query potential mapping issues)
         List<UserTagWeight> userWeights = userTagWeightMapper.selectList(new QueryWrapper<UserTagWeight>().eq("user_id", userId));
 
@@ -278,6 +307,7 @@ public class RecommendationService {
         }
 
         // 5. Content-Based Recommendation (Elasticsearch MoreLikeThis)
+        log.info("开始执行基于内容的推荐召回 (Elasticsearch)...");
         // Select top 3 interacted posts as seeds
         List<Long> topInteractedPosts = targetUserInteractions.entrySet().stream()
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
@@ -303,11 +333,12 @@ public class RecommendationService {
                     }
                 }
             } catch (Exception e) {
-                System.err.println("CB Recommendation failed for post " + seedId + ": " + e.getMessage());
+                log.error("基于内容的推荐召回失败，种子帖子ID {}: {}", seedId, e.getMessage());
             }
         }
 
         // 5.5 Comment Count Boosting (Popularity)
+        log.info("开始应用评论热度加分策略...");
         if (!recommendedPosts.isEmpty()) {
             List<Long> candidateIds = new ArrayList<>(recommendedPosts.keySet());
             // Batch fetch
@@ -336,6 +367,7 @@ public class RecommendationService {
         }
 
         // 6. Global Weight Adjustment (Apply Tag Penalties/Boosts to ALL candidates)
+        log.info("开始应用全局标签权重调整 (惩罚/加分)...");
         if (userWeights != null && !userWeights.isEmpty() && !recommendedPosts.isEmpty()) {
             // Filter weights that are significantly different from 1.0
             Map<Long, Double> activeTagWeights = new HashMap<>();
@@ -397,6 +429,8 @@ public class RecommendationService {
             }
         }
 
+        log.info("最终打分完成。正在对 {} 篇候选帖子进行排序。", recommendedPosts.size());
+        
         List<Long> recommendedPostIds = recommendedPosts.entrySet().stream()
                 .filter(entry -> entry.getValue() > 0)
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
@@ -407,6 +441,12 @@ public class RecommendationService {
         List<Long> filteredRecommendedPostIds = recommendedPostIds.stream()
                 .filter(id -> !excludedPostIds.contains(id))
                 .collect(Collectors.toList());
+                
+        log.info("过滤已浏览/自己发布后的候选集数量: {}", filteredRecommendedPostIds.size());
+        if (filteredRecommendedPostIds.size() > 0) {
+             log.info("Top 5 候选帖子ID: {}", 
+                filteredRecommendedPostIds.stream().limit(5).collect(Collectors.toList()));
+        }
 
         // FIX: Shuffle top candidates to ensure freshness on refresh (page 1)
         if (page == 1 && !filteredRecommendedPostIds.isEmpty()) {
@@ -468,7 +508,7 @@ public class RecommendationService {
 
         if (finalPosts.size() < size) {
             int needed = size - finalPosts.size();
-            System.out.println("Recommendations insufficient (" + finalPosts.size() + "/" + size + "). Filling with " + needed + " hot posts.");
+            log.info("推荐结果不足 ({}/{}). 补充 {} 篇热门帖子。", finalPosts.size(), size, needed);
             // We need to pass excludedPostIds to selectHotPostsWithUser to exclude them as well
             // But selectHotPostsWithUser's 3rd arg is 'excludeIds', we can combine excludedPostIds + already selected IDs
             List<Long> excludeIds = new ArrayList<>(filteredRecommendedPostIds);
@@ -487,6 +527,7 @@ public class RecommendationService {
             finalPosts.addAll(selectedHotPosts);
         }
 
+        log.info("推荐流程结束。共返回 {} 篇帖子。总耗时: {}ms", finalPosts.size(), (System.currentTimeMillis() - startTime));
         return finalPosts;
     }
 

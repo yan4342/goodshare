@@ -43,7 +43,7 @@
             <template #dropdown>
                 <el-dropdown-menu>
                     <el-dropdown-item disabled>{{ username }}</el-dropdown-item>
-                    <el-dropdown-item command="reindex">重建搜索索引 (Admin)</el-dropdown-item>
+                    <el-dropdown-item v-if="isAdmin" command="reindex">重建搜索索引 (Admin)</el-dropdown-item>
                     <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
             </template>
@@ -67,6 +67,7 @@ const searchQuery = ref('')
 const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const userAvatar = computed(() => authStore.state.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
 const username = computed(() => authStore.state.user?.nickname || authStore.state.user?.username)
+const isAdmin = computed(() => authStore.state.user?.role?.includes('ADMIN') || false)
 
 const hotKeywords = ref([])
 

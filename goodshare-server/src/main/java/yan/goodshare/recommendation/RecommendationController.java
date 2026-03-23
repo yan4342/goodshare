@@ -10,6 +10,7 @@ import yan.goodshare.entity.Post;
 
 import java.util.List;
 
+// 推荐控制器，提供推荐功能
 @RestController
 @RequestMapping("/api/recommendations")
 public class RecommendationController {
@@ -17,6 +18,10 @@ public class RecommendationController {
     @Autowired
     private RecommendationService recommendationService;
 
+    // 获取用户推荐帖子
+    // @RequestParam("user_id") Long userId：用户ID，用于指定获取该用户的推荐帖子
+    // @RequestParam(defaultValue = "1") int page：分页参数，默认值为1
+    // @RequestParam(defaultValue = "10") int size：分页参数，默认值为10
     @GetMapping
     public ResponseEntity<List<Post>> getRecommendations(
             @RequestParam("user_id") Long userId,
