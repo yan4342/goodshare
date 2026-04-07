@@ -10,11 +10,13 @@ import java.util.List;
 
 public interface CommentMapper extends BaseMapper<Comment> {
 
-    @Select("SELECT c.*, u.username, u.nickname, u.avatar_url FROM comments c JOIN users u ON c.user_id = u.id WHERE c.post_id = #{postId} ORDER BY c.created_at ASC")
+    @Select("SELECT c.*, u.username, u.nickname, u.avatar_url, u.level, u.active_style FROM comments c JOIN users u ON c.user_id = u.id WHERE c.post_id = #{postId} ORDER BY c.created_at ASC")
     @Results({
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
-            @Result(property = "user.avatarUrl", column = "avatar_url")
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "user.level", column = "level"),
+            @Result(property = "user.activeStyle", column = "active_style")
     })
     List<Comment> selectCommentsWithUser(Long postId);
 }

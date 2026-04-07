@@ -40,6 +40,26 @@ public class DatabasePatchConfig {
                 // Column likely exists
             }
 
+            // 4.5 Add level and experience to users table
+            try {
+                jdbcTemplate.execute("ALTER TABLE users ADD COLUMN level INT DEFAULT 1");
+                System.out.println("Added level column to users table.");
+            } catch (Exception e) {
+                // Column likely exists
+            }
+            try {
+                jdbcTemplate.execute("ALTER TABLE users ADD COLUMN experience INT DEFAULT 0");
+                System.out.println("Added experience column to users table.");
+            } catch (Exception e) {
+                // Column likely exists
+            }
+            try {
+                jdbcTemplate.execute("ALTER TABLE users ADD COLUMN active_style INT DEFAULT 1");
+                System.out.println("Added active_style column to users table.");
+            } catch (Exception e) {
+                // Column likely exists
+            }
+
             // 4. Ensure admin user exists with correct role
             try {
                 String adminUsername = "admin";
@@ -48,7 +68,7 @@ public class DatabasePatchConfig {
                 
                 if (count == null || count == 0) {
                     // Create admin user
-                    String insertSql = "INSERT INTO users (username, password, email, role, nickname) VALUES (?, ?, ?, ?, ?)";
+                    String insertSql = "INSERT INTO users (username, password, email, role, nickname, level, experience) VALUES (?, ?, ?, ?, ?, 1, 0)";
                     jdbcTemplate.update(insertSql, adminUsername, passwordEncoder.encode("admin123"), "admin@goodshare.com", "ROLE_ADMIN", "Administrator");
                     System.out.println("Created admin user 'admin' with password 'admin123'.");
                 } else {
@@ -125,6 +145,10 @@ public class DatabasePatchConfig {
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                         ")");
+                try {
+                    jdbcTemplate.execute("ALTER TABLE app_configs MODIFY COLUMN config_value TEXT NOT NULL");
+                } catch (Exception e) {
+                }
                 //System.out.println("Ensured app_configs table exists.");
 
                 // Insert defaults if not exist
@@ -154,6 +178,10 @@ public class DatabasePatchConfig {
                 if (jdbcTemplate.queryForObject(checkSql, Integer.class, "weight.comment_count") == 0) {
                     jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)", 
                             "weight.comment_count", "0.1", "Weight for Post Comment Count (Popularity)");
+                }
+                if (jdbcTemplate.queryForObject(checkSql, Integer.class, "post.forbidden_words") == 0) {
+                    jdbcTemplate.update("INSERT INTO app_configs (config_key, config_value, description) VALUES (?, ?, ?)",
+                            "post.forbidden_words", "毒品,枪支,赌博,嫖娼,诈骗", "Forbidden words for post title and content");
                 }
                 
                 //System.out.println("Ensured default app_configs values.");

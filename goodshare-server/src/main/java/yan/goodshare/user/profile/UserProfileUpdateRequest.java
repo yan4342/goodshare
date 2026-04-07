@@ -8,15 +8,17 @@ public class UserProfileUpdateRequest {
     private String email;
     private String bio;
     private String avatarUrl;
+    private Integer activeStyle;
 
     public UserProfileUpdateRequest() {
     }
 
-    public UserProfileUpdateRequest(String nickname, String email, String bio, String avatarUrl) {
+    public UserProfileUpdateRequest(String nickname, String email, String bio, String avatarUrl, Integer activeStyle) {
         this.nickname = nickname;
         this.email = email;
         this.bio = bio;
         this.avatarUrl = avatarUrl;
+        this.activeStyle = activeStyle;
     }
 
     public String getNickname() {
@@ -30,5 +32,8 @@ public class UserProfileUpdateRequest {
     }
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+    public Integer getActiveStyle() {
+        return activeStyle;
     }
 }

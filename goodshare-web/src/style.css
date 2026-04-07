@@ -42,7 +42,7 @@ html.dark {
   --sidebar-bg: #141414;
   --hover-bg: #1f1f1f;
   
-  /* Element Plus Primary Color Override for Dark Mode */
+    /* Element Plus Primary Color Override for Dark Mode */
   --el-color-primary: #ff2442;
   --el-color-primary-light-3: #ff667b;
   --el-color-primary-light-5: #ff8090;
@@ -51,6 +51,54 @@ html.dark {
   --el-color-primary-light-9: #ffe6e9;
   --el-color-primary-dark-2: #cc1d35;
 }
+
+/* Level & Exp Styles - Global Definitions */
+.level-tag {
+    font-weight: bold;
+    border-radius: 12px;
+}
+
+/* Uncommon (Lv 3+) */
+.avatar-uncommon .el-avatar {
+    border: 3px solid #67c23a;
+    box-shadow: 0 0 10px rgba(103, 194, 58, 0.3);
+}
+.name-uncommon {
+    color: #67c23a !important;
+    text-shadow: 0 0 2px rgba(103, 194, 58, 0.2);
+}
+
+/* Rare (Lv 5+) */
+.avatar-rare .el-avatar {
+    border: 3px solid #e6a23c;
+    box-shadow: 0 0 10px rgba(230, 162, 60, 0.5);
+}
+.name-rare {
+    color: #e6a23c !important;
+    background: linear-gradient(45deg, #e6a23c, #f56c6c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Epic (Lv 10+) */
+.avatar-epic .el-avatar {
+    border: 3px solid #ff667b;
+    box-shadow: 0 0 10px rgba(255, 153, 165, 0.8), inset 0 0 10px rgba(255, 110, 136, 0.5);
+}
+.name-epic {
+    color: #ff667b !important;
+    background: linear-gradient(45deg, #ff667b, #f56c6c, #e68b3c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradient-text 3s infinite linear;
+}
+
+@keyframes gradient-text {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
 
 body {
   margin: 0;

@@ -19,12 +19,14 @@ public class TagService {
     private final PostMapper postMapper;
     private final PostService postService;
     private final SearchService searchService;
+    private final yan.goodshare.search.SearchStatsService searchStatsService;
 
-    public TagService(TagMapper tagMapper, PostMapper postMapper, PostService postService, SearchService searchService) {
+    public TagService(TagMapper tagMapper, PostMapper postMapper, PostService postService, SearchService searchService, yan.goodshare.search.SearchStatsService searchStatsService) {
         this.tagMapper = tagMapper;
         this.postMapper = postMapper;
         this.postService = postService;
         this.searchService = searchService;
+        this.searchStatsService = searchStatsService;
     }
 
     public Tag createTag(String name) {
@@ -40,6 +42,51 @@ public class TagService {
 
     public List<Tag> getAllTags() {
         return tagMapper.selectList(null);
+    }
+
+    public List<java.util.Map<String, Object>> getTrendingTasks() {
+        List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        List<String> seenNames = new java.util.ArrayList<>();
+        
+        // 1. Get from hot keywords (Search Stats)
+        List<yan.goodshare.entity.SearchStats> hotKeywords = searchStatsService.getHotKeywords();
+        if (hotKeywords != null) {
+            for (yan.goodshare.entity.SearchStats stats : hotKeywords) {
+                String name = stats.getKeyword();
+                if (name != null && name.length() > 1 && !name.matches("^\\d+$") && !seenNames.contains(name)) {
+                    java.util.Map<String, Object> task = new java.util.HashMap<>();
+                    task.put("name", name);
+                    task.put("type", "hot_word");
+                    result.add(task);
+                    seenNames.add(name);
+                }
+                if (result.size() >= 3) {
+                    break;
+                }
+            }
+        }
+
+        // 2. Get from trending tags (if we need more)
+        if (result.size() < 5) {
+            List<java.util.Map<String, Object>> tags = tagMapper.selectTrendingTags(50);
+            for (java.util.Map<String, Object> map : tags) {
+                String name = (String) map.get("name");
+                if (name != null && name.length() > 1 && !name.matches("^\\d+$")) {
+                    if (!seenNames.contains(name)) {
+                        java.util.Map<String, Object> task = new java.util.HashMap<>();
+                        task.put("name", name);
+                        task.put("type", "tag");
+                        result.add(task);
+                        seenNames.add(name);
+                    }
+                }
+                if (result.size() >= 5) {
+                    break;
+                }
+            }
+        }
+        
+        return result;
     }
 
     @Transactional

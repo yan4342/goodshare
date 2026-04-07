@@ -27,6 +27,10 @@
                     <el-icon><Message /></el-icon>
                     <span>私信</span>
                 </div>
+                 <div class="nav-item" :class="{ active: activeTab === 'tasks' }" @click="activeTab = 'tasks'">
+                    <el-icon><Calendar /></el-icon>
+                    <span>发帖任务</span>
+                </div>
             </div>
         </div>
 
@@ -192,6 +196,30 @@
                         <el-empty description="暂无私信" />
                     </div>
                 </div>
+
+                <!-- Tasks -->
+                <div v-if="activeTab === 'tasks'">
+                    <div class="tasks-container">
+                        <div class="tasks-header">
+                            <div class="tasks-title">当前热点发帖任务</div>
+                            <div class="tasks-desc">发布包含以下话题的帖子，即可获得经验值奖励，提升你的社区等级！</div>
+                        </div>
+                        <div v-if="trendingTasks.length > 0" class="tasks-list">
+                            <div v-for="(task, index) in trendingTasks" :key="index" class="task-card" :class="task.type">
+                                <div class="task-info">
+                                    <span class="task-type-badge">{{ task.type === 'hot_word' ? '搜索热词' : '热门标签' }}</span>
+                                    <span class="task-tag" v-if="task.type === 'tag'">#{{ task.name }}#</span>
+                                    <span class="task-word" v-else>“{{ task.name }}”</span>
+                                    <span class="task-reward"><el-icon><StarFilled /></el-icon> +10 经验值</span>
+                                </div>
+                                <el-button :type="task.type === 'hot_word' ? 'danger' : 'primary'" size="small" round @click="goToPost(task)">去完成</el-button>
+                            </div>
+                        </div>
+                        <div v-else class="empty-state">
+                            <el-empty description="暂无发帖任务" />
+                        </div>
+                    </div>
+                </div>
              </div>
         </div>
     </div>
@@ -212,7 +240,7 @@ import { ref, computed, onMounted } from 'vue'
 import request from '../utils/request'
 import { useRouter } from 'vue-router'
 import { getThumbnailUrl } from '../utils/image'
-import { Compass, StarFilled, UserFilled, Comment, Message, MoreFilled, Star, ChatDotRound, Collection, CollectionTag } from '@element-plus/icons-vue'
+import { Compass, StarFilled, UserFilled, Comment, Message, MoreFilled, Star, ChatDotRound, Collection, CollectionTag, Calendar } from '@element-plus/icons-vue'
 import PostDetail from './PostDetail.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import authStore from '../stores/auth'
@@ -222,6 +250,7 @@ const activeTab = ref('dynamic')
 const notifications = ref([])
 const dynamicPosts = ref([])
 const messageConversations = ref([])
+const trendingTasks = ref([])
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
 
 // Post Modal State
@@ -236,9 +265,20 @@ const getTabTitle = (tab) => {
         'likes': '收到的赞',
         'follows': '新增关注',
         'comments': '评论',
-        'messages': '私信'
+        'messages': '私信',
+        'tasks': '发帖任务'
     }
     return titles[tab] || '通知'
+}
+
+const fetchTrendingTasks = async () => {
+    try {
+        const res = await request.get('/tags/trending')
+        trendingTasks.value = res.data || []
+    } catch (error) {
+        console.error('Failed to fetch trending tasks', error)
+        trendingTasks.value = []
+    }
 }
 
 const fetchNotifications = async () => {
@@ -404,6 +444,7 @@ onMounted(() => {
     fetchNotifications()
     fetchFollowedPosts()
     fetchMessageConversations()
+    fetchTrendingTasks()
 })
 
 const likes = computed(() => notifications.value.filter(n => n.type === 'LIKE'))
@@ -481,6 +522,16 @@ const closePostModal = () => {
     clickedRect.value = null
 }
 
+const goToPost = (task) => {
+    // You can redirect to home or a compose page, or open a modal.
+    // Assuming Publish.vue uses taskTag query parameter to pre-fill
+    if (task.type === 'tag') {
+        router.push({ path: '/publish', query: { tag: task.name } })
+    } else {
+        router.push({ path: '/publish', query: { content: task.name } })
+    }
+}
+
 const goToChat = (userId) => {
     if (!userId) return
     router.push({
@@ -504,7 +555,7 @@ const goToChat = (userId) => {
 .notifications-layout {
     display: flex;
     flex-direction: column;
-    width: 800px;
+    width: 880px;
     max-width: 95%;
     margin-top: 20px;
     height: calc(100vh - 40px);
@@ -826,5 +877,107 @@ const goToChat = (userId) => {
 
 .empty-state {
     padding: 60px 0;
+}
+
+/* Tasks */
+.tasks-container {
+    padding: 20px 30px;
+}
+
+.tasks-header {
+    margin-bottom: 24px;
+}
+
+.tasks-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.tasks-desc {
+    font-size: 14px;
+    color: var(--text-color-secondary);
+}
+
+.tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.task-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--bg-color);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.task-card.hot_word {
+    border-left: 4px solid #f56c6c;
+    background: linear-gradient(to right, rgba(245, 108, 108, 0.05), transparent);
+}
+
+.task-card.tag {
+    border-left: 4px solid var(--el-color-primary);
+}
+
+.task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.task-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.task-type-badge {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--border-color);
+    color: var(--text-color-secondary);
+}
+
+.task-card.hot_word .task-type-badge {
+    background: rgba(245, 108, 108, 0.1);
+    color: #f56c6c;
+}
+
+.task-card.tag .task-type-badge {
+    background: rgba(64, 158, 255, 0.1);
+    color: var(--el-color-primary);
+}
+
+.task-tag {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--el-color-primary);
+}
+
+.task-word {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f56c6c;
+}
+
+.task-reward {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: #e6a23c;
+    background: rgba(230, 162, 60, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.task-reward .el-icon {
+    margin-right: 4px;
 }
 </style>

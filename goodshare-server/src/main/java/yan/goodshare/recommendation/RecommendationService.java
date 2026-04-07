@@ -211,7 +211,7 @@ public class RecommendationService {
             // Call Python Service
             // 注意：在 Docker 环境中，goodshare-server 访问宿主机的 5000 端口需要用 host.docker.internal 或者服务名
             // 为了兼容本地和 Docker 环境，优先尝试 recommendation-service，然后回退
-            String url = "http://recommendation-service:5000/recommend?user_id=" + userId + "&limit=50";
+            String url = "http://recommendation-service:5000/recommend?user_id=" + userId + "&limit=40";
             
             try {
                 ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(

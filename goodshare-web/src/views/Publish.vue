@@ -4,6 +4,15 @@
       <!-- Left: Form 发布笔记 -->
       <div class="publish-card form-section">
         <h2 class="page-title">发布笔记</h2>
+        <el-alert
+          v-if="publishError"
+          :title="publishError"
+          type="error"
+          show-icon
+          :closable="true"
+          class="publish-alert"
+          @close="publishError = ''"
+        />
         
         <el-form :model="form" label-position="top">
           <!-- Image Upload -->
@@ -385,6 +394,7 @@ const dialogVisible = ref(false)
 const showPreview = ref(false)
 const hasContentImage = ref(false)
 const previewCoverUrl = ref('')
+const publishError = ref('')
 const aiKeyword = ref('')
 const aiLoading = ref(false)
 const captureRef = ref(null)
@@ -755,6 +765,12 @@ watch(() => form.value.content, (newVal) => {
     hasContentImage.value = imgRegex.test(newVal)
 })
 
+watch([() => form.value.title, () => form.value.content], () => {
+    if (publishError.value) {
+        publishError.value = ''
+    }
+})
+
 const route = useRoute()
 
 const loadDraft = () => {
@@ -934,6 +950,21 @@ onMounted(async () => {
     if (!route.query.id) {
         loadDraft()
     }
+    
+    // Auto-fill tags or content from route query (Task feature)
+    if (route.query.tag) {
+        if (!form.value.tags.includes(route.query.tag)) {
+            form.value.tags.push(route.query.tag)
+        }
+    }
+    if (route.query.content) {
+        if (!form.value.content.includes(route.query.content)) {
+             form.value.content = `<p>${route.query.content}</p>` + form.value.content
+             if (quill) {
+                 quill.root.innerHTML = form.value.content
+             }
+        }
+    }
 })
 
 const handleUploadSuccess = (response, uploadFile) => {
@@ -1074,6 +1105,7 @@ const handlePreview = async () => {
 }
 
 const prePublish = async () => {
+  publishError.value = ''
   if (!form.value.title) {
       ElMessage.warning('请填写标题')
       return
@@ -1106,6 +1138,19 @@ const prePublish = async () => {
   await handlePreview()
 }
 
+const extractForbiddenWord = (message) => {
+  const match = message?.match(/违禁词[:：]\s*(.+)$/)
+  return match?.[1]?.trim() || ''
+}
+
+const buildPublishErrorMessage = (message) => {
+  const forbiddenWord = extractForbiddenWord(message)
+  if (forbiddenWord) {
+    return `内容未通过审核，请删除违禁词“${forbiddenWord}”后再发布`
+  }
+  return message || '发布失败，请稍后重试'
+}
+
 const confirmPublish = async () => {
   const urls = fileList.value
     .map(file => {
@@ -1127,6 +1172,7 @@ const confirmPublish = async () => {
   console.log('Publishing with URLs:', urls)
 
   loading.value = true
+  publishError.value = ''
   try {
     if (urls.length === 0) {
         const contentImg = getFirstContentImage(form.value.content)
@@ -1150,11 +1196,19 @@ const confirmPublish = async () => {
         form.value.coverUrl = ''
     }
 
-    await request.post('/posts', form.value)
+    await request.post('/posts', form.value, { _skipErrorMessage: true })
     ElMessage.success('发布成功')
     clearDraft() // Clear draft on successful publish
     router.push('/')
   } catch (error) {
+    if (error?.response?.status !== 401) {
+        publishError.value = buildPublishErrorMessage(
+            typeof error?.response?.data === 'string'
+                ? error.response.data
+                : error?.response?.data?.message
+        )
+        ElMessage.error(publishError.value)
+    }
     loading.value = false
   } finally {
     loading.value = false
@@ -1181,6 +1235,9 @@ const confirmPublish = async () => {
     border-radius: 8px;
     box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
     transition: background-color 0.3s;
+}
+.publish-alert {
+  margin-bottom: 20px;
 }
 .publish-layout {
   display: flex;

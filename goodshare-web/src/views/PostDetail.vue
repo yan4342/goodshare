@@ -38,14 +38,15 @@
         <div class="info-section" :class="{ 'full-width': !post.coverUrl }">
           <!-- Author Header -->
           <div class="author-header">
-            <div class="avatar-container" @click="goToUser">
+            <div class="avatar-container" @click="goToUser" :class="getAvatarClass(post.user?.activeStyle)">
                 <el-avatar 
                     :size="40" 
                     :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" 
                     class="clickable-avatar"
                 />
             </div>
-            <span class="username clickable-username" @click="goToUser">{{ post.user?.username || '用户' }}</span>
+            <span class="username clickable-username" :class="getNameClass(post.user?.activeStyle)" @click="goToUser">{{ post.user?.username || '用户' }}</span>
+            <el-tag v-if="post.user?.level" :type="getLevelTagType(post.user?.level)" effect="dark" size="small" class="level-tag" style="margin-left: 8px; margin-right: 8px;">Lv.{{ post.user?.level }}</el-tag>
             <el-button 
                 v-if="(post.userId || post.user?.id) !== authStore.state.user?.id"
                 :type="isFollowing ? 'default' : 'primary'"  
@@ -97,10 +98,12 @@
               <div v-for="comment in comments" :key="comment.id" class="comment-group">
                 <!-- Parent Comment -->
                 <div class="comment-item">
-                    <el-avatar :size="32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(comment.userId)"/>
+                    <div class="avatar-wrapper" :class="getAvatarClass(comment.user?.activeStyle)">
+                        <el-avatar :size="32" :src="comment.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(comment.userId)"/>
+                    </div>
                     <div class="comment-content">
                     <div class="comment-user">
-                        <span class="username" @click="goToUser(comment.userId)">{{ comment.user?.username || '用户' }}</span>
+                        <span class="username" :class="getNameClass(comment.user?.activeStyle)" @click="goToUser(comment.userId)">{{ comment.user?.username || '用户' }}</span>
                         <span v-if="comment.user?.id === post.userId" class="author-badge">作者</span>
                     </div>
                     <div class="comment-text" @click="handleReply(comment)">{{ comment.content }}</div>
@@ -122,10 +125,12 @@
                 <!-- Replies (Nested) -->
                 <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
                     <div v-for="reply in comment.replies" :key="reply.id" class="comment-item is-reply">
-                         <el-avatar :size="24" :src="reply.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(reply.userId)"/>
+                        <div class="avatar-wrapper" :class="getAvatarClass(reply.user?.activeStyle)">
+                            <el-avatar :size="24" :src="reply.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" class="comment-avatar" @click="goToUser(reply.userId)"/>
+                        </div>
                         <div class="comment-content">
                             <div class="comment-user">
-                                <span class="username" @click="goToUser(reply.userId)">{{ reply.user?.username || '用户' }}</span>
+                                <span class="username" :class="getNameClass(reply.user?.activeStyle)" @click="goToUser(reply.userId)">{{ reply.user?.username || '用户' }}</span>
                                 <span v-if="reply.user?.id === post.userId" class="author-badge">作者</span>
                                 <span v-if="reply.parentId && reply.parentId !== comment.id" class="reply-target">
                                     <span class="reply-text">回复</span> <span class="at-user">@{{ getParentUser(reply.parentId) || '用户' }}</span>
@@ -217,6 +222,7 @@ import request from '../utils/request'
 import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import authStore from '../stores/auth'
+import { getAvatarClass, getNameClass, getLevelTagType } from '../utils/style'
 
 const props = defineProps({
     postId: {
@@ -797,6 +803,14 @@ const handleClose = () => {
   align-items: center;
   margin-bottom: 20px;
 }
+.avatar-container {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 .clickable-avatar {
     cursor: pointer;
     transition: opacity 0.3s;
@@ -941,6 +955,12 @@ const handleClose = () => {
 }
 .comment-item.is-reply:last-child {
     margin-bottom: 0;
+}
+.avatar-wrapper {
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 .comment-avatar {
     flex-shrink: 0;

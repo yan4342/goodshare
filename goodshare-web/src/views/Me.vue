@@ -9,7 +9,7 @@
           </el-button>
       </div>
       <div class="profile-info">
-        <div class="avatar-wrapper">
+        <div class="avatar-wrapper" :class="getAvatarClass(userProfile.activeStyle)">
           <el-upload
             v-if="isCurrentUser"
             ref="uploadRef"
@@ -27,7 +27,14 @@
           <el-avatar v-else :size="100" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
         </div>
         <div class="user-details">
-          <h1 class="username">{{ userProfile.nickname || userProfile.username }}</h1>
+          <div class="name-row">
+            <h1 class="username" :class="getNameClass(userProfile.activeStyle)">{{ userProfile.nickname || userProfile.username }}</h1>
+            <el-tag :type="getLevelTagType(userProfile.level)" effect="dark" size="small" class="level-tag">Lv.{{ userProfile.level || 1 }}</el-tag>
+          </div>
+          <div class="exp-bar-wrapper">
+             <div class="exp-text">经验值: {{ userProfile.experience || 0 }} / {{ getNextLevelExp(userProfile.level) }}</div>
+             <el-progress :percentage="getExpPercentage(userProfile.experience, userProfile.level)" :show-text="false" :stroke-width="6" />
+          </div>
           <p class="bio">{{ userProfile.bio || '这个人很懒，什么都没有写~' }}</p>
           <div class="stats">
             <div class="stat-item" @click="showFollowingList = true">
@@ -204,34 +211,102 @@
     />
 
     <!-- Settings Dialog -->
-    <el-dialog v-model="showSettings" title="分区推荐权重设置" width="560px">
-        <div class="settings-section">
-            <div v-if="loadingWeights" class="loading-state">
-               <div style="text-align:center; padding: 20px;">加载中...</div>
-            </div>
-            <div v-else-if="tagWeights.length === 0" class="empty-state">
-              <el-empty description="还没有设置推荐权重哦" />
-            </div>
-            <div v-else class="weight-list">
-              <div class="weight-header">
-                <span class="tag-name">分区</span>
-                <span class="slider-label">偏好</span>
-                <span class="partition-weight">分区权重</span>
-                <span class="partition-share">占比</span>
-              </div>
-              <div v-for="weight in tagWeights" :key="weight.tagId" class="weight-item">
-                <span class="tag-name">{{ weight.tagName }}</span>
-                <el-slider class="weight-slider" v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
-                <span class="partition-weight">{{ getPartitionWeight(weight).toFixed(2) }}</span>
-                <span class="partition-share">{{ formatPartitionShare(weight) }}</span>
-              </div>
-            </div>
-        </div>
-        <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="showSettings = false">关闭</el-button>
-            </span>
-        </template>
+    <el-dialog v-model="showSettings" title="个人设置" width="560px" custom-class="settings-dialog">
+        <el-tabs v-model="settingsActiveTab" class="settings-tabs">
+            <el-tab-pane label="分区推荐权重" name="weights">
+                <div class="settings-section">
+                    <div v-if="loadingWeights" class="loading-state">
+                       <div style="text-align:center; padding: 20px;">加载中...</div>
+                    </div>
+                    <div v-else-if="tagWeights.length === 0" class="empty-state">
+                      <el-empty description="还没有设置推荐权重哦" />
+                    </div>
+                    <div v-else class="weight-list">
+                      <div class="weight-header">
+                        <span class="tag-name">分区</span>
+                        <span class="slider-label">偏好</span>
+                        <span class="partition-weight">分区权重</span>
+                        <span class="partition-share">占比</span>
+                      </div>
+                      <div v-for="weight in tagWeights" :key="weight.tagId" class="weight-item">
+                        <span class="tag-name">{{ weight.tagName }}</span>
+                        <el-slider class="weight-slider" v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
+                        <span class="partition-weight">{{ getPartitionWeight(weight).toFixed(2) }}</span>
+                        <span class="partition-share">{{ formatPartitionShare(weight) }}</span>
+                      </div>
+                    </div>
+                </div>
+            </el-tab-pane>
+
+            <el-tab-pane label="个性化装扮" name="style">
+                <div class="style-settings-container">
+                    <div class="current-level-info">
+                        <span>当前等级: </span>
+                        <el-tag :type="getLevelTagType(userProfile.level)" effect="dark">Lv.{{ userProfile.level || 1 }}</el-tag>
+                    </div>
+                    <div class="style-list">
+                        <!-- Lv 1 Style -->
+                        <div class="style-item" :class="{ active: selectedStyle === 1 }" @click="selectStyle(1)">
+                            <div class="style-preview">
+                                <div class="avatar-wrapper" :class="getAvatarClass(1)">
+                                    <el-avatar :size="60" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
+                                </div>
+                                <div class="username" :class="getNameClass(1)">默认样式</div>
+                            </div>
+                            <div class="style-status">
+                                <el-tag type="info" size="small" v-if="(userProfile.level || 1) < 1">未解锁</el-tag>
+                                <el-icon v-else-if="selectedStyle === 1" color="var(--el-color-primary)" :size="24"><Select /></el-icon>
+                            </div>
+                        </div>
+
+                        <!-- Lv 3 Style -->
+                        <div class="style-item" :class="{ active: selectedStyle === 3, locked: (userProfile.level || 1) < 3 }" @click="selectStyle(3)">
+                            <div class="style-preview">
+                                <div class="avatar-wrapper" :class="getAvatarClass(3)">
+                                    <el-avatar :size="60" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
+                                </div>
+                                <div class="username" :class="getNameClass(3)">绿色 (Lv.3 解锁)</div>
+                            </div>
+                            <div class="style-status">
+                                <el-tag type="info" size="small" v-if="(userProfile.level || 1) < 3">未解锁</el-tag>
+                                <el-icon v-else-if="selectedStyle === 3" color="var(--el-color-primary)" :size="24"><Select /></el-icon>
+                            </div>
+                        </div>
+
+                        <!-- Lv 5 Style -->
+                        <div class="style-item" :class="{ active: selectedStyle === 5, locked: (userProfile.level || 1) < 5 }" @click="selectStyle(5)">
+                            <div class="style-preview">
+                                <div class="avatar-wrapper" :class="getAvatarClass(5)">
+                                    <el-avatar :size="60" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
+                                </div>
+                                <div class="username" :class="getNameClass(5)">金色 (Lv.5 解锁)</div>
+                            </div>
+                            <div class="style-status">
+                                <el-tag type="info" size="small" v-if="(userProfile.level || 1) < 5">未解锁</el-tag>
+                                <el-icon v-else-if="selectedStyle === 5" color="var(--el-color-primary)" :size="24"><Select /></el-icon>
+                            </div>
+                        </div>
+
+                        <!-- Lv 10 Style -->
+                        <div class="style-item" :class="{ active: selectedStyle === 10, locked: (userProfile.level || 1) < 10 }" @click="selectStyle(10)">
+                            <div class="style-preview">
+                                <div class="avatar-wrapper" :class="getAvatarClass(10)">
+                                    <el-avatar :size="60" :src="userProfile.avatarUrl || defaultAvatar" class="avatar" />
+                                </div>
+                                <div class="username" :class="getNameClass(10)">红色 (Lv.10 解锁)</div>
+                            </div>
+                            <div class="style-status">
+                                <el-tag type="info" size="small" v-if="(userProfile.level || 1) < 10">未解锁</el-tag>
+                                <el-icon v-else-if="selectedStyle === 10" color="var(--el-color-primary)" :size="24"><Select /></el-icon>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="style-actions" style="margin-top: 20px; text-align: right;">
+                        <el-button type="primary" @click="saveStyleSettings">保存装扮</el-button>
+                    </div>
+                </div>
+            </el-tab-pane>
+        </el-tabs>
     </el-dialog>
 
     <!-- Edit Profile Dialog -->
@@ -306,6 +381,7 @@ import 'vue-cropper/dist/index.css'
 import { getThumbnailUrl } from '../utils/image'
 import { compressImage } from '../utils/compress'
 import PostDetail from './PostDetail.vue'
+import { getAvatarClass, getNameClass, getLevelTagType } from '../utils/style'
 
 const router = useRouter()
 const route = useRoute()
@@ -320,6 +396,8 @@ const loadingWeights = ref(false)
 const activeTab = ref('posts')
 const showEditProfile = ref(false)
 const showSettings = ref(false)
+const settingsActiveTab = ref('weights')
+const selectedStyle = ref(1)
 const totalLikes = ref(0)
 const showCropper = ref(false)
 const isFollowing = ref(false)
@@ -340,6 +418,22 @@ const isCurrentUser = computed(() => {
 const cropperImg = ref('')
 const cropper = ref(null)
 const uploadRef = ref(null)
+
+const getNextLevelExp = (level) => {
+    const lvl = level || 1
+    return lvl * lvl * 10
+}
+
+const getExpPercentage = (exp, level) => {
+    const currentExp = exp || 0
+    const nextExp = getNextLevelExp(level)
+    const prevExp = level > 1 ? (level - 1) * (level - 1) * 10 : 0
+    const progress = currentExp - prevExp
+    const required = nextExp - prevExp
+    if (required <= 0) return 100
+    return Math.min(100, Math.max(0, (progress / required) * 100))
+}
+
 const cropperOption = reactive({
     img: '',
     outputSize: 0.8,
@@ -529,8 +623,31 @@ const fetchLikedPosts = async () => {
 }
 
 const openSettings = () => {
+    selectedStyle.value = userProfile.value.activeStyle || userProfile.value.level || 1
     showSettings.value = true
     fetchTagWeights()
+}
+
+const selectStyle = (level) => {
+    if ((userProfile.value.level || 1) >= level) {
+        selectedStyle.value = level
+    } else {
+        ElMessage.warning(`该装扮需要达到 Lv.${level} 才能解锁哦！`)
+    }
+}
+
+const saveStyleSettings = async () => {
+    try {
+        await request.put('/profile', {
+            activeStyle: selectedStyle.value
+        })
+        userProfile.value.activeStyle = selectedStyle.value
+        ElMessage.success('个性化装扮设置已保存')
+        showSettings.value = false
+    } catch (error) {
+        console.error('Failed to save style settings', error)
+        ElMessage.error('保存失败，请重试')
+    }
 }
 
 const partitionBase = 2.0
@@ -707,7 +824,8 @@ const confirmCrop = () => {
              await request.put('/profile', {
                 avatarUrl: url,
                 bio: userProfile.value.bio,
-                email: userProfile.value.email
+                email: userProfile.value.email,
+                activeStyle: userProfile.value.activeStyle
             })
             
             // Update auth store with real URL
@@ -987,6 +1105,31 @@ onMounted(() => {
     opacity: 1;
 }
 
+/* Level & Exp Styles */
+.name-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.level-tag {
+    font-weight: bold;
+    border-radius: 12px;
+    margin-bottom: 8px;
+}
+
+.exp-bar-wrapper {
+    margin-bottom: 12px;
+    width: 200px;
+}
+
+.exp-text {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+    margin-bottom: 4px;
+}
+
 .user-details {
     flex: 1;
 }
@@ -1235,5 +1378,69 @@ onMounted(() => {
     margin-left: 12px;
     font-weight: 500;
     color: var(--text-color);
+}
+/* Style Settings Dialog */
+.style-settings-container {
+    padding: 10px;
+}
+
+.current-level-info {
+    margin-bottom: 20px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.style-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--bg-color);
+}
+
+.style-item:hover:not(.locked) {
+    border-color: var(--el-color-primary-light-5);
+    transform: translateY(-2px);
+}
+
+.style-item.active {
+    border-color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+}
+
+.style-item.locked {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
+
+.style-preview {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.style-preview .username {
+    font-size: 16px;
+    margin: 0;
+}
+
+.style-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
 }
 </style>

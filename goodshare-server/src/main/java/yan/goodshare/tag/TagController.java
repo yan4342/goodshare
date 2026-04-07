@@ -32,6 +32,11 @@ public class TagController {
         return ResponseEntity.ok(tagService.getAllTags());
     }
 
+    @GetMapping("/trending")
+    public ResponseEntity<List<java.util.Map<String, Object>>> getTrendingTasks() {
+        return ResponseEntity.ok(tagService.getTrendingTasks());
+    }
+
     @DeleteMapping("/{id}")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteTag(@PathVariable Long id) {

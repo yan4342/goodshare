@@ -39,6 +39,13 @@
       </div>
       <div 
         class="menu-item" 
+        :class="{ active: currentTab === 'moderation' }"
+        @click="currentTab = 'moderation'"
+      >
+        <span>违禁词配置</span>
+      </div>
+      <div 
+        class="menu-item" 
         :class="{ active: currentTab === 'appraisals' }"
         @click="currentTab = 'appraisals'"
       >
@@ -53,6 +60,7 @@
             currentTab === 'posts' ? '帖子管理' : 
             currentTab === 'audit' ? '内容审核' :
             currentTab === 'users' ? '用户管理' : 
+            currentTab === 'moderation' ? '违禁词配置' :
             currentTab === 'appraisals' ? '鉴定管理' : '算法权重配置' 
         }}</h2>
         <el-button type="primary" @click="logout">退出登录</el-button>
@@ -275,6 +283,44 @@
           </el-card>
       </div>
 
+      <div v-if="currentTab === 'moderation'" style="margin-top: 20px; max-width: 900px;">
+          <el-card v-loading="forbiddenWordsLoading">
+              <template #header>
+                  <div class="card-header">
+                      <span>帖子违禁词列表</span>
+                  </div>
+              </template>
+              <el-form label-position="top">
+                  <el-form-item label="违禁词内容">
+                      <el-input
+                          v-model="forbiddenWordsText"
+                          type="textarea"
+                          :rows="8"
+                          placeholder="支持英文逗号、中文逗号、分号或换行分隔"
+                      />
+                  </el-form-item>
+                  <div class="forbidden-words-meta">
+                      <span>当前共 {{ forbiddenWords.length }} 个词</span>
+                      <span>保存后立即作用于帖子发布与编辑</span>
+                  </div>
+                  <div v-if="forbiddenWords.length > 0" class="forbidden-words-preview">
+                      <el-tag
+                          v-for="word in forbiddenWords"
+                          :key="word"
+                          class="forbidden-word-tag"
+                          type="danger"
+                      >
+                          {{ word }}
+                      </el-tag>
+                  </div>
+                  <el-form-item style="margin-top: 20px;">
+                      <el-button type="primary" @click="saveForbiddenWordsConfig">保存配置</el-button>
+                      <el-button @click="fetchForbiddenWordsConfig">重置</el-button>
+                  </el-form-item>
+              </el-form>
+          </el-card>
+      </div>
+
       <!-- Appraisals Management -->
       <div v-if="currentTab === 'appraisals'">
         <el-table :data="appraisals" v-loading="appraisalsLoading" style="width: 100%">
@@ -384,6 +430,10 @@ const weights = ref({
 })
 const weightsLoading = ref(false)
 
+const forbiddenWordsText = ref('')
+const forbiddenWords = ref([])
+const forbiddenWordsLoading = ref(false)
+
 // Appraisal Data
 const appraisals = ref([])
 const appraisalsLoading = ref(false)
@@ -404,11 +454,17 @@ watch(currentTab, (newTab) => {
         fetchUsers()
     } else if (newTab === 'weights') {
         fetchWeights()
+    } else if (newTab === 'moderation') {
+        fetchForbiddenWordsConfig()
     } else if (newTab === 'audit') {
         fetchAuditPosts()
     } else if (newTab === 'appraisals') {
         fetchAppraisals()
     }
+})
+
+watch(forbiddenWordsText, (value) => {
+    forbiddenWords.value = parseForbiddenWords(value)
 })
 
 // --- Tag Methods ---
@@ -628,6 +684,57 @@ const saveWeights = async () => {
     }
 }
 
+const parseForbiddenWords = (rawValue) => {
+    if (!rawValue) return []
+    return Array.from(new Set(
+        rawValue
+            .split(/[,，;；\r\n]+/)
+            .map(word => word.trim())
+            .filter(Boolean)
+    ))
+}
+
+const fetchForbiddenWordsConfig = async () => {
+    forbiddenWordsLoading.value = true
+    try {
+        const res = await request.get('/admin/post-moderation/forbidden-words', { _isAdmin: true })
+        forbiddenWordsText.value = res.data.rawValue || ''
+        forbiddenWords.value = Array.isArray(res.data.forbiddenWords)
+            ? res.data.forbiddenWords
+            : parseForbiddenWords(res.data.rawValue)
+    } catch (error) {
+        console.error(error)
+        ElMessage.error('获取违禁词配置失败')
+    } finally {
+        forbiddenWordsLoading.value = false
+    }
+}
+
+const saveForbiddenWordsConfig = async () => {
+    const parsedWords = parseForbiddenWords(forbiddenWordsText.value)
+    if (parsedWords.length === 0) {
+        ElMessage.warning('请至少填写一个违禁词')
+        return
+    }
+
+    forbiddenWordsLoading.value = true
+    try {
+        const res = await request.put('/admin/post-moderation/forbidden-words', {
+            rawValue: forbiddenWordsText.value
+        }, { _isAdmin: true })
+        forbiddenWordsText.value = res.data.rawValue || parsedWords.join(',')
+        forbiddenWords.value = Array.isArray(res.data.forbiddenWords)
+            ? res.data.forbiddenWords
+            : parseForbiddenWords(forbiddenWordsText.value)
+        ElMessage.success('违禁词配置已保存')
+    } catch (error) {
+        console.error(error)
+        ElMessage.error('保存违禁词配置失败')
+    } finally {
+        forbiddenWordsLoading.value = false
+    }
+}
+
 // --- Appraisal Methods ---
 const fetchAppraisals = async () => {
   appraisalsLoading.value = true
@@ -764,5 +871,24 @@ const logout = () => {
   background: #fff;
   padding: 20px;
   border-radius: 4px;
+}
+
+.forbidden-words-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #666;
+  font-size: 14px;
+}
+
+.forbidden-words-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.forbidden-word-tag {
+  margin: 0;
 }
 </style>

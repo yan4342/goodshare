@@ -128,7 +128,10 @@ public class UserService {
                 user.getAvatarUrl(),
                 postCount,
                 followerCount,
-                followingCount
+                followingCount,
+                user.getLevel() != null ? user.getLevel() : 1,
+                user.getExperience() != null ? user.getExperience() : 0,
+                user.getActiveStyle() != null ? user.getActiveStyle() : (user.getLevel() != null ? user.getLevel() : 1)
         );
     }
 
@@ -139,7 +142,27 @@ public class UserService {
         user.setEmail(request.getEmail());
         user.setBio(request.getBio());
         user.setAvatarUrl(request.getAvatarUrl());
+        if (request.getActiveStyle() != null) {
+            user.setActiveStyle(request.getActiveStyle());
+        }
         userMapper.updateById(user);
         return user;
+    }
+
+    public void addExperience(Long userId, int exp) {
+        User user = userMapper.selectById(userId);
+        if (user != null) {
+            int currentExp = user.getExperience() != null ? user.getExperience() : 0;
+            int newExp = currentExp + exp;
+            user.setExperience(newExp);
+            
+            // Calculate new level: e.g. level = sqrt(exp / 10) + 1
+            // 0-9: Lv1, 10-39: Lv2, 40-89: Lv3, 90-159: Lv4
+            int newLevel = (int) Math.sqrt(newExp / 10.0) + 1;
+            if (newLevel > (user.getLevel() != null ? user.getLevel() : 1)) {
+                user.setLevel(newLevel);
+            }
+            userMapper.updateById(user);
+        }
     }
 }

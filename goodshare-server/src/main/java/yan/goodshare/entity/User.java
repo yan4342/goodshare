@@ -40,6 +40,12 @@ public class User {
 
     private String role;
 
+    private Integer level = 1;
+
+    private Integer experience = 0;
+
+    private Integer activeStyle = 1;
+
     @TableField(exist = false)
     private Set<String> roles = new HashSet<>();
 
@@ -121,5 +127,29 @@ public class User {
         } else {
             this.role = null;
         }
+    }
+
+    public Integer getLevel() {
+        return level;
+    }
+
+    public void setLevel(Integer level) {
+        this.level = level;
+    }
+
+    public Integer getExperience() {
+        return experience;
+    }
+
+    public void setExperience(Integer experience) {
+        this.experience = experience;
+    }
+
+    public Integer getActiveStyle() {
+        return activeStyle;
+    }
+
+    public void setActiveStyle(Integer activeStyle) {
+        this.activeStyle = activeStyle;
     }
 }

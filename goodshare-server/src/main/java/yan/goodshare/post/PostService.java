@@ -4,15 +4,18 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.Jsoup;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import yan.goodshare.entity.Post;
 import org.springframework.stereotype.Service;
+import yan.goodshare.entity.AppConfig;
 import yan.goodshare.mapper.PostMapper;
 import yan.goodshare.mapper.PostViewMapper;
 import yan.goodshare.mapper.TagMapper;
 import yan.goodshare.mapper.UserMapper;
 import yan.goodshare.mapper.NotificationMapper;
+import yan.goodshare.mapper.AppConfigMapper;
 import yan.goodshare.search.SearchService;
 import yan.goodshare.entity.PostView;
 import yan.goodshare.entity.Tag;
@@ -21,10 +24,14 @@ import yan.goodshare.entity.Notification;
 import yan.goodshare.service.UserTagWeightService;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.stream.Collectors;
 
 @Service
 public class PostService {
@@ -37,8 +44,10 @@ public class PostService {
     private final PostViewMapper postViewMapper;
     private final NotificationMapper notificationMapper;
     private final UserTagWeightService userTagWeightService;
+    private final AppConfigMapper appConfigMapper;
+    private final yan.goodshare.search.SearchStatsService searchStatsService;
 
-    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper, ObjectMapper objectMapper, PostViewMapper postViewMapper, NotificationMapper notificationMapper, UserTagWeightService userTagWeightService) {
+    public PostService(PostMapper postMapper, UserMapper userMapper, SearchService searchService, TagMapper tagMapper, ObjectMapper objectMapper, PostViewMapper postViewMapper, NotificationMapper notificationMapper, UserTagWeightService userTagWeightService, AppConfigMapper appConfigMapper, yan.goodshare.search.SearchStatsService searchStatsService) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.searchService = searchService;
@@ -47,6 +56,8 @@ public class PostService {
         this.postViewMapper = postViewMapper;
         this.notificationMapper = notificationMapper;
         this.userTagWeightService = userTagWeightService;
+        this.appConfigMapper = appConfigMapper;
+        this.searchStatsService = searchStatsService;
     }
 
     @Transactional
@@ -130,6 +141,8 @@ public class PostService {
             throw new RuntimeException("User not found");
         }
 
+        validatePostContent(postRequest.getTitle(), postRequest.getContent());
+
         Post post = new Post();
         post.setTitle(postRequest.getTitle());
         post.setContent(postRequest.getContent() != null ? postRequest.getContent() : "");
@@ -172,14 +185,70 @@ public class PostService {
 
         postMapper.insert(post);
         
+        boolean hasTrendingTask = false;
+        List<String> trendingTasks = new java.util.ArrayList<>();
+        
+        // Fetch hot search keywords
+        List<yan.goodshare.entity.SearchStats> hotKeywords = searchStatsService.getHotKeywords();
+        if (hotKeywords != null) {
+            for (yan.goodshare.entity.SearchStats stats : hotKeywords) {
+                String name = stats.getKeyword();
+                if (name != null && name.length() > 1 && !name.matches("^\\d+$") && !trendingTasks.contains(name)) {
+                    trendingTasks.add(name);
+                }
+                if (trendingTasks.size() >= 3) break;
+            }
+        }
+        
+        // Fetch trending tags if needed
+        if (trendingTasks.size() < 5) {
+            List<java.util.Map<String, Object>> trendingTagsRaw = tagMapper.selectTrendingTags(50);
+            for (java.util.Map<String, Object> map : trendingTagsRaw) {
+                String name = (String) map.get("name");
+                if (name != null && name.length() > 1 && !name.matches("^\\d+$")) {
+                    if (!trendingTasks.contains(name)) {
+                        trendingTasks.add(name);
+                    }
+                }
+                if (trendingTasks.size() >= 5) {
+                    break;
+                }
+            }
+        }
+
+        // Check if post title or content contains any trending task word directly
+        String fullText = (post.getTitle() + " " + post.getContent()).toLowerCase();
+        for (String task : trendingTasks) {
+            if (fullText.contains(task.toLowerCase())) {
+                hasTrendingTask = true;
+                break;
+            }
+        }
+
         if (post.getTags() != null) {
             for (Tag tag : post.getTags()) {
                 try {
                     postMapper.insertPostTag(post.getId(), tag.getId());
+                    if (trendingTasks.contains(tag.getName())) {
+                        hasTrendingTask = true;
+                    }
                 } catch (Exception e) {
                     // Ignore duplicate key errors if any
                 }
             }
+        }
+
+        if (hasTrendingTask) {
+            // Add experience for completing trending task
+            int expGain = 10;
+            int currentExp = user.getExperience() != null ? user.getExperience() : 0;
+            int newExp = currentExp + expGain;
+            user.setExperience(newExp);
+            int newLevel = (int) Math.sqrt(newExp / 10.0) + 1;
+            if (newLevel > (user.getLevel() != null ? user.getLevel() : 1)) {
+                user.setLevel(newLevel);
+            }
+            userMapper.updateById(user);
         }
 
         searchService.indexPost(post);
@@ -276,6 +345,8 @@ public class PostService {
         if (currentUser == null || !post.getUserId().equals(currentUser.getId())) {
             throw new RuntimeException("You don't have permission to update this post");
         }
+
+        validatePostContent(postRequest.getTitle(), postRequest.getContent());
 
         post.setTitle(postRequest.getTitle());
         post.setContent(postRequest.getContent() != null ? postRequest.getContent() : "");
@@ -495,5 +566,44 @@ public class PostService {
             return base.substring(0, base.length() - 6) + filename.substring(dotIndex);
         }
         return null;
+    }
+
+    private void validatePostContent(String title, String content) {
+        String matchedWord = findMatchedForbiddenWord(title, content);
+        if (matchedWord != null) {
+            throw new RuntimeException("帖子标题或正文包含违禁词：" + matchedWord);
+        }
+    }
+
+    private String findMatchedForbiddenWord(String title, String content) {
+        String normalizedTitle = normalizeText(title);
+        String normalizedContent = normalizeText(content);
+        for (String forbiddenWord : getForbiddenWords()) {
+            String normalizedForbiddenWord = normalizeText(forbiddenWord);
+            if (!normalizedForbiddenWord.isEmpty() &&
+                    (normalizedTitle.contains(normalizedForbiddenWord) || normalizedContent.contains(normalizedForbiddenWord))) {
+                return forbiddenWord;
+            }
+        }
+        return null;
+    }
+
+    private List<String> getForbiddenWords() {
+        AppConfig config = appConfigMapper.selectOne(new QueryWrapper<AppConfig>().eq("config_key", "post.forbidden_words"));
+        String configValue = config != null ? config.getConfigValue() : "毒品,枪支,赌博,嫖娼,诈骗";
+        return Arrays.stream(configValue.split("[,，;；\\r\\n]+"))
+                .map(String::trim)
+                .filter(word -> !word.isEmpty())
+                .toList();
+    }
+
+    private String normalizeText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        return Jsoup.parse(text)
+                .text()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", "");
     }
 }

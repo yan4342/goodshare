@@ -79,6 +79,9 @@ service.interceptors.response.use(
             message = '没有权限执行此操作'
         }
     }
+    if (error.config?._skipErrorMessage) {
+        return Promise.reject(error)
+    }
     ElMessage.error(message)
     return Promise.reject(error)
   }
