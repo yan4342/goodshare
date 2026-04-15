@@ -58,9 +58,15 @@ goodshare-web/.npm-cache/
 *.pyc
 __pycache__/
 
+*.puml
+
 goodshare-server/src/main/resources/application.properties
 paper_chapter1_2.md
 paper_abstract_chapter7.md
-paper_chapter4.md
-paper_chapter5_6.md
-paper_technology_stack.md
+
+paper_functional_requirements.md
+paper_integrated.md
+paper_testing_objectives.md
+
+.claude/
+

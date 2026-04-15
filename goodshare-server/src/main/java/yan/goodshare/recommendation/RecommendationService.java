@@ -68,6 +68,8 @@ public class RecommendationService {
     private static final int NEIGHBOR_COUNT = 5;
     private static final int RECOMMENDATION_COUNT = 10;
     private static final int DATA_LIMIT = 1000; // Limit interactions to recent 1000 for performance
+    private static final double STRONG_REJECT_THRESHOLD = 0.6;
+    private static final int GLOBAL_ADJUST_LOG_TOP_N = 10;
 
     private final Random random = new Random();
 
@@ -368,6 +370,9 @@ public class RecommendationService {
 
         // 6. Global Weight Adjustment (Apply Tag Penalties/Boosts to ALL candidates)
         log.info("开始应用全局标签权重调整 (惩罚/加分)...");
+        if (!recommendedPosts.isEmpty()) {
+            log.info("全局调整前 Top{}: {}", GLOBAL_ADJUST_LOG_TOP_N, formatTopScores(recommendedPosts, GLOBAL_ADJUST_LOG_TOP_N));
+        }
         if (userWeights != null && !userWeights.isEmpty() && !recommendedPosts.isEmpty()) {
             // Filter weights that are significantly different from 1.0
             Map<Long, Double> activeTagWeights = new HashMap<>();
@@ -378,7 +383,16 @@ public class RecommendationService {
             }
 
             if (!activeTagWeights.isEmpty()) {
+                int removedByStrongReject = 0;
+                int adjustedByMultiplier = 0;
+                long lowWeightCount = activeTagWeights.values().stream().filter(w -> w <= STRONG_REJECT_THRESHOLD).count();
+                long neutralToLowCount = activeTagWeights.values().stream().filter(w -> w > STRONG_REJECT_THRESHOLD && w < 1.0).count();
+                long highWeightCount = activeTagWeights.values().stream().filter(w -> w > 1.0).count();
+                log.info("活跃标签权重分布: <=强惩罚阈值({})={}个, (阈值,1.0)={}个, >1.0={}个, 合计={}个。",
+                        STRONG_REJECT_THRESHOLD, lowWeightCount, neutralToLowCount, highWeightCount, activeTagWeights.size());
+
                 List<Long> candidateIds = new ArrayList<>(recommendedPosts.keySet());
+                int strongRejectMatchedCandidates = 0;
                 // Batch fetch tags for all candidate posts
                 // Split into batches if too many (e.g., 100) to avoid SQL limits
                 int batchSize = 100;
@@ -406,7 +420,7 @@ public class RecommendationService {
                             for (Long tId : tags) {
                                 if (activeTagWeights.containsKey(tId)) {
                                     double w = activeTagWeights.get(tId);
-                                    if (w < 0.1) {
+                                    if (w <= STRONG_REJECT_THRESHOLD) {//STRONG_REJECT_THRESHOLD=
                                         // Strong reject
                                         shouldRemove = true;
                                         break;
@@ -418,15 +432,26 @@ public class RecommendationService {
                             }
                             
                             if (shouldRemove) {
-                                recommendedPosts.remove(pId);
+                                strongRejectMatchedCandidates++;
+                                if (recommendedPosts.remove(pId) != null) {
+                                    removedByStrongReject++;
+                                }
                             } else if (Math.abs(finalMultiplier - 1.0) > 0.01) {
                                 double effectiveMultiplier = finalMultiplier;
-                                recommendedPosts.computeIfPresent(pId, (k, v) -> v * effectiveMultiplier);
+                                if (recommendedPosts.containsKey(pId)) {
+                                    adjustedByMultiplier++;
+                                    recommendedPosts.computeIfPresent(pId, (k, v) -> v * effectiveMultiplier);
+                                }
                             }
                         }
                     }
                 }
+                log.info("强惩罚命中候选 {} 篇（命中后实际剔除 {} 篇）。", strongRejectMatchedCandidates, removedByStrongReject);
+                log.info("全局标签调整完成: 强惩罚剔除 {} 篇, 乘法调整 {} 篇。", removedByStrongReject, adjustedByMultiplier);
             }
+        }
+        if (!recommendedPosts.isEmpty()) {
+            log.info("全局调整后 Top{}: {}", GLOBAL_ADJUST_LOG_TOP_N, formatTopScores(recommendedPosts, GLOBAL_ADJUST_LOG_TOP_N));
         }
 
         log.info("最终打分完成。正在对 {} 篇候选帖子进行排序。", recommendedPosts.size());
@@ -450,7 +475,7 @@ public class RecommendationService {
 
         // FIX: Shuffle top candidates to ensure freshness on refresh (page 1)
         if (page == 1 && !filteredRecommendedPostIds.isEmpty()) {
-            int shuffleWindow = Math.min(filteredRecommendedPostIds.size(), 30); // Shuffle top 30
+            int shuffleWindow = Math.min(filteredRecommendedPostIds.size(), 20); // Shuffle top 20
             if (shuffleWindow > 1) {
                 // subList returns a view, shuffling it modifies the original list
                 Collections.shuffle(filteredRecommendedPostIds.subList(0, shuffleWindow));
@@ -567,5 +592,13 @@ public class RecommendationService {
                favoriteMapper.selectCount(new QueryWrapper<Favorite>().eq("user_id", userId)) == 0 &&
                commentMapper.selectCount(new QueryWrapper<Comment>().eq("user_id", userId)) == 0 &&
                postViewMapper.selectCount(new QueryWrapper<PostView>().eq("user_id", userId)) == 0;
+    }
+
+    private String formatTopScores(Map<Long, Double> scores, int topN) {
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .limit(topN)
+                .map(entry -> entry.getKey() + ":" + String.format(Locale.ROOT, "%.4f", entry.getValue()))
+                .collect(Collectors.joining(", "));
     }
 }

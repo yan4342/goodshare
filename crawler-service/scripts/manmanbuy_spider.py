@@ -315,11 +315,11 @@ def get_manmanbuy_products(keyword, limit=0):
                 time.sleep(2)
                 
         # Random wait for content to load
-        time.sleep(random.uniform(2, 5))
+        time.sleep(random.uniform(2, 4))
         
         # Scroll to trigger lazy loading with random pause
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
-        time.sleep(random.uniform(2, 5))
+        time.sleep(random.uniform(2, 4))
         # Wait for Next.js hydration data (max 10s)
         try:
             WebDriverWait(driver, 10).until(

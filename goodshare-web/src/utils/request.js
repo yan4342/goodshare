@@ -49,6 +49,28 @@ service.interceptors.response.use(
         message = typeof data === 'string' ? data : (data.message || message)
 
         if (status === 401) {
+            // 检查是否是登录请求
+            const isLoginRequest = error.config && (
+                error.config.url?.includes('/auth/login') || 
+                error.config.url?.includes('/admin/login')
+            )
+            
+            if (isLoginRequest) {
+                // 如果设置了跳过错误消息，则直接返回
+                if (error.config?._skipErrorMessage) {
+                    return Promise.reject(error)
+                }
+                // 登录失败，显示具体的错误信息
+                const isAdminLogin = error.config._isAdmin || error.config.url?.includes('/admin/login') || error.config.url?.includes('/api/admin')
+                if (isAdminLogin) {
+                    ElMessage.error('管理员用户名或密码错误')
+                } else {
+                    ElMessage.error('用户名或密码错误')
+                }
+                return Promise.reject(error)
+            }
+            
+            // 否则按原来的逻辑处理（令牌过期）
             // Check if it was an admin request
             const isAdminRequest = error.config && (
                 error.config.url?.includes('/admin/') || 

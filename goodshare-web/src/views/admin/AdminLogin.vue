@@ -48,7 +48,7 @@ const handleLogin = async () => {
     const res = await request.post('/auth/login', {
         username: form.value.username,
         password: form.value.password
-    })
+    }, { _isAdmin: true, _skipErrorMessage: true })
     
     // Validate response
     const data = res.data

@@ -231,7 +231,7 @@
                       <div v-for="weight in tagWeights" :key="weight.tagId" class="weight-item">
                         <span class="tag-name">{{ weight.tagName }}</span>
                         <el-slider class="weight-slider" v-model="weight.weight" :min="0.5" :max="2.0" :step="0.1" @change="handleWeightChange(weight)" />
-                        <span class="partition-weight">{{ getPartitionWeight(weight).toFixed(2) }}</span>
+                        <span class="partition-weight" :style="{ color: getEffectColor(weight) }">{{ getEffectText(weight) }}</span>
                         <span class="partition-share">{{ formatPartitionShare(weight) }}</span>
                       </div>
                     </div>
@@ -594,7 +594,7 @@ const fetchMyPosts = async (userId) => {
         console.error('Failed to load posts', err)
     }
 }
-
+//加载用户评价商品
 const fetchMyAppraisals = async (userId) => {
     try {
         const res = await request.get(`/appraisals/user/${userId}`)
@@ -651,22 +651,56 @@ const saveStyleSettings = async () => {
 }
 
 const partitionBase = 2.0
-const totalPartitionBoost = computed(() => {
+
+// 计算实际权重效果（包含正负）
+const getActualEffect = (weight) => {
+    return (weight - 1) * partitionBase
+}
+
+// 计算标签的实际效果值
+const getPartitionWeight = (weight) => {
+    return getActualEffect(weight.weight)
+}
+
+// 计算所有标签效果的总绝对值（用于百分比计算）
+const totalAbsoluteEffect = computed(() => {
     return tagWeights.value.reduce((sum, item) => {
-        const boost = Math.max(0, (item.weight - 1) * partitionBase)
-        return sum + boost
+        const effect = getActualEffect(item.weight)
+        return sum + Math.abs(effect)
     }, 0)
 })
 
-const getPartitionWeight = (weight) => {
-    return Math.max(0, (weight.weight - 1) * partitionBase)
+// 格式化百分比显示（基于绝对值总和）
+const formatPartitionShare = (weight) => {
+    const total = totalAbsoluteEffect.value
+    if (total <= 0) return '0.0%'
+    const effect = getPartitionWeight(weight)
+    const share = Math.abs(effect) / total
+    return `${(share * 100).toFixed(1)}%`
 }
 
-const formatPartitionShare = (weight) => {
-    const total = totalPartitionBoost.value
-    if (total <= 0) return '0.0%'
-    const share = getPartitionWeight(weight) / total
-    return `${(share * 100).toFixed(1)}%`
+// 判断效果是正面还是负面
+const getEffectType = (weight) => {
+    const effect = getPartitionWeight(weight)
+    if (effect > 0) return 'positive'
+    if (effect < 0) return 'negative'
+    return 'neutral'
+}
+
+// 获取效果显示文本（带符号）
+const getEffectText = (weight) => {
+    const effect = getPartitionWeight(weight)
+    if (effect > 0) return `+${effect.toFixed(2)}`
+    if (effect < 0) return `${effect.toFixed(2)}`
+    return '0.00'
+}
+
+// 获取效果颜色
+const getEffectColor = (weight) => {
+    const type = getEffectType(weight)
+    if (type === 'positive') return '#67c23a' // 绿色
+    if (type === 'negative') return '#f56c6c' // 红色
+    return '#909399' // 灰色
 }
 
 const fetchTagWeights = async () => {
