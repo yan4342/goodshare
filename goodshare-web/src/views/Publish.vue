@@ -3,7 +3,7 @@
     <div class="publish-layout">
       <!-- Left: Form 发布帖子 -->
       <div class="publish-card form-section">
-        <h2 class="page-title">发布帖子</h2>
+        <h2 class="page-title">{{ route.query.id ? '编辑帖子' : '发布帖子' }}</h2>
         <el-alert
           v-if="publishError"
           :title="publishError"
@@ -142,7 +142,7 @@
           </el-form-item>
 
           <div class="action-buttons">
-               <el-button type="primary" class="submit-btn" round @click="prePublish" :loading="loading">发布笔记</el-button>
+               <el-button type="primary" class="submit-btn" round @click="prePublish" :loading="loading">{{ route.query.id ? '保存修改' : '发布笔记' }}</el-button>
           </div>
         </el-form>
       </div>
@@ -772,6 +772,7 @@ watch([() => form.value.title, () => form.value.content], () => {
 })
 
 const route = useRoute()
+const originalImageUrls = ref([])
 
 const loadDraft = () => {
     const draft = localStorage.getItem('post_draft')
@@ -916,8 +917,9 @@ onMounted(async () => {
                     if (post.images) {
                         try {
                             const imgs = JSON.parse(post.images)
-                            fileList.value = imgs.map((url, index) => ({ 
-                                name: 'img_' + index, 
+                            originalImageUrls.value = [...imgs]
+                            fileList.value = imgs.map((url, index) => ({
+                                name: 'img_' + index,
                                 url: url,
                                 response: { url: url }
                             }))
@@ -975,17 +977,18 @@ const handleUploadSuccess = (response, uploadFile) => {
 
 const handleRemove = async (uploadFile, uploadFiles) => {
   console.log('Removed file object:', uploadFile)
-  
-  // Try to delete from server immediately
-  // Note: For freshly uploaded files, 'response' property is attached via handleUploadSuccess
-  // For draft restored files, 'response' is manually attached in loadDraft
-  
+
   let url = null
   if (uploadFile.response) {
       url = typeof uploadFile.response === 'string' ? uploadFile.response : uploadFile.response.url
   } else if (uploadFile.url && !uploadFile.url.startsWith('blob:')) {
-      // Fallback: try to use the URL directly if it's not a blob
       url = uploadFile.url
+  }
+
+  // Don't delete images that were pre-loaded from the existing post
+  if (url && originalImageUrls.value.includes(url)) {
+      console.log('Skipping deletion of pre-existing image:', url)
+      return
   }
 
   console.log('Attempting to delete file with URL:', url)
@@ -1196,7 +1199,11 @@ const confirmPublish = async () => {
         form.value.coverUrl = ''
     }
 
-    await request.post('/posts', form.value, { _skipErrorMessage: true })
+    if (route.query.id) {
+      await request.put(`/posts/${route.query.id}`, form.value, { _skipErrorMessage: true })
+    } else {
+      await request.post('/posts', form.value, { _skipErrorMessage: true })
+    }
     ElMessage.success('发布成功')
     clearDraft() // Clear draft on successful publish
     router.push('/')

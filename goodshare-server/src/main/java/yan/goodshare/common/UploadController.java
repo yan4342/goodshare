@@ -147,7 +147,7 @@ public class UploadController {
                 return ResponseEntity.ok().body("File deleted successfully");
             } else {
                 logger.warn("File not found for deletion: {}", fileName);
-                return ResponseEntity.status(404).body("File not found or already deleted");
+                return ResponseEntity.status(404).body("文件未找到或已被删除");
             }
         } catch (IOException ex) {
             logger.error("Error deleting file: {}", ex.getMessage());
