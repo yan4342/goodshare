@@ -2,14 +2,8 @@ package yan.goodshare.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import yan.goodshare.entity.UserProfile;
 import org.springframework.stereotype.Service;
-import yan.goodshare.mapper.UserMapper;
-import yan.goodshare.mapper.PostMapper;
-import yan.goodshare.mapper.FollowMapper;
-import yan.goodshare.entity.User;
-import yan.goodshare.entity.Post;
-import yan.goodshare.entity.Follow;
+
 //
 import yan.goodshare.user.profile.UserProfileUpdateRequest;
 
@@ -164,5 +158,20 @@ public class UserService {
             }
             userMapper.updateById(user);
         }
+    }
+
+    @Transactional
+    public User getSystemUser() {
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", "system_notification"));
+        if (user == null) {
+            user = new User();
+            user.setUsername("system_notification");
+            user.setNickname("系统通知");
+            user.setEmail("1601110@qq.com");
+            user.setPassword(passwordEncoder.encode("SystemUser_NoLogin_!@#123"));
+            user.setRole("USER");
+            userMapper.insert(user);
+        }
+        return user;
     }
 }

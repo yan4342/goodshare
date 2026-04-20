@@ -73,9 +73,9 @@
     <!-- Content Tabs -->
     <div class="content-tabs">
       <el-tabs v-model="activeTab" @tab-click="handleTabClick">
-        <el-tab-pane label="笔记" name="posts">
+        <el-tab-pane label="帖子" name="posts">
             <div v-if="posts.length === 0" class="empty-state">
-                <el-empty description="还没有发布过笔记哦" />
+                <el-empty description="还没有发布过帖子哦" />
             </div>
             <div v-else class="masonry-grid">
                 <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
@@ -143,7 +143,7 @@
 
         <el-tab-pane label="收藏" name="favorites" v-if="isCurrentUser">
             <div v-if="favorites.length === 0" class="empty-state">
-                <el-empty description="还没有收藏过笔记哦" />
+                <el-empty description="还没有收藏过帖子哦" />
             </div>
             <div v-else class="masonry-grid">
                 <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
@@ -172,7 +172,7 @@
         </el-tab-pane>
         <el-tab-pane label="赞过" name="likes" v-if="isCurrentUser">
             <div v-if="likedPosts.length === 0" class="empty-state">
-                <el-empty description="还没有赞过笔记哦" />
+                <el-empty description="还没有赞过帖子哦" />
             </div>
             <div v-else class="masonry-grid">
                 <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
@@ -1005,7 +1005,7 @@ const handleTabClick = (tab) => {
 const handleDelete = async (post) => {
     try {
         await ElMessageBox.confirm(
-            '确定要删除这条笔记吗？此操作无法撤销。',
+            '确定要删除这条帖子吗？此操作无法撤销。',
             '提示',
             {
                 confirmButtonText: '确定',

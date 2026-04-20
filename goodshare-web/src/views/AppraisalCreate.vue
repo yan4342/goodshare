@@ -6,7 +6,7 @@
                 <el-button link @click="router.back()">
                     <el-icon :size="20"><ArrowLeft /></el-icon>
                 </el-button>
-                <h2>发布鉴别请求</h2>
+                <h2>发布鉴定请求</h2>
             </div>
             
             <el-form :model="form" label-position="top" class="appraisal-form">

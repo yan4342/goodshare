@@ -288,22 +288,39 @@ public class CrawlerService {
             if (!finished) {
                 process.destroy();
                 System.err.println("Manmanbuy Python script timed out.");
+                System.err.println("Output/Logs before timeout: \n" + output);
                 return list;
             }
             
             int exitCode = process.exitValue();
             if (exitCode != 0) {
                 System.err.println("Manmanbuy Python script exited with code " + exitCode);
-                System.err.println("Output: " + output);
+                System.err.println("Output/Logs: \n" + output);
                 return list;
             }
+            
+            // Always print output for debugging in console
+            System.out.println("--- Python Script Output/Logs ---");
+            System.out.println(output);
+            System.out.println("---------------------------------");
 
             // Parse JSON output
-            int jsonStart = output.indexOf("[");
-            int jsonEnd = output.lastIndexOf("]");
+            // The python script might output logs like "{'headless': True, 'args': ['...']}"
+            // which can confuse a simple indexOf("["). We need to find the last valid JSON array.
+            // A simple robust way is to just find the LAST "[" and LAST "]" or regex
+            // But since the python script ALWAYS prints the result as the very last line,
+            // we can split by newline and parse the last non-empty line.
+            String[] lines = output.split("\\r?\\n");
+            String jsonStr = "";
+            for (int i = lines.length - 1; i >= 0; i--) {
+                String line = lines[i].trim();
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    jsonStr = line;
+                    break;
+                }
+            }
             
-            if (jsonStart != -1 && jsonEnd != -1) {
-                String jsonStr = output.substring(jsonStart, jsonEnd + 1);
+            if (!jsonStr.isEmpty()) {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 List<java.util.Map<String, String>> items = mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<java.util.Map<String, String>>>(){});
                 

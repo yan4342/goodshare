@@ -54,7 +54,9 @@ public class SearchService {
             user.setEmail(null); // Maybe keep email? Better not for public search.
         });
         
-        return users;
+        return users.stream()
+                .filter(u -> !"system_notification".equals(u.getUsername()))
+                .collect(Collectors.toList());
     }
 
     public void deleteAllPosts() {

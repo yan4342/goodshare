@@ -2,20 +2,14 @@ import pytest
 import time
 import os
 import random
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.edge.options import Options as EdgeOptions
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import selenium;
+from playwright.sync_api import sync_playwright, Page, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 # Configuration
 UI_BASE_URL = "http://localhost:8088"
 API_BASE_URL = "http://localhost:8080"
 
-# Unset proxy to avoid ERR_PROXY_CONNECTION_FAILED in Docker or local env
+# Unset proxy to avoid connection issues
 if 'http_proxy' in os.environ: del os.environ['http_proxy']
 if 'https_proxy' in os.environ: del os.environ['https_proxy']
 if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
@@ -59,7 +53,7 @@ DATA_POOL = {
         {"title": "乐高保时捷911拼搭记录", "content": "花了整整三天时间终于拼完了，机械传动结构太精妙了，成就感满满！"},
         {"title": "盲盒开箱日常", "content": "今天手气爆发，竟然抽到了隐藏款！做工很精致，细节涂装非常到位。"},
         {"title": "高达模型喷涂初体验", "content": "第一次尝试喷涂，虽然有点翻车，但看着自己配色的机体，还是很有成就感的。"},
-        {"title": "Switch 游戏推荐", "content": "塞尔达传说王国之泪真的太好玩了，自由度超高，每天都能发现新的玩法。"},
+        {"title": "Switch 推荐", "content": "塞尔达传说王国之泪真的太好玩了，自由度超高，每天都能发现新的玩法。"},
         {"title": "桌游聚会分享", "content": "和朋友玩了阿瓦隆，全程飙戏，太欢乐了，比狼人杀更适合聚会，推荐大家试试。"},
         {"title": "泡泡玛特新系列分享", "content": "这个系列的做工比之前好太多了，每个细节都很精致，摆在办公桌上每天看着心情都好。"}
     ],
@@ -79,14 +73,44 @@ DATA_POOL = {
         {"title": "咖啡入门器具推荐", "content": "新手建议从法压壶开始，便宜又好清洗，还能品尝到咖啡最原始的风味。"},
         {"title": "周末早午餐分享", "content": "做了班尼迪克蛋，荷兰汁第一次就成功了，搭配牛油果和烟熏三文鱼，完美复刻brunch店的味道。"}
     ],
-    '生活': [
-        {"title": "今日心情日记", "content": "今天天气真好，去公园散了步，看到很多人在放风筝，感觉生活节奏慢下来挺好的。"},
-        {"title": "培养早起习惯的第10天", "content": "早起后发现一天的时间变长了，可以从容地吃个早餐，读几页书，状态比以前好太多。"},
-        {"title": "健身打卡一个月的变化", "content": "虽然体重只减了2斤，但是腰围细了3厘米，精神状态也好了很多，继续坚持！"},
-        {"title": "极简护肤理念分享", "content": "简化步骤后皮肤反而变好了，现在只用洁面、保湿和防晒，少即是多真的没错。"},
-        {"title": "周末去爬山了", "content": "爬了三个小时到山顶，虽然累但是视野太开阔了，所有的烦恼都忘了，下次还要去。"},
-        {"title": "断舍离第一天", "content": "收拾出三大袋不穿的衣服和不用的杂物，捐给了回收站，家里清爽了，心情也变好了。"}
-    ]
+ "生活": [
+    {
+      "title": "最近入手的空气炸锅，真香",
+      "content": "纠结了好久终于买了，用下来太值了！做了炸鸡翅和薯条，不用油还酥脆，清洗也方便，懒人福音。"
+    },
+    {
+      "title": "这个收纳盒拯救了我的衣柜",
+      "content": "以前衣柜乱成一团，买了分层收纳盒和抽屉式整理箱，空间利用率翻倍，找衣服再也不用翻半天了。"
+    },
+    {
+      "title": "回购三次的氨基酸洁面",
+      "content": "温和不紧绷，洗完脸滑滑的，敏感肌完全没问题。性价比超高，几十块钱能用两三个月。"
+    },
+    {
+      "title": "桌面加湿器提升幸福感",
+      "content": "小小一个不占地方，水雾很细，开一整天也不会湿桌面。办公室和卧室各放了一个，秋冬必备。"
+    },
+    {
+      "title": "无限回购的冻干咖啡",
+      "content": "冷热水都能冲开，味道不酸不苦刚刚好。小包装随身带，出差旅行也能喝到好咖啡，比速溶强太多。"
+    },
+    {
+      "title": "厨房湿巾真是懒人救星",
+      "content": "每次做完饭抽一张擦灶台和油烟机，去油能力很强，用完就扔不用洗抹布，厨房一直干干净净。"
+    },
+    {
+      "title": "入手了人体工学椅",
+      "content": "腰托和头枕都很贴合，坐一天也不累。以前腰酸背痛的毛病好多了，虽然贵点但健康投资值得。"
+    },
+    {
+      "title": "这个保温杯让我多喝了水",
+      "content": "316不锈钢材质，保温效果很好，早上装的热水到下午还烫嘴。颜值也高，现在出门必带。"
+    },
+    {
+      "title": "LED化妆镜的神奇之处",
+      "content": "三色光可调，显色很真实，化妆不再有色差。底座还能放小物件，用了就回不去普通镜子了。"
+    }
+  ]
 }
 
 def generate_user_data(index, is_ai=False):
@@ -98,286 +122,195 @@ def generate_user_data(index, is_ai=False):
         "cover_style": random.choice(["备忘", "书本", "边框", "手写", "涂写"]),
         "cover_color": random.choice(["白色", "黄色", "蓝色", "紫色", "棕色"]),
     }
-    
+
     if is_ai:
-        # For AI user, pick a random tag and generate a related keyword
         tag = random.choice(list(DATA_POOL.keys()))
         user_data["tags"] = [tag]
-        # Use a title from the pool as the AI keyword prompt
         sample_data = random.choice(DATA_POOL[tag])
         user_data["ai_keyword"] = f"'{sample_data['title']}'"
     else:
-        # For normal user, pick a random tag and corresponding content
         tag = random.choice(list(DATA_POOL.keys()))
         post_data = random.choice(DATA_POOL[tag])
-        
         user_data["tags"] = [tag]
-        # Append random string to title/content to ensure uniqueness if needed, 
-        # but the random username/email already prevents DB conflicts. 
-        # Kept slight randomization for visual variety.
         user_data["post_title"] = f"{post_data['title']} - {random.randint(1, 100)}"
         user_data["post_content"] = post_data['content']
-        
+
     return user_data
 
 # Generate 5 test users dynamically
 TEST_USERS = [generate_user_data(i) for i in range(1, 5)]
-# Add one AI specific user
 TEST_USERS.append(generate_user_data(5, is_ai=True))
 
 @pytest.fixture(scope="module")
-def driver():
-    """Setup Selenium WebDriver (Chrome preferred, fallback to Edge)"""
-    print(selenium.__version__)
-    _driver = None
-    try:
-        print("\nAttempting to start Chrome driver...")
-        options = ChromeOptions()
-        options.add_argument("--start-maximized")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--remote-allow-origins=*")
-        # options.add_argument("--headless") # Optional: Run headless
-        _driver = webdriver.Chrome(options=options)
-    except Exception as e:
-        print(f"Chrome driver failed: {e}")
-        try:
-            print("Attempting to start Edge driver...")
-            options = EdgeOptions()
-            options.add_argument("--start-maximized")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--disable-extensions")
-            options.add_argument("--remote-allow-origins=*")
-            _driver = webdriver.Edge(options=options)
-        except Exception as e:
-            print(f"Edge driver failed: {e}")
-            raise Exception("No suitable WebDriver found. Please ensure Chrome or Edge driver is installed.")
-            
-    yield _driver
-    
-    if _driver:
-        print("\nClosing driver...")
-        _driver.quit()
+def browser():
+    """Setup Playwright browser"""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        yield browser
+        browser.close()
 
-#为下一次测试清理测试数据
-@pytest.fixture(autouse=True)
-def run_around_tests(driver):
-    """Cleanup after each test case automatically"""
-    yield
-    print(f"\nCleaning up session...")
-    try:
-        driver.delete_all_cookies()
-        driver.execute_script("window.localStorage.clear();")
-        driver.execute_script("window.sessionStorage.clear();")
-        driver.refresh()
-        time.sleep(2)
-    except Exception as e:
-        print(f"Cleanup failed: {e}")
+@pytest.fixture(scope="function")
+def page(browser):
+    """Create a new page for each test"""
+    context = browser.new_context(viewport={'width': 1920, 'height': 1080})
+    page = context.new_page()
+    yield page
+    page.close()
+    context.close()
 
-def register_user_action(driver, user):
-    """Helper: Register user action""" # 注册用户，填写注册表单，提交注册请求，返回注册结果
+def register_user_action(page: Page, user):
+    """Helper: Register user action"""
     print(f"Navigating to register page: {UI_BASE_URL}/register")
-    driver.get(f"{UI_BASE_URL}/register")
-    
-    wait = WebDriverWait(driver, 5)
-    
+    page.goto(f"{UI_BASE_URL}/register")
+
     try:
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
-        
-        driver.find_element(By.CSS_SELECTOR, "input[type='text']").send_keys(user['username'])
-        driver.find_element(By.CSS_SELECTOR, "input[type='password']").send_keys(user['password'])
-        driver.find_element(By.XPATH, "//input[@placeholder='邮箱']").send_keys(user['email'])
-        driver.find_element(By.XPATH, "//input[@placeholder='确认密码']").send_keys(user['password'])
-        driver.find_element(By.XPATH, "//input[@placeholder='验证码']").send_keys("123456")
-        
-        register_btn = driver.find_element(By.CSS_SELECTOR, "button.register-btn")
-        register_btn.click()
-        
+        page.wait_for_selector("input[type='text']", timeout=5000)
+
+        page.fill("input[type='text']", user['username'])
+        page.fill("input[type='password']", user['password'])
+        page.fill("input[placeholder='邮箱']", user['email'])
+        page.fill("input[placeholder='确认密码']", user['password'])
+        page.fill("input[placeholder='验证码']", "123456")
+
+        page.click("button.register-btn")
+
         try:
-            # Wait for redirect to login
-            # Use a shorter wait initially to catch error messages if they appear quickly
-            wait_short = WebDriverWait(driver, 3)
-            wait_short.until(EC.url_contains("/login"))
+            page.wait_for_url("**/login", timeout=3000)
             print("Redirected to login page.")
             return True
-        except TimeoutException:
-            # Check for error message
+        except PlaywrightTimeoutError:
             try:
-                error = driver.find_element(By.CSS_SELECTOR, ".el-message--error")
-                error_text = error.text
-                print(f"Registration message: {error_text}")
-                
-                # Check for various "exists" messages (English or Chinese)
-                # Added 'taken' for "Username is already taken"
-                if any(x in error_text for x in ["exist", "已存在", "重复", "taken", "Duplicate"]):
-                    print("User already exists, proceeding to login.")
-                    # Force navigate to login page if not redirected
-                    driver.get(f"{UI_BASE_URL}/login")
+                error = page.locator(".el-message--error").first
+                if error.is_visible():
+                    error_text = error.text_content()
+                    print(f"Registration message: {error_text}")
+
+                    if any(x in error_text for x in ["exist", "已存在", "重复", "taken", "Duplicate"]):
+                        print("User already exists, proceeding to login.")
+                        page.goto(f"{UI_BASE_URL}/login")
+                        return True
+                    return False
+            except:
+                if "/login" in page.url:
                     return True
-                return False
-            except NoSuchElementException:
-                # If no error message and no redirect, check URL again just in case
-                if "/login" in driver.current_url:
-                    return True
-                print("Registration timed out or error message missed. Assuming user exists, proceeding to login check.")
-                driver.get(f"{UI_BASE_URL}/login")
+                print("Registration timed out. Assuming user exists, proceeding to login.")
+                page.goto(f"{UI_BASE_URL}/login")
                 return True
-            
+
     except Exception as e:
         print(f"Registration exception: {e}")
         return False
 
-def login_action(driver, username, password):
-    """Helper: Login action""" # 登录用户，填写登录表单，提交登录请求，返回登录结果
+def login_action(page: Page, username, password):
+    """Helper: Login action"""
     print(f"Navigating to login page: {UI_BASE_URL}/login")
-    driver.get(f"{UI_BASE_URL}/login")
-    
-    wait = WebDriverWait(driver, 10)
-    
+    page.goto(f"{UI_BASE_URL}/login")
+
     try:
-        username_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
-        password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-        login_btn = driver.find_element(By.CSS_SELECTOR, "button.el-button--primary")
-        
-        username_input.clear()
-        username_input.send_keys(username)
-        password_input.clear()
-        password_input.send_keys(password)
-        
-        login_btn.click()
-        
-        # Wait for redirect
-        wait.until(EC.url_changes(f"{UI_BASE_URL}/login"))
-        time.sleep(2) 
+        page.wait_for_selector("input[type='text']", timeout=10000)
+
+        page.fill("input[type='text']", username)
+        page.fill("input[type='password']", password)
+        page.click("button.el-button--primary")
+
+        page.wait_for_url(lambda url: url != f"{UI_BASE_URL}/login", timeout=10000)
+        time.sleep(2)
         return True
     except Exception as e:
         print(f"Login exception: {e}")
         return False
 
-def publish_post_action(driver, user_data):
-    """Helper: Publish post action""" # 发布帖子，填写发布表单，提交发布请求，返回发布结果
+def publish_post_action(page: Page, user_data):
+    """Helper: Publish post action"""
     print(f"Navigating to publish page: {UI_BASE_URL}/publish")
-    driver.get(f"{UI_BASE_URL}/publish")
-    
-    wait = WebDriverWait(driver, 15)
-    
+    page.goto(f"{UI_BASE_URL}/publish")
+
     try:
-        # AI Generation
         if 'ai_keyword' in user_data:
             print(f"Using AI Generation with keyword: {user_data['ai_keyword']}")
-            ai_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".ai-input-group input")))
-            ai_input.clear()
-            ai_input.send_keys(user_data['ai_keyword'])
-            
-            # Click Generate Button (inside append slot)
-            generate_btn = driver.find_element(By.CSS_SELECTOR, ".ai-input-group button")
-            generate_btn.click()
-            
-            # Wait for content to be generated
+            page.wait_for_selector(".ai-input-group input", timeout=15000)
+            page.fill(".ai-input-group input", user_data['ai_keyword'])
+            page.click(".ai-input-group button")
+
             print("Waiting for AI generation completion message...")
-            # Wait for success message (toast) containing "AI生成完成"
             try:
-                # Use a generous timeout as AI generation can be slow
-                ai_wait = WebDriverWait(driver, 60)
-                # XPath to find element containing the specific text
-                success_msg = ai_wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'AI生成完成')]")))
+                page.wait_for_selector("text=AI生成完成", timeout=60000)
                 print("AI generation completed successfully!")
-                # Give a small buffer for UI updates after message appears
                 time.sleep(2)
-            except TimeoutException:
+            except PlaywrightTimeoutError:
                 print("Warning: AI generation success message not detected within timeout.")
         else:
-            # Manual Title & Content
             if 'post_title' in user_data:
-                title_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='填写标题']")))
-                title_input.send_keys(user_data['post_title'])
-            
+                page.wait_for_selector("input[placeholder*='填写标题']", timeout=15000)
+                page.fill("input[placeholder*='填写标题']", user_data['post_title'])
+
             if 'post_content' in user_data:
-                editor = driver.find_element(By.CSS_SELECTOR, ".ql-editor")
+                editor = page.locator(".ql-editor")
                 editor.click()
-                editor.send_keys(user_data['post_content'])
-        
-        # Cover Style Selection
+                editor.fill(user_data['post_content'])
+
         if 'cover_style' in user_data:
             style_name = user_data['cover_style']
             print(f"Selecting cover style: {style_name}")
-            # Find style card by text
-            style_cards = driver.find_elements(By.CSS_SELECTOR, ".style-card")
-            for card in style_cards:
-                if style_name in card.text:
-                    card.click()
+            style_cards = page.locator(".style-card")
+            count = style_cards.count()
+            for i in range(count):
+                if style_name in style_cards.nth(i).text_content():
+                    style_cards.nth(i).click()
                     break
             time.sleep(1)
 
-        # 配色 (Updated to use index based selection as UI uses color circles without text)
         if 'cover_color' in user_data:
             print(f"Selecting a random cover color...")
-            # Find color circles
-            color_circles = driver.find_elements(By.CSS_SELECTOR, ".color-circle")
-            if color_circles:
-                random_index = random.randint(0, len(color_circles) - 1)
-                color_circles[random_index].click()
+            color_circles = page.locator(".color-circle")
+            count = color_circles.count()
+            if count > 0:
+                random_index = random.randint(0, count - 1)
+                color_circles.nth(random_index).click()
                 print(f"Selected color index: {random_index}")
             else:
                 print("No color options found.")
             time.sleep(1)
-            
-        # Tags (Optional based on config)
+
         if 'tags' in user_data and user_data['tags']:
             print(f"Selecting tags: {user_data['tags']}")
-            tag_select = driver.find_element(By.CSS_SELECTOR, ".el-select")
-            tag_select.click()
+            page.click(".el-select")
             time.sleep(1)
-            
-            tag_input = driver.find_element(By.CSS_SELECTOR, ".el-select__input")
+
+            tag_input = page.locator(".el-select__input")
             for tag in user_data['tags']:
-                tag_input.send_keys(tag)
+                tag_input.fill(tag)
                 time.sleep(0.5)
-                tag_input.send_keys(u'\ue007') # Enter
+                tag_input.press("Enter")
                 time.sleep(0.5)
-                
-            driver.find_element(By.TAG_NAME, "body").click()
+
+            page.locator("body").click()
         else:
             print("Skipping tags selection (Optional)")
-        
-        # Submit
+
         print("Clicking submit...")
-        submit_btn = driver.find_element(By.CSS_SELECTOR, ".submit-btn")
-        submit_btn.click()
-        
-        # Confirm
+        page.click(".submit-btn")
+
         print("Waiting for confirm dialog...")
-        confirm_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., '确认发布')]")))
-        confirm_btn.click()
-        
-        # Verify
+        page.wait_for_selector("button:has-text('确认发布')", timeout=15000)
+        page.click("button:has-text('确认发布')")
+
         time.sleep(3)
-        return driver.current_url != f"{UI_BASE_URL}/publish"
-            
+        return page.url != f"{UI_BASE_URL}/publish"
+
     except Exception as e:
         print(f"Publish exception: {e}")
-        driver.save_screenshot(f"publish_failed_{user_data['username']}.png")
+        page.screenshot(path=f"publish_failed_{user_data['username']}.png")
         return False
 
 @pytest.mark.parametrize("user_data", TEST_USERS)
-def test_user_publish_flow(driver, user_data):
-    """End-to-End Test: Register -> Login -> Publish for each user""" # 测试每个用户的注册、登录、发布流程
+def test_user_publish_flow(page, user_data):
+    """End-to-End Test: Register -> Login -> Publish for each user"""
     print(f"\n--- Testing User: {user_data['username']} ---")
 
-    # 1. Register
-    assert register_user_action(driver, user_data) is True, f"Registration failed for {user_data['username']}"
-    
-    # 2. Login
-    assert login_action(driver, user_data['username'], user_data['password']) is True, f"Login failed for {user_data['username']}"
-    
-    # 3. Publish
-    assert publish_post_action(driver, user_data) is True, f"Publish failed for {user_data['username']}"
-    
-    # 4. Logout (Cleanup for next test iteration)
-    # Cleanup handled by autouse fixture now
+    assert register_user_action(page, user_data) is True, f"Registration failed for {user_data['username']}"
+    assert login_action(page, user_data['username'], user_data['password']) is True, f"Login failed for {user_data['username']}"
+    assert publish_post_action(page, user_data) is True, f"Publish failed for {user_data['username']}"
 
 if __name__ == "__main__":
-    # Allow running directly with python
     pytest.main(["-v", "-s", __file__])

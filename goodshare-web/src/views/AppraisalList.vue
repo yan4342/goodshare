@@ -2,15 +2,15 @@
   <div class="appraisal-list-container">
     <div class="main-content">
       <div class="header">
-        <h2 class="page-title">鉴别大厅</h2>
+        <h2 class="page-title">鉴定大厅</h2>
         <el-button type="primary" round class="create-btn" @click="$router.push('/appraisals/create')">
            <el-icon><Plus /></el-icon>
-           <span>发布鉴别</span>
+           <span>发布鉴定</span>
         </el-button>
       </div>
 
       <div class="appraisal-list" v-loading="loading">
-        <el-empty v-if="!loading && appraisals.length === 0" description="暂无鉴别请求" />
+        <el-empty v-if="!loading && appraisals.length === 0" description="暂无鉴定请求" />
         
         <div v-for="item in appraisals" :key="item.id" class="appraisal-item" @click="$router.push(`/appraisals/${item.id}`)">
           <div class="item-header">

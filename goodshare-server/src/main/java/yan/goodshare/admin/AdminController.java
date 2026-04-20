@@ -32,13 +32,17 @@ public class AdminController {
     private final UserService userService;
     private final yan.goodshare.recommendation.RecommendationService recommendationService;
     private final AppConfigMapper appConfigMapper;
+    private final yan.goodshare.service.MessageService messageService;
+    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
-    public AdminController(UserMapper userMapper, PostService postService, UserService userService, yan.goodshare.recommendation.RecommendationService recommendationService, AppConfigMapper appConfigMapper) {
+    public AdminController(UserMapper userMapper, PostService postService, UserService userService, yan.goodshare.recommendation.RecommendationService recommendationService, AppConfigMapper appConfigMapper, yan.goodshare.service.MessageService messageService, org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate) {
         this.userMapper = userMapper;
         this.postService = postService;
         this.userService = userService;
         this.recommendationService = recommendationService;
         this.appConfigMapper = appConfigMapper;
+        this.messageService = messageService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @GetMapping("/users")
@@ -139,12 +143,48 @@ public class AdminController {
     }
 
     @PutMapping("/posts/{id}/status")
-    public ResponseEntity<?> updatePostStatus(@PathVariable Long id, @RequestBody java.util.Map<String, Integer> payload) {
-        Integer status = payload.get("status");
-        if (status == null) {
+    public ResponseEntity<?> updatePostStatus(@PathVariable Long id, @RequestBody java.util.Map<String, Object> payload) {
+        Object statusObj = payload.get("status");
+        if (statusObj == null) {
             return ResponseEntity.badRequest().body("Status is required");
         }
+        Integer status = statusObj instanceof Integer ? (Integer) statusObj : Integer.valueOf(statusObj.toString());
+        
+        Post post = postService.getPostById(id);
+        if (post == null) {
+            return ResponseEntity.badRequest().body("Post not found");
+        }
+        
         postService.updatePostStatus(id, status);
+        
+        // If rejected (status = 2), send system message
+        if (status == 2) {
+            String reasonCategory = (String) payload.get("reasonCategory");
+            String reasonDetail = (String) payload.get("reasonDetail");
+            
+            if (reasonCategory == null || reasonCategory.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Reason category is required for rejection");
+            }
+            
+            User systemUser = userService.getSystemUser();
+            String messageContent = String.format("您的帖子《%s》审核未通过。\n原因：%s", 
+                    post.getTitle() != null ? post.getTitle() : "无标题", reasonCategory);
+                    
+            if (reasonDetail != null && !reasonDetail.trim().isEmpty()) {
+                messageContent += "\n详细说明：" + reasonDetail;
+            }
+            
+            yan.goodshare.entity.Message savedMsg = messageService.sendMessage(systemUser.getId(), post.getUserId(), messageContent);
+            savedMsg.setSender(systemUser); // Populate sender info for frontend
+            
+            // Broadcast via WebSocket
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(post.getUserId()),
+                    "/queue/messages",
+                    savedMsg
+            );
+        }
+        
         return ResponseEntity.ok().build();
     }
 

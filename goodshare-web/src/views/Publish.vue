@@ -1,9 +1,9 @@
 <template>
   <div class="publish-container">
     <div class="publish-layout">
-      <!-- Left: Form 发布笔记 -->
+      <!-- Left: Form 发布帖子 -->
       <div class="publish-card form-section">
-        <h2 class="page-title">发布笔记</h2>
+        <h2 class="page-title">发布帖子</h2>
         <el-alert
           v-if="publishError"
           :title="publishError"
@@ -45,7 +45,7 @@
             <div class="ai-input-group">
                 <el-input 
                     v-model="aiKeyword" 
-                    placeholder="输入商品名或主题，AI帮您写笔记（例如：iPhone 16 使用体验）" 
+                    placeholder="输入商品名或主题，AI帮您写帖子（例如：iPhone 16 使用体验）" 
                     maxlength="50" 
                     clearable
                     @keyup.enter="handleAiGenerate"
@@ -1066,12 +1066,12 @@ const customUpload = async (options) => {
 const beforeUpload = (file) => {
   const isJPG = file.type === 'image/jpeg' || file.type === 'image/png';
   if (!isJPG) {
-    ElMessage.error('Avatar picture must be JPG format!')
+    ElMessage.error('请上传JPG或PNG格式图片!')
   }
   // Allow larger files since we compress them, but keep a reasonable hard limit (e.g. 20MB)
   const isLt20M = file.size / 1024 / 1024 < 20
   if (!isLt20M) {
-    ElMessage.error('Picture size can not exceed 20MB!')
+    ElMessage.error('图片尺寸不能超过20MB!')
   }
   return isJPG && isLt20M
 }

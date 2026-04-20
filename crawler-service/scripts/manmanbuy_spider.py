@@ -5,30 +5,17 @@ import io
 import time
 import random
 import urllib.parse
-from selenium import webdriver
-
-# Force UTF-8 output for Windows console/pipe compatibility
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-# Edge imports
-from selenium.webdriver.edge.options import Options as EdgeOptions
-from selenium.webdriver.edge.service import Service as EdgeService
-from webdriver_manager.microsoft import EdgeChromiumDriverManager
-
-# Suppress webdriver_manager logs
 import os
-os.environ['WDM_LOG_LEVEL'] = '0'
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Unset proxy to avoid ERR_PROXY_CONNECTION_FAILED in Docker
 if 'http_proxy' in os.environ: del os.environ['http_proxy']
 if 'https_proxy' in os.environ: del os.environ['https_proxy']
 if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
 if 'HTTPS_PROXY' in os.environ: del os.environ['HTTPS_PROXY']
+
+# Force UTF-8 output for Windows console/pipe compatibility
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def fix_encoding(text):
     if not text: return ""
@@ -76,7 +63,7 @@ def find_image_url(node):
             src = node['props'].get('src')
             if src and isinstance(src, str) and src.startswith('http'):
                 return src
-        # Check for direct src key (less common in this Next.js structure but possible)
+        # Check for direct src key
         if 'src' in node and isinstance(node['src'], str) and node['src'].startswith('http'):
             return node['src']
             
@@ -120,14 +107,12 @@ def find_link_url(node):
 def parse_nextjs_data(next_f_data):
     products = []
     
-    # next_f_data is a list of [1, "ID:JSON"]
     for item in next_f_data:
         if not isinstance(item, list) or len(item) < 2: continue
         
         data_str = item[1]
         if not isinstance(data_str, str): continue
         
-        # Split ID:JSON
         try:
             if ':' not in data_str: continue
             id_part, json_str = data_str.split(':', 1)
@@ -137,34 +122,27 @@ def parse_nextjs_data(next_f_data):
                 
             data = json.loads(json_str)
             
-            # Search for DiscountItemPC_box
             boxes = []
             find_nodes_by_class(data, "DiscountItemPC_box", boxes)
             
             for box in boxes:
                 try:
-                    # Extract details
-                    # Title
                     title_nodes = []
                     find_nodes_by_class(box, "DiscountItemPC_itemTitle", title_nodes)
                     title = extract_text_from_node(title_nodes[0]) if title_nodes else ""
                     
-                    # Price
                     price_nodes = []
                     find_nodes_by_class(box, "DiscountItemPC_itemSubTitle", price_nodes)
                     price_text = extract_text_from_node(price_nodes[0]) if price_nodes else ""
                     price_match = re.search(r'(\d+(\.\d{1,2})?)', price_text)
                     price = price_match.group(1) if price_match else "0"
                     
-                    # Image
                     img_nodes = []
-                    # Images are usually in $L15 or img tag inside Cover
                     find_nodes_by_class(box, "DiscountItemPC_itemCover", img_nodes)
                     img = ""
                     if img_nodes:
                         img = find_image_url(img_nodes[0])
                     
-                    # Link
                     link_nodes = []
                     find_nodes_by_class(box, "DiscountItemPC_itemGoBuy", link_nodes)
                     link = ""
@@ -172,13 +150,11 @@ def parse_nextjs_data(next_f_data):
                          link = find_link_url(link_nodes[0])
                     
                     if not link:
-                        # Fallback: try title or cover
                         if title_nodes:
                             link = find_link_url(title_nodes[0])
                         if not link and img_nodes:
                             link = find_link_url(img_nodes[0])
                     
-                    # Shop
                     shop_nodes = []
                     find_nodes_by_class(box, "DiscountItemPC_itemMall", shop_nodes)
                     shop = extract_text_from_node(shop_nodes[0]) if shop_nodes else "Manmanbuy"
@@ -192,8 +168,7 @@ def parse_nextjs_data(next_f_data):
                             "link": link,
                             "deal": fix_encoding(shop)
                         })
-                except Exception as e:
-                    # print(f"Error parsing box: {e}", file=sys.stderr)
+                except Exception:
                     pass
                     
         except Exception:
@@ -203,222 +178,147 @@ def parse_nextjs_data(next_f_data):
 
 def get_manmanbuy_products(keyword, limit=0):
     start_time = time.time()
-    driver = None
+    results = []
     
-    # Try Chrome First (Preferred for Docker)
     try:
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        # Anti-detection
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('--blink-settings=imagesEnabled=true')
-        chrome_options.page_load_strategy = 'eager'
+        with sync_playwright() as p:
+            # Setup browser launch arguments
+            launch_args = {
+                "headless": True,
+                "args": [
+                    "--disable-gpu",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ]
+            }
+            
+            # Explicitly set binary location for Alpine/Docker if present
+            # For mcr.microsoft.com/playwright/python:v1.40.0-jammy, we should rely on playwright's internal browser
+            # so we ONLY set executable_path if the path exists AND it's not the default playwright browser
+            if os.path.exists("/usr/bin/chromium-browser"):
+                launch_args["executable_path"] = "/usr/bin/chromium-browser"
+            elif os.path.exists("/usr/bin/chromium"):
+                launch_args["executable_path"] = "/usr/bin/chromium"
 
-        # Explicitly set binary location for Alpine/Docker
-        if os.path.exists("/usr/bin/chromium-browser"):
-            chrome_options.binary_location = "/usr/bin/chromium-browser"
-        elif os.path.exists("/usr/bin/chromium"):
-            chrome_options.binary_location = "/usr/bin/chromium"
-
-        try:
-            service = None
-            if os.path.exists("/usr/bin/chromedriver"):
-                service = Service("/usr/bin/chromedriver")
-            else:
-                manager = ChromeDriverManager(url="https://npmmirror.com/mirrors/chromedriver/", latest_release_url="https://npmmirror.com/mirrors/chromedriver/LATEST_RELEASE")
-                service = Service(manager.install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        except Exception as e:
-            raise e
-    except Exception as e:
-        # print(f"Failed to initialize Chrome WebDriver: {e}", file=sys.stderr)
-        
-        # Fallback to Edge if Chrome failed
-        # print("Attempting fallback to Edge...", file=sys.stderr)
-        try:
-            edge_options = EdgeOptions()
-            edge_options.add_argument("--headless")
-            edge_options.add_argument("--disable-gpu")
-            edge_options.add_argument("--ignore-certificate-errors")
-            edge_options.add_argument("--allow-running-insecure-content")
-            edge_options.add_argument("--disable-extensions")
-            edge_options.add_argument("--no-sandbox")
-            edge_options.add_argument("--disable-dev-shm-usage")
-            # Edge-specific options to mimic Chrome behavior
-            edge_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            edge_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            edge_options.add_argument('--blink-settings=imagesEnabled=true')
-            edge_options.page_load_strategy = 'eager'
-
+            browser = None
             try:
-                # Try system default first
-                service = EdgeService()
-                driver = webdriver.Edge(service=service, options=edge_options)
-            except Exception:
-                # Fallback to webdriver_manager
+                print(f"Launch args: {launch_args}", file=sys.stderr)
+                # Priority 1: Default or System Chromium
+                browser = p.chromium.launch(**launch_args)
+            except Exception as e:
+                print(f"Chromium launch failed: {e}", file=sys.stderr)
+                # Fallback: remove executable_path and try again to let Playwright use its own downloaded browser
+                if "executable_path" in launch_args:
+                    del launch_args["executable_path"]
                 try:
-                    service = EdgeService(EdgeChromiumDriverManager().install())
-                    driver = webdriver.Edge(service=service, options=edge_options)
-                except Exception as e:
-                    raise e
-        except Exception as e:
-            # print(f"Failed to initialize Edge WebDriver: {e}", file=sys.stderr)
-            # Output empty list to prevent JSON parse error in Java
-            print("[]")
-            return
+                    browser = p.chromium.launch(**launch_args)
+                except Exception as e2:
+                    print(f"Chromium fallback launch failed: {e2}", file=sys.stderr)
+                    print("[]")
+                    return
 
-    # Anti-detection: Hide WebDriver property
-    try:
-        # print(f"Driver initialized in {time.time() - start_time:.2f}s", file=sys.stderr)
-        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": """
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080}
+            )
+
+            # Anti-detection: Hide webdriver
+            context.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 })
-            """
-        })
-    except Exception as e:
-        print(f"Warning: Failed to set anti-detection script: {e}", file=sys.stderr)
+            """)
 
-    results = []
+            page = context.new_page()
+            
+            # Optimization: Block unnecessary resources but allow scripts and fetches
+            # Commenting out ALL resource blocking to see if the target site strictly requires everything to not timeout
+            # page.route("**/*", lambda route: route.continue_() if route.request.resource_type not in ["image", "media", "font"] else route.abort())
 
-    try:
-        # Using the PC search URL
-        # Ensure keyword is URL encoded
-        encoded_keyword = urllib.parse.quote(keyword)
-        search_url = f"https://s.manmanbuy.com/pc/search/result?c=discount&keyword={encoded_keyword}"
-        
-        # Test homepage first to establish session/bypass initial checks
-        try:
-            driver.set_page_load_timeout(30)
-            driver.get("http://www.manmanbuy.com")
-            time.sleep(1)
-        except: pass
-
-        t_load = time.time()
-        # Retry logic for main search page
-        max_retries = 3
-        for attempt in range(max_retries):
             try:
-                driver.get(search_url)
-                break
-            except Exception as e:
-                # print(f"Attempt {attempt+1}/{max_retries} failed: {e}", file=sys.stderr)
-                if attempt == max_retries - 1:
-                    raise e
-                time.sleep(2)
+                encoded_keyword = urllib.parse.quote(keyword)
+                search_url = f"https://s.manmanbuy.com/pc/search/result?c=discount&keyword={encoded_keyword}"
                 
-        # Random wait for content to load
-        time.sleep(random.uniform(2, 4))
-        
-        # Scroll to trigger lazy loading with random pause
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
-        time.sleep(random.uniform(2, 4))
-        # Wait for Next.js hydration data (max 10s)
-        try:
-            WebDriverWait(driver, 10).until(
-                lambda d: d.execute_script("return window.self.__next_f !== undefined && window.self.__next_f.length > 0")
-            )
-        except:
-            pass
-        # print(f"Page loaded & ready in {time.time() - t_load:.2f}s", file=sys.stderr)
-        # print(f"Page title: {driver.title}", file=sys.stderr)
+                # Navigate to page and wait for DOM
+                print(f"Navigating to {search_url}...", file=sys.stderr)
+                # Instead of waiting for domcontentloaded which might hang if some script is blocked,
+                # we wait for commit and let the script find elements dynamically.
+                try:
+                    response = page.goto(search_url, wait_until="commit", timeout=20000)
+                    print(f"Page loaded with status: {response.status if response else 'Unknown'}", file=sys.stderr)
+                except Exception as goto_err:
+                    print(f"Goto failed: {goto_err}", file=sys.stderr)
+                    # If goto fails, we might still have page context to evaluate, but usually it means block
+                    raise goto_err
+                
+                # Wait up to 5s for the Next.js hydration data to appear
+                try:
+                    page.wait_for_function("() => window.self.__next_f !== undefined && window.self.__next_f.length > 0", timeout=5000)
+                    print("Next.js hydration data found via wait_for_function", file=sys.stderr)
+                except PlaywrightTimeoutError:
+                    print("Timeout waiting for Next.js hydration data", file=sys.stderr)
+                    pass
 
-        # Human-like behavior to reduce anti-scraping risk
-        # 1. Random small scroll to simulate user viewing
-        driver.execute_script(f"window.scrollTo(0, {random.randint(300, 700)});")
-        # 2. Random short pause (1.5s - 3s) - faster than before but safe enough
-        time.sleep(random.uniform(1.5, 3.0))
+                # Strategy 1: Try extracting from Next.js hydration data
+                try:
+                    next_f = page.evaluate("window.self.__next_f")
+                    if next_f:
+                        results = parse_nextjs_data(next_f)
+                        print(f"Extracted {len(results)} items from Next.js data", file=sys.stderr)
+                except Exception as e:
+                    print(f"Strategy 1 failed: {e}", file=sys.stderr)
+                    pass
 
-        # Strategy 1: Try extracting from Next.js hydration data
-        try:
-            next_f = driver.execute_script("return window.self.__next_f")
-            if next_f:
-                # print(f"Found __next_f data with length: {len(next_f)}", file=sys.stderr)
-                results = parse_nextjs_data(next_f)
-                # print(f"Extracted {len(results)} items from Next.js data", file=sys.stderr)
-            else:
-                pass
-                # print("No __next_f data found", file=sys.stderr)
-        except Exception as e:
-            # print(f"Next.js data extraction failed: {e}", file=sys.stderr)
-            pass
-
-        # Strategy 2: Fallback to DOM crawling if Strategy 1 failed or returned empty
-        if not results:
-             try:
-                # print("Strategy 1 failed/empty. Attempting DOM fallback...", file=sys.stderr)
-                # Wait for items to be present
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'div[class*="DiscountItemPC_box"]'))
-                )
-                items = driver.find_elements(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_box"]')
-                # print(f"Found {len(items)} DOM items", file=sys.stderr)
-                for item in items:
+                # Strategy 2: Fallback to DOM crawling if Strategy 1 failed or returned empty
+                if not results:
+                    print("Strategy 1 empty, attempting DOM crawling...", file=sys.stderr)
                     try:
-                        # Title
-                        title = ""
-                        try:
-                            title_el = item.find_element(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_itemTitle"]')
-                            title = title_el.text.strip()
-                        except: pass
-                        
-                        # Price
-                        price = "0"
-                        try:
-                            price_el = item.find_element(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_itemSubTitle"]')
-                            price_text = price_el.text.strip()
-                            price_match = re.search(r'(\d+(\.\d{1,2})?)', price_text)
-                            price = price_match.group(1) if price_match else "0"
-                        except: pass
-                        
-                        # Image
-                        img = ""
-                        try:
-                            img_el = item.find_element(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_itemCover"] img')
-                            img = img_el.get_attribute("src")
-                        except: pass
-                        
-                        # Link
-                        link = ""
-                        try:
-                            link_el = item.find_element(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_itemGoBuy"] a')
-                            link = link_el.get_attribute("href")
-                        except: pass
-                        
-                        # Shop
-                        shop = "Manmanbuy"
-                        try:
-                            shop_el = item.find_element(By.CSS_SELECTOR, 'div[class*="DiscountItemPC_itemMall"]')
-                            shop_text = shop_el.text.strip()
-                            if shop_text: shop = shop_text
-                        except: pass
-                        
-                        if title:
-                            results.append({
-                                "shop": fix_encoding(shop),
-                                "title": fix_encoding(title),
-                                "price": price,
-                                "image": img,
-                                "link": link,
-                                "deal": fix_encoding(shop)
-                            })
-                    except Exception as e:
-                        continue
-             except Exception as e:
-                 print(f"DOM fallback failed: {e}", file=sys.stderr)
-             
+                        # Wait for items to be present
+                        page.wait_for_selector('div[class*="DiscountItemPC_box"]', timeout=5000)
+                        items = page.query_selector_all('div[class*="DiscountItemPC_box"]')
+                        print(f"Found {len(items)} DOM items", file=sys.stderr)
+                        for item in items:
+                            try:
+                                title_el = item.query_selector('div[class*="DiscountItemPC_itemTitle"]')
+                                title = title_el.inner_text().strip() if title_el else ""
+                                
+                                price_el = item.query_selector('div[class*="DiscountItemPC_itemSubTitle"]')
+                                price_text = price_el.inner_text().strip() if price_el else ""
+                                price_match = re.search(r'(\d+(\.\d{1,2})?)', price_text)
+                                price = price_match.group(1) if price_match else "0"
+                                
+                                img_el = item.query_selector('div[class*="DiscountItemPC_itemCover"] img')
+                                img = img_el.get_attribute("src") if img_el else ""
+                                
+                                link_el = item.query_selector('div[class*="DiscountItemPC_itemGoBuy"] a')
+                                link = link_el.get_attribute("href") if link_el else ""
+                                
+                                shop_el = item.query_selector('div[class*="DiscountItemPC_itemMall"]')
+                                shop_text = shop_el.inner_text().strip() if shop_el else ""
+                                shop = shop_text if shop_text else "Manmanbuy"
+                                
+                                if title:
+                                    results.append({
+                                        "shop": fix_encoding(shop),
+                                        "title": fix_encoding(title),
+                                        "price": price,
+                                        "image": img,
+                                        "link": link,
+                                        "deal": fix_encoding(shop)
+                                    })
+                            except Exception:
+                                continue
+                    except PlaywrightTimeoutError:
+                        pass
+            except Exception as e:
+                # print(f"Error during crawl: {e}", file=sys.stderr)
+                pass
+            finally:
+                browser.close()
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        # print(f"Playwright initialization error: {e}", file=sys.stderr)
         pass
-    finally:
-        driver.quit()
 
     # Deduplicate
     unique_results = []

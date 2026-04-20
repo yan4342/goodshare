@@ -181,7 +181,7 @@
               <el-button 
                 type="danger" 
                 size="small" 
-                @click="updateStatus(scope.row.id, 2)"
+                @click="openRejectDialog(scope.row.id)"
               >拒绝</el-button>
             </template>
           </el-table-column>
@@ -198,6 +198,26 @@
                 @current-change="handleAuditCurrentChange"
             />
         </div>
+        
+        <!-- Reject Dialog -->
+        <el-dialog v-model="rejectDialogVisible" title="审核不通过" width="500px">
+            <el-form :model="rejectForm" label-width="100px">
+                <el-form-item label="不通过原因" required>
+                    <el-select v-model="rejectForm.reasonCategory" placeholder="请选择原因" style="width: 100%;">
+                        <el-option v-for="item in rejectOptions" :key="item" :label="item" :value="item" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="补充说明">
+                    <el-input v-model="rejectForm.reasonDetail" type="textarea" :rows="3" placeholder="可选填，输入更详细的原因..." />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <span class="dialog-footer">
+                    <el-button @click="rejectDialogVisible = false">取消</el-button>
+                    <el-button type="danger" @click="submitReject" :loading="rejecting">确定拒绝</el-button>
+                </span>
+            </template>
+        </el-dialog>
       </div>
 
       <!-- Users Management -->
@@ -421,6 +441,15 @@ const auditPage = ref(1)
 const auditSize = ref(10)
 const auditTotal = ref(0)
 
+const rejectDialogVisible = ref(false)
+const rejecting = ref(false)
+const rejectForm = ref({
+    postId: null,
+    reasonCategory: '',
+    reasonDetail: ''
+})
+const rejectOptions = ['言语不当', '标签错误', '违规广告', '传播谣言', '涉嫌抄袭']
+
 // Weights Data
 const weights = ref({
     'weight.view': 0.5,
@@ -603,6 +632,37 @@ const updateStatus = async (id, status) => {
         fetchAuditPosts()
     } catch (error) {
         ElMessage.error('操作失败')
+    }
+}
+
+const openRejectDialog = (id) => {
+    rejectForm.value.postId = id
+    rejectForm.value.reasonCategory = ''
+    rejectForm.value.reasonDetail = ''
+    rejectDialogVisible.value = true
+}
+
+const submitReject = async () => {
+    if (!rejectForm.value.reasonCategory) {
+        ElMessage.warning('请选择不通过原因')
+        return
+    }
+    
+    rejecting.value = true
+    try {
+        await request.put(`/admin/posts/${rejectForm.value.postId}/status`, { 
+            status: 2,
+            reasonCategory: rejectForm.value.reasonCategory,
+            reasonDetail: rejectForm.value.reasonDetail
+        }, { _isAdmin: true })
+        
+        ElMessage.success('已拒绝并发送系统通知')
+        rejectDialogVisible.value = false
+        fetchAuditPosts()
+    } catch (error) {
+        ElMessage.error('操作失败')
+    } finally {
+        rejecting.value = false
     }
 }
 

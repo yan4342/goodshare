@@ -3,6 +3,10 @@ import { ElMessage } from 'element-plus'
 
 let router = null
 
+// 用于防止重复显示登录提示
+let lastLoginPromptTime = 0
+const LOGIN_PROMPT_THROTTLE_MS = 1000 // 1秒内只显示一次登录提示
+
 export const setRouter = (r) => {
     router = r
 }
@@ -79,21 +83,70 @@ service.interceptors.response.use(
                 error.config._isAdmin
             )
 
-            if (isAdminRequest) {
-                ElMessage.error('管理员登录已过期，请重新登录')
-                localStorage.removeItem('admin_token')
-                if (router) {
-                    router.push('/admin/login')
+            // 检查请求是否包含了Authorization头
+            const hadAuthorization = error.config?.headers?.Authorization || 
+                                   error.config?.headers?.authorization ||
+                                   (error.config && error.config.headers && 
+                                    Object.keys(error.config.headers).some(key => 
+                                        key.toLowerCase() === 'authorization'))
+
+            if (hadAuthorization) {
+                // 有Authorization头，说明token已过期
+                const now = Date.now()
+                const shouldShowPrompt = now - lastLoginPromptTime > LOGIN_PROMPT_THROTTLE_MS
+                
+                if (shouldShowPrompt) {
+                    lastLoginPromptTime = now
+                    if (isAdminRequest) {
+                        ElMessage.error('管理员登录已过期，请重新登录')
+                    } else {
+                        ElMessage.error('登录已过期，请重新登录')
+                    }
+                }
+                
+                // 总是执行清理和跳转逻辑，但可能没有显示提示
+                if (isAdminRequest) {
+                    localStorage.removeItem('admin_token')
+                    if (router) {
+                        router.push('/admin/login')
+                    } else {
+                        window.location.href = '/admin/login'
+                    }
                 } else {
-                    window.location.href = '/admin/login'
+                    localStorage.removeItem('token')
+                    if (router) {
+                        router.push('/login')
+                    } else {
+                        window.location.href = '/login'
+                    }
                 }
             } else {
-                ElMessage.error('登录已过期，请重新登录')
-                localStorage.removeItem('token')
-                if (router) {
-                    router.push('/login')
+                // 没有Authorization头，说明用户未登录
+                const now = Date.now()
+                const shouldShowPrompt = now - lastLoginPromptTime > LOGIN_PROMPT_THROTTLE_MS
+                
+                if (shouldShowPrompt) {
+                    lastLoginPromptTime = now
+                    if (isAdminRequest) {
+                        ElMessage.error('请先登录管理员账号')
+                    } else {
+                        ElMessage.error('请先登录')
+                    }
+                }
+                
+                // 总是执行跳转逻辑，但可能没有显示提示
+                if (isAdminRequest) {
+                    if (router) {
+                        router.push('/admin/login')
+                    } else {
+                        window.location.href = '/admin/login'
+                    }
                 } else {
-                    window.location.href = '/login'
+                    if (router) {
+                        router.push('/login')
+                    } else {
+                        window.location.href = '/login'
+                    }
                 }
             }
             return Promise.reject(error)

@@ -39,6 +39,10 @@ public class FollowService {
         if (followed == null) {
             throw new RuntimeException("User to follow not found");
         }
+        
+        if ("system_notification".equals(followed.getUsername())) {
+            throw new RuntimeException("Cannot follow system notification user");
+        }
 
         if (follower.getId().equals(followed.getId())) {
             throw new RuntimeException("You cannot follow yourself");
@@ -123,7 +127,9 @@ public class FollowService {
         if (followedIds.isEmpty()) {
             return List.of();
         }
-        return userMapper.selectBatchIds(followedIds);
+        return userMapper.selectBatchIds(followedIds).stream()
+                .filter(u -> !"system_notification".equals(u.getUsername()))
+                .toList();
     }
 
     public List<User> getFollowerUsers(Long userId) {
@@ -132,6 +138,8 @@ public class FollowService {
         if (followerIds.isEmpty()) {
             return List.of();
         }
-        return userMapper.selectBatchIds(followerIds);
+        return userMapper.selectBatchIds(followerIds).stream()
+                .filter(u -> !"system_notification".equals(u.getUsername()))
+                .toList();
     }
 }
