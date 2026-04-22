@@ -44,7 +44,7 @@ service.interceptors.response.use(
   response => {
     return response
   },
-  error => {
+  async error => {
     console.log('err' + error)
     let message = error.message || 'Error'
     if (error.response) {
@@ -91,7 +91,55 @@ service.interceptors.response.use(
                                         key.toLowerCase() === 'authorization'))
 
             if (hadAuthorization) {
-                // 有Authorization头，说明token已过期
+                // 如果是普通用户请求，尝试使用 refreshToken
+                if (!isAdminRequest) {
+                    const refreshToken = localStorage.getItem('refreshToken');
+                    const username = localStorage.getItem('username');
+                    
+                    if (refreshToken && username && !error.config._retry) {
+                        error.config._retry = true;
+                        try {
+                            const res = await axios.post('/api/auth/refresh', {
+                                refreshToken,
+                                username
+                            });
+                            
+                            const newAccessToken = res.data.accessToken;
+                            const newRefreshToken = res.data.refreshToken;
+                            
+                            // 更新本地存储
+                            localStorage.setItem('token', newAccessToken);
+                            localStorage.setItem('refreshToken', newRefreshToken);
+                            
+                            // 更新原请求的 token
+                            error.config.headers['Authorization'] = 'Bearer ' + newAccessToken;
+                            
+                            // 重新发起请求
+                            return service(error.config);
+                        } catch (refreshError) {
+                            console.error('Failed to refresh token', refreshError);
+                            // 刷新失败，清除数据并跳转登录
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('refreshToken');
+                            localStorage.removeItem('username');
+                            
+                            const now = Date.now();
+                            if (now - lastLoginPromptTime > LOGIN_PROMPT_THROTTLE_MS) {
+                                lastLoginPromptTime = now;
+                                ElMessage.error('登录状态已过期，请重新登录');
+                                if (router && router.currentRoute.value.path !== '/login') {
+                                    router.push({
+                                        path: '/login',
+                                        query: { redirect: router.currentRoute.value.fullPath }
+                                    });
+                                }
+                            }
+                            return Promise.reject(refreshError);
+                        }
+                    }
+                }
+
+                // 有Authorization头，说明token已过期且刷新失败或没有refresh token
                 const now = Date.now()
                 const shouldShowPrompt = now - lastLoginPromptTime > LOGIN_PROMPT_THROTTLE_MS
                 

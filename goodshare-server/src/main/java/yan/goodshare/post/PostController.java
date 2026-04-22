@@ -154,4 +154,15 @@ public class PostController {
             return ResponseEntity.status(500).body("Reindex failed: " + e.getMessage());
         }
     }
+    @GetMapping("/history")
+    public ResponseEntity<?> getHistoryPosts(@AuthenticationPrincipal UserDetails userDetails,
+                                             @RequestParam(defaultValue = "1") int page,
+                                             @RequestParam(defaultValue = "10") int size) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = userService.findByUsername(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(postService.getHistoryPosts(user.getId(), page, size));
+    }
+    
 }

@@ -26,12 +26,14 @@ public class AuthService {
         return userService.register(user);
     }
 
-    public String login(String username, String password, AuthenticationManager authenticationManager) {
+    public AuthResponse login(String username, String password, AuthenticationManager authenticationManager) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(username, password)
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        return tokenProvider.generateToken(authentication);
+        String accessToken = tokenProvider.generateToken(authentication);
+        String refreshToken = tokenProvider.generateRefreshToken(username);
+        return new AuthResponse(accessToken, refreshToken);
     }
     
     public void createAdminIfNotExists() {

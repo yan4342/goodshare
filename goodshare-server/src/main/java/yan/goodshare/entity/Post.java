@@ -56,6 +56,9 @@ public class Post {
     @TableField("view_count")
     private Integer viewCount = 0;
 
+    @TableField(exist = false)
+    private LocalDateTime viewTime;
+
     /**
      * Status: 0=Pending (Visible), 1=Approved (Visible), 2=Rejected (Hidden)
      */
@@ -190,5 +193,13 @@ public class Post {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public LocalDateTime getViewTime() {
+        return viewTime;
+    }
+
+    public void setViewTime(LocalDateTime viewTime) {
+        this.viewTime = viewTime;
     }
 }

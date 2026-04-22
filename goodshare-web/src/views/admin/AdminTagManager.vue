@@ -1,7 +1,7 @@
 <template>
   <div class="admin-container">
     <div class="admin-sidebar">
-      <div class="logo">GoodShare Admin</div>
+      <div class="logo">好物分享管理</div>
       <div 
         class="menu-item" 
         :class="{ active: currentTab === 'tags' }"
@@ -105,7 +105,7 @@
             </el-button>
         </div>
          <el-table :data="posts" style="width: 100%; margin-top: 20px;" v-loading="postsLoading" @selection-change="handlePostSelectionChange">
-          <el-table-column type="selection" width="55" />
+          <el-table-column type="selection" width="45" />
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column label="封面" width="100">
              <template #default="scope">
@@ -120,6 +120,20 @@
              </template>
           </el-table-column>
           <el-table-column prop="title" label="标题" show-overflow-tooltip />
+          <el-table-column prop="content" label="内容" show-overflow-tooltip />
+          <el-table-column label="标签" width="100">
+             <template #default="scope">
+                <el-tag
+                   v-for="tag in scope.row.tags"
+                   :key="tag.id"
+                   size="small"
+                   style="margin-right: 5px;"
+                >
+                   {{ tag.name }}
+                </el-tag>
+                <span v-if="!scope.row.tags || scope.row.tags.length === 0" style="color: #999;">无标签</span>
+             </template>
+          </el-table-column>
           <el-table-column label="作者" width="150">
              <template #default="scope">
                 {{ scope.row.user?.nickname || scope.row.user?.username }}
@@ -142,6 +156,18 @@
         </el-table>
       </div>
 
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+            <el-pagination
+                v-model:current-page="auditPage"
+                v-model:page-size="auditSize"
+                :page-sizes="[10, 20, 50]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="postsTotal"
+                @size-change="handlePostSizeChange"
+                @current-change="handlePostCurrentChange"
+            />
+        </div>      
+
       <!-- Audit Management -->
       <div v-if="currentTab === 'audit'">
          <el-table :data="auditPosts" style="width: 100%; margin-top: 20px;" v-loading="auditLoading">
@@ -161,6 +187,19 @@
           </el-table-column>
           <el-table-column prop="title" label="标题" show-overflow-tooltip />
           <el-table-column prop="content" label="内容摘要" show-overflow-tooltip />
+          <el-table-column label="标签" width="100">
+             <template #default="scope">
+                <el-tag
+                   v-for="tag in scope.row.tags"
+                   :key="tag.id"
+                   size="small"
+                   style="margin-right: 5px;"
+                >
+                   {{ tag.name }}
+                </el-tag>
+                <span v-if="!scope.row.tags || scope.row.tags.length === 0" style="color: #999;">无标签</span>
+             </template>
+          </el-table-column>
           <el-table-column label="作者" width="150">
              <template #default="scope">
                 {{ scope.row.user?.nickname || scope.row.user?.username }}
@@ -281,11 +320,11 @@
                   </el-form-item>
                   <el-form-item label="收藏 (Favorite)">
                       <el-input-number v-model="weights['weight.favorite']" :step="0.1" :min="0" />
-                      <span class="help-text">用户收藏帖子的权重 (默认 2.0)</span>
+                      <span class="help-text">用户收藏帖子的权重 (默认 3.0)</span>
                   </el-form-item>
                   <el-form-item label="评论 (Comment)">
                       <el-input-number v-model="weights['weight.comment']" :step="0.1" :min="0" />
-                      <span class="help-text">用户评论帖子的权重 (默认 3.0)</span>
+                      <span class="help-text">用户评论帖子的权重 (默认 2.0)</span>
                   </el-form-item>
                   <el-form-item label="热度 (Popularity)">
                       <el-input-number v-model="weights['weight.comment_count']" :step="0.05" :min="0" />
@@ -426,6 +465,9 @@ const loading = ref(false)
 const posts = ref([])
 const postsLoading = ref(false)
 const selectedPosts = ref([])
+const postsPage = ref(1)
+const postsPageSize = ref(10)
+const postsTotal = ref(0)
 
 // Users Data
 const users = ref([])
@@ -602,6 +644,16 @@ const deleteSelectedPosts = () => {
 
 const handlePostSelectionChange = (selection) => {
     selectedPosts.value = selection
+}
+
+const handlePostSizeChange = (val) => {
+    postsPageSize.value = val
+    fetchPosts()
+}
+
+const handlePostCurrentChange = (val) => {
+    postsPage.value = val
+    fetchPosts()
 }
 
 // --- Audit Methods ---

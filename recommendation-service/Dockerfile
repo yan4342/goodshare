@@ -4,6 +4,9 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
+# Set locale to UTF-8 for Chinese log output
+ENV LANG=C.UTF-8
+
 # Install system dependencies (needed for some python packages like numpy/pandas)
 # netcat is often useful for waiting for DB
 # Unset proxy to avoid localhost issues

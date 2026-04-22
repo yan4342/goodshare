@@ -111,6 +111,36 @@
             </div>
         </el-tab-pane>
 
+        <el-tab-pane label="历史" name="history" v-if="isCurrentUser">
+            <div v-if="historyPosts.length === 0" class="empty-state">
+                <el-empty description="还没有浏览过帖子哦" />
+            </div>
+            <div v-else class="masonry-grid">
+                <div v-for="post in historyPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
+                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                    <div class="card-content">
+                        <h3 class="card-title">{{ post.title }}</h3>
+                        <div class="card-footer">
+                            <div class="author">
+                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                <span>{{ post.user?.username }}</span>
+                            </div>
+                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><Star /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                </div>
+                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                    <el-icon><ChatDotRound /></el-icon>
+                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </el-tab-pane>
+        
         <el-tab-pane label="鉴定" name="appraisals">
             <div v-if="myAppraisals.length === 0" class="empty-state">
                 <el-empty description="还没有发布过鉴定哦" />
@@ -389,6 +419,7 @@ const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e5
 const userProfile = ref({})
 const posts = ref([])
 const myAppraisals = ref([])
+const historyPosts = ref([])
 const favorites = ref([])
 const likedPosts = ref([])
 const tagWeights = ref([])
@@ -489,6 +520,7 @@ const fetchUserProfile = async () => {
             fetchMyPosts(res.data.id)
             fetchMyAppraisals(res.data.id)
             if (isCurrentUser.value) {
+                fetchHistoryPosts()
                 fetchMyFavorites()
                 fetchLikedPosts()
             }
@@ -590,6 +622,7 @@ const fetchMyPosts = async (userId) => {
     try {
         const res = await request.get(`/posts/user/${userId}`)
         posts.value = res.data
+        totalLikes.value = res.data.reduce((sum, post) => sum + (post.likeCount || 0), 0)
     } catch (err) {
         console.error('Failed to load posts', err)
     }
@@ -601,6 +634,15 @@ const fetchMyAppraisals = async (userId) => {
         myAppraisals.value = res.data.records
     } catch (err) {
         console.error('Failed to load appraisals', err)
+    }
+}
+//加载用户浏览历史
+const fetchHistoryPosts = async () => {
+    try {
+        const res = await request.get('/posts/history')
+        historyPosts.value = res.data.records
+    } catch (err) {
+        console.error('Failed to load history posts', err)
     }
 }
 
@@ -999,6 +1041,8 @@ const handleTabClick = (tab) => {
         fetchMyPosts(userProfile.value.id)
     } else if (tab.props.name === 'likes') {
         fetchLikedPosts()
+    } else if (tab.props.name === 'history' && isCurrentUser.value) {
+        fetchHistoryPosts()
     }
 }
 

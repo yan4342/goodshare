@@ -168,8 +168,8 @@
                  <div class="info-section">
                      <!-- Author Header -->
                      <div class="author-header">
-                         <el-avatar :size="40" src="https://placehold.co/100x100?text=Me" />
-                         <span class="username">我</span>
+                         <el-avatar :size="40" :src="authStore.state.user?.avatarUrl || defaultAvatar" />
+                         <span class="username">{{ authStore.state.user?.username || '用户' }}</span>
                          <el-button type="primary" round size="small" class="follow-btn">关注</el-button>
                      </div>
 
@@ -237,8 +237,8 @@
             <div class="preview-info-section">
                 <!-- Author Header -->
                 <div class="preview-author-header">
-                    <el-avatar :size="40" src="https://placehold.co/100x100?text=Me" />
-                    <span class="preview-username">我</span>
+                    <el-avatar :size="40" :src="authStore.state.user?.avatarUrl || defaultAvatar" />
+                    <span class="preview-username">{{ authStore.state.user?.username || '用户' }}</span>
                     <el-button type="primary" round size="small" class="preview-follow-btn">关注</el-button>
                 </div>
 
@@ -425,12 +425,20 @@ const addEmoji = (emoji) => {
     }
 }
 
+const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+
 const form = ref({
+  username: authStore.state.user?.username || '用户',
   title: '',
   content: '',
   coverUrl: '',
   tags: []
 })
+
+// Update form.username when auth user changes
+watch(() => authStore.state.user, (user) => {
+  form.value.username = user?.username || '用户'
+}, { immediate: true })
 
 const previewData = ref({
     images: []
@@ -820,7 +828,13 @@ const saveDraft = () => {
     
     // Extract image URLs
     const images = fileList.value.map(file => {
-        if (file.response) return typeof file.response === 'string' ? file.response : file.response.url
+        if (file.response) {
+            if (typeof file.response === 'string') {
+                return file.response
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return file.response.thumbnailUrl || file.response.url
+        }
         return file.url
     }).filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
 
@@ -972,7 +986,12 @@ onMounted(async () => {
 const handleUploadSuccess = (response, uploadFile) => {
   // Ensure the file object in fileList gets the response
   uploadFile.response = response
-  uploadFile.url = (typeof response === 'string' ? response : response.url)
+  // Use thumbnailUrl if available, otherwise fall back to url
+  if (typeof response === 'string') {
+    uploadFile.url = response
+  } else {
+    uploadFile.url = response.thumbnailUrl || response.url
+  }
 }
 
 const handleRemove = async (uploadFile, uploadFiles) => {
@@ -1039,17 +1058,27 @@ const customUpload = async (options) => {
         
         // Handle success
         const response = res.data
-        
+
         // Explicitly set response on the file object immediately
         // This ensures confirmPublish can find it even if el-upload's internal sync is slow
         file.response = response
-        file.url = (typeof response === 'string' ? response : response.url)
-        
+        // Use thumbnailUrl if available, otherwise fall back to url
+        if (typeof response === 'string') {
+            file.url = response
+        } else {
+            file.url = response.thumbnailUrl || response.url
+        }
+
         // Manual sync to fileList to ensure reactivity and persistence
         const uploadFile = fileList.value.find(f => f.uid === file.uid)
         if (uploadFile) {
             uploadFile.response = response
-            uploadFile.url = (typeof response === 'string' ? response : response.url)
+            // Use thumbnailUrl if available, otherwise fall back to url
+            if (typeof response === 'string') {
+                uploadFile.url = response
+            } else {
+                uploadFile.url = response.thumbnailUrl || response.url
+            }
             uploadFile.status = 'success'
         }
         
@@ -1089,7 +1118,11 @@ const handlePreview = async () => {
     showPreview.value = true
     const uploadedUrls = fileList.value.map(file => {
         if (file.response) {
-            return typeof file.response === 'string' ? file.response : file.response.url
+            if (typeof file.response === 'string') {
+                return file.response
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return file.response.thumbnailUrl || file.response.url
         }
         return file.url
     }).filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
@@ -1117,11 +1150,19 @@ const prePublish = async () => {
   const urls = fileList.value
     .map(file => {
         if (file.response) {
-            return typeof file.response === 'string' ? file.response : file.response.url
+            if (typeof file.response === 'string') {
+                return file.response
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return file.response.thumbnailUrl || file.response.url
         }
         if (file.raw && file.raw.response) {
             const rawResp = file.raw.response
-            return typeof rawResp === 'string' ? rawResp : rawResp.url
+            if (typeof rawResp === 'string') {
+                return rawResp
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return rawResp.thumbnailUrl || rawResp.url
         }
         return file.url
     })
@@ -1160,12 +1201,20 @@ const confirmPublish = async () => {
         // Handle various response formats
         // Check file.response (UploadFile wrapper)
         if (file.response) {
-            return typeof file.response === 'string' ? file.response : file.response.url
+            if (typeof file.response === 'string') {
+                return file.response
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return file.response.thumbnailUrl || file.response.url
         }
         // Check file.raw.response (Raw file attached by customUpload)
         if (file.raw && file.raw.response) {
             const rawResp = file.raw.response
-            return typeof rawResp === 'string' ? rawResp : rawResp.url
+            if (typeof rawResp === 'string') {
+                return rawResp
+            }
+            // Use thumbnailUrl if available, otherwise fall back to url
+            return rawResp.thumbnailUrl || rawResp.url
         }
         // Fallback to url if not blob/data
         return file.url
@@ -1358,6 +1407,14 @@ const confirmPublish = async () => {
     color: var(--text-color);
     line-height: 1.5;
     margin-bottom: 12px;
+}
+.post-detail-preview .post-text a {
+    color: var(--el-color-primary);
+    text-decoration: underline;
+    transition: color 0.2s;
+}
+.post-detail-preview .post-text a:hover {
+    color: var(--el-color-primary-dark-2);
 }
 
 .post-detail-preview .post-text :deep(img) {
@@ -2025,6 +2082,14 @@ const confirmPublish = async () => {
     line-height: 1.6;
     margin-bottom: 20px;
     min-height: auto;
+}
+.preview-post-text a {
+    color: var(--el-color-primary);
+    text-decoration: underline;
+    transition: color 0.2s;
+}
+.preview-post-text a:hover {
+    color: var(--el-color-primary-dark-2);
 }
 
 .preview-post-text :deep(img) {

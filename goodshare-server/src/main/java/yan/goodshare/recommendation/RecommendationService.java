@@ -91,8 +91,8 @@ public class RecommendationService {
             // Ensure defaults
             weights.putIfAbsent("weight.view", 0.5);
             weights.putIfAbsent("weight.like", 1.0);
-            weights.putIfAbsent("weight.favorite", 2.0);
-            weights.putIfAbsent("weight.comment", 3.0);
+            weights.putIfAbsent("weight.favorite", 3.0);
+            weights.putIfAbsent("weight.comment", 2.0);
             weights.putIfAbsent("weight.content", 1.0);
             weights.putIfAbsent("weight.comment_count", 0.1);
         } catch (Exception e) {
@@ -100,8 +100,8 @@ public class RecommendationService {
             // Fallback defaults
             weights.put("weight.view", 0.5);
             weights.put("weight.like", 1.0);
-            weights.put("weight.favorite", 2.0);
-            weights.put("weight.comment", 3.0);
+            weights.put("weight.favorite", 3.0);
+            weights.put("weight.comment", 2.0);
             weights.put("weight.content", 1.0);
             weights.put("weight.comment_count", 0.1);
         }
@@ -197,11 +197,11 @@ public class RecommendationService {
         }
         for (Favorite favorite : favorites) {
             userItemMatrix.computeIfAbsent(favorite.getUserId(), k -> new HashMap<>())
-                    .merge(favorite.getPostId(), weights.getOrDefault("weight.favorite", 2.0), (a, b) -> a + b);
+                    .merge(favorite.getPostId(), weights.getOrDefault("weight.favorite", 3.0), (a, b) -> a + b);
         }
         for (Comment comment : comments) {
             userItemMatrix.computeIfAbsent(comment.getUserId(), k -> new HashMap<>())
-                    .merge(comment.getPostId(), weights.getOrDefault("weight.comment", 3.0), (a, b) -> a + b);
+                    .merge(comment.getPostId(), weights.getOrDefault("weight.comment", 2.0), (a, b) -> a + b);
         }
 
         Map<Long, Double> targetUserInteractions = userItemMatrix.getOrDefault(userId, new HashMap<>());

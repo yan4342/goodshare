@@ -289,4 +289,24 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "commentCount", column = "comment_count")
     })
     List<Post> selectHotPostsWithUser(@Param("limit") int limit, @Param("offset") int offset, @Param("excludedIds") List<Long> excludedIds);
+
+    @Select("SELECT p.*, " +
+            "(SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, " +
+            "(SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, " +
+            "u.username, u.nickname, u.avatar_url, " +
+            "pv.created_at as view_time " +
+            "FROM posts p " +
+            "JOIN post_views pv ON p.id = pv.post_id " +
+            "JOIN users u ON p.user_id = u.id " +
+            "WHERE pv.user_id = #{userId} AND (p.status != 2 OR p.status IS NULL) " +
+            "ORDER BY pv.created_at DESC")
+    @Results({
+            @Result(property = "user.username", column = "username"),
+            @Result(property = "user.nickname", column = "nickname"),
+            @Result(property = "user.avatarUrl", column = "avatar_url"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "commentCount", column = "comment_count"),
+            @Result(property = "viewTime", column = "view_time")
+    })
+    IPage<Post> selectHistoryPostsPage(IPage<Post> page, @Param("userId") Long userId);
 }

@@ -12,23 +12,28 @@ import yan.goodshare.entity.User;
 
 import java.util.Set;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.util.StringUtils;
+
 @RestController
 @RequestMapping("/api/auth")// 认证控制器，处理用户登录和注册
 public class AuthController {
 
     private final AuthService authService;
     private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider tokenProvider;
 
-    public AuthController(AuthService authService, AuthenticationManager authenticationManager) {
+    public AuthController(AuthService authService, AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider) {
         this.authService = authService;
         this.authenticationManager = authenticationManager;
+        this.tokenProvider = tokenProvider;
     }
 
     @PostMapping("/login")// 登录用户
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         try {
-            String jwt = authService.login(loginRequest.getUsername(), loginRequest.getPassword(), authenticationManager);
-            return ResponseEntity.ok(new AuthResponse(jwt));
+            AuthResponse response = authService.login(loginRequest.getUsername(), loginRequest.getPassword(), authenticationManager);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication failed: " + e.getMessage());
         }
@@ -49,4 +54,39 @@ public class AuthController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest request) {
+        String refreshToken = request.getRefreshToken();
+        String username = request.getUsername();
+
+        if (tokenProvider.validateRefreshToken(username, refreshToken)) {
+            String newAccessToken = tokenProvider.generateToken(username);
+            String newRefreshToken = tokenProvider.generateRefreshToken(username);
+            return ResponseEntity.ok(new AuthResponse(newAccessToken, newRefreshToken));
+        }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            String jwt = bearerToken.substring(7);
+            tokenProvider.invalidateToken(jwt);
+            return ResponseEntity.ok("Logged out successfully");
+        }
+        return ResponseEntity.badRequest().body("No valid token provided");
+    }
+}
+
+class RefreshTokenRequest {
+    private String username;
+    private String refreshToken;
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
+    public String getRefreshToken() { return refreshToken; }
+    public void setRefreshToken(String refreshToken) { this.refreshToken = refreshToken; }
 }

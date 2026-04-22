@@ -25,9 +25,11 @@ import yan.goodshare.service.UserTagWeightService;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -271,7 +273,9 @@ public class PostService {
     }
 
     public List<Post> getAllPosts() {
-        return getAllPosts(null);
+        List<Post> posts = getAllPosts(null);
+        loadTagsForPosts(posts);
+        return posts;
     }
 
     public Post getPostById(Long id) {
@@ -477,12 +481,19 @@ public class PostService {
 
     public IPage<Post> getPendingPosts(int page, int size) {
         Page<Post> pageParam = new Page<>(page, size);
-        return postMapper.selectPendingPostsPage(pageParam);
+        IPage<Post> result = postMapper.selectPendingPostsPage(pageParam);
+        loadTagsForPosts(result.getRecords());
+        return result;
     }
 
     public IPage<Post> getFollowedPosts(Long userId, int page, int size) {
         Page<Post> pageParam = new Page<>(page, size);
         return postMapper.selectFollowedPostsPage(pageParam, userId);
+    }
+
+    public IPage<Post> getHistoryPosts(Long userId, int page, int size) {
+        Page<Post> pageParam = new Page<>(page, size);
+        return postMapper.selectHistoryPostsPage(pageParam, userId);
     }
 
     public void updatePostStatus(Long postId, Integer status) {
@@ -605,5 +616,29 @@ public class PostService {
                 .text()
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("\\s+", "");
+    }
+
+    private void loadTagsForPosts(List<Post> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return;
+        }
+
+        List<Long> postIds = posts.stream().map(Post::getId).collect(Collectors.toList());
+        List<java.util.Map<String, Object>> tagMaps = postMapper.selectTagsByPostIds(postIds);
+
+        java.util.Map<Long, Set<Tag>> postTagsMap = new java.util.HashMap<>();
+        for (java.util.Map<String, Object> map : tagMaps) {
+            Long postId = ((Number) map.get("post_id")).longValue();
+            Tag tag = new Tag();
+            tag.setId(((Number) map.get("id")).longValue());
+            tag.setName((String) map.get("name"));
+
+            postTagsMap.computeIfAbsent(postId, k -> new HashSet<>()).add(tag);
+        }
+
+        for (Post post : posts) {
+            Set<Tag> tags = postTagsMap.get(post.getId());
+            post.setTags(tags != null ? tags : new HashSet<>());
+        }
     }
 }

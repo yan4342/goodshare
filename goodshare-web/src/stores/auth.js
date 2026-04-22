@@ -4,14 +4,18 @@ import request from '../utils/request'
 const state = reactive({
   user: null,
   isAuthenticated: !!localStorage.getItem('token'),
-  token: localStorage.getItem('token')
+  token: localStorage.getItem('token'),
+  refreshToken: localStorage.getItem('refreshToken')
 })
 
 const setUser = (user) => {
   state.user = user
+  if (user && user.username) {
+      localStorage.setItem('username', user.username)
+  }
 }
 
-const setToken = (token, rememberMe = false) => {
+const setToken = (token, refreshToken = null) => {
   state.token = token
   state.isAuthenticated = !!token
   if (token) {
@@ -19,11 +23,28 @@ const setToken = (token, rememberMe = false) => {
   } else {
       localStorage.removeItem('token')
   }
+  
+  if (refreshToken) {
+      state.refreshToken = refreshToken
+      localStorage.setItem('refreshToken', refreshToken)
+  } else if (token === null) {
+      state.refreshToken = null
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('username')
+  }
 }
 
-const logout = () => {
-    setToken(null)
-    setUser(null)
+const logout = async () => {
+    try {
+        if (state.token) {
+            await request.post('/auth/logout')
+        }
+    } catch (e) {
+        console.error('Logout error', e)
+    } finally {
+        setToken(null)
+        setUser(null)
+    }
 }
 
 const fetchUser = async () => {
@@ -33,7 +54,7 @@ const fetchUser = async () => {
         setUser(res.data)
     } catch (err) {
         console.error('Failed to fetch user profile', err)
-        // Optionally logout if token is invalid, but interceptor handles 401
+        // Interceptor handles 401 and refresh
     }
 }
 
