@@ -79,7 +79,7 @@ const routes = [
   {
     path: '/admin/tags',
     name: 'AdminTags',
-    component: () => import('../views/admin/AdminTagManager.vue'),
+    component: () => import('../views/admin/AdminManager.vue'),
     meta: { requiresAdmin: true }
   },
   {

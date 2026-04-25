@@ -1409,12 +1409,16 @@ const confirmPublish = async () => {
     margin-bottom: 12px;
 }
 .post-detail-preview .post-text a {
-    color: var(--el-color-primary);
+    color: #ff2442;
+    background-color: #fffacd;
     text-decoration: underline;
-    transition: color 0.2s;
+    transition: color 0.2s, background-color 0.2s;
+    padding: 2px 4px;
+    border-radius: 2px;
 }
 .post-detail-preview .post-text a:hover {
-    color: var(--el-color-primary-dark-2);
+    color: #e61f3c;
+    background-color: #ffeb99;
 }
 
 .post-detail-preview .post-text :deep(img) {
@@ -2084,12 +2088,16 @@ const confirmPublish = async () => {
     min-height: auto;
 }
 .preview-post-text a {
-    color: var(--el-color-primary);
+    color: #ff2442;
+    background-color: #fffacd;
     text-decoration: underline;
-    transition: color 0.2s;
+    transition: color 0.2s, background-color 0.2s;
+    padding: 2px 4px;
+    border-radius: 2px;
 }
 .preview-post-text a:hover {
-    color: var(--el-color-primary-dark-2);
+    color: #e61f3c;
+    background-color: #ffeb99;
 }
 
 .preview-post-text :deep(img) {

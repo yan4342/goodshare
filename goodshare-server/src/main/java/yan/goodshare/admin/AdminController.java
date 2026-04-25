@@ -115,8 +115,10 @@ public class AdminController {
     }
 
     @GetMapping("/posts")
-    public ResponseEntity<List<Post>> getAllPosts() {
-        return ResponseEntity.ok(postService.getAllPosts());
+    public ResponseEntity<com.baomidou.mybatisplus.core.metadata.IPage<Post>> getAllPosts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(postService.getAllPosts(null, page, size));
     }
 
     @DeleteMapping("/posts")

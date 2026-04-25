@@ -311,6 +311,7 @@ const handlePostUpdate = (updatedFields) => {
     homeStore.updatePost(updatedFields)
 }
 
+// 打开帖子详情，记录点击位置用于动画
 const openPost = (post, event) => {
     if (event && event.currentTarget) {
         clickedRect.value = event.currentTarget.getBoundingClientRect()
@@ -319,6 +320,7 @@ const openPost = (post, event) => {
     showPostDetail.value = true
 }
 
+// 关闭帖子详情，清除相关状态
 const closePost = () => {
     showPostDetail.value = false
     selectedPostId.value = null

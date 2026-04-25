@@ -13,7 +13,7 @@
               <el-tab-pane label="帖子" name="posts">
                 <!-- Waterfall Grid -->
                 <div class="masonry-grid" v-if="posts.length > 0">
-                  <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post)">
+                  <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
                     <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
                     <div class="card-info">
                       <h3 class="post-title">{{ post.title }}</h3>
@@ -75,12 +75,21 @@
           </div>
         </div>
       </div>
+      
+      <PostDetail 
+        v-if="showPostDetail" 
+        :post-id="selectedPostId"
+        :origin-rect="clickedRect" 
+        @close="closePost"
+        @update="handlePostUpdate" 
+      />
     </div>
   </div>
 </template>
 
 <script setup>
 import Navbar from '../components/Navbar.vue'
+import PostDetail from './PostDetail.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import request from '../utils/request'
 import { Star, UserFilled, Trophy } from '@element-plus/icons-vue'
@@ -97,6 +106,9 @@ const isAuthenticated = computed(() => authStore.state.isAuthenticated)
 const query = computed(() => route.query.q || '')
 const tag = computed(() => route.query.tag || '')
 const activeTab = ref('posts')
+const showPostDetail = ref(false)
+const selectedPostId = ref(null)
+const clickedRect = ref(null)
 
 // Ensure activeTab is correct when tag is present
 const checkActiveTab = () => {
@@ -193,8 +205,27 @@ watch(() => [route.query.q, route.query.tag], () => {
     searchUsers()
 })
 
-const openPost = (post) => {
-  router.push(`/post/${post.id}`)
+const openPost = (post, event) => {
+    if (event && event.currentTarget) {
+        clickedRect.value = event.currentTarget.getBoundingClientRect()
+    }
+    selectedPostId.value = post.id
+    showPostDetail.value = true
+}
+
+// 关闭帖子详情，清除相关状态
+const closePost = () => {
+    showPostDetail.value = false
+    selectedPostId.value = null
+    clickedRect.value = null
+}
+
+const handlePostUpdate = (updatedFields) => {
+    // 更新 posts 数组中对应的帖子
+    const postIndex = posts.value.findIndex(p => p.id === updatedFields.id)
+    if (postIndex !== -1) {
+        posts.value[postIndex] = { ...posts.value[postIndex], ...updatedFields }
+    }
 }
 
 const openUser = (user) => {

@@ -154,12 +154,11 @@
             </template>
           </el-table-column>
         </el-table>
-      </div>
 
         <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
             <el-pagination
-                v-model:current-page="auditPage"
-                v-model:page-size="auditSize"
+                v-model:current-page="postsPage"
+                v-model:page-size="postsPageSize"
                 :page-sizes="[10, 20, 50]"
                 layout="total, sizes, prev, pager, next, jumper"
                 :total="postsTotal"
@@ -167,6 +166,7 @@
                 @current-change="handlePostCurrentChange"
             />
         </div>      
+      </div>
 
       <!-- Audit Management -->
       <div v-if="currentTab === 'audit'">
@@ -589,8 +589,15 @@ const deleteTag = (id) => {
 const fetchPosts = async () => {
     postsLoading.value = true
     try {
-        const res = await request.get('/admin/posts', { _isAdmin: true })
-        posts.value = res.data
+        const res = await request.get('/admin/posts', {
+            params: {
+                page: postsPage.value,
+                size: postsPageSize.value
+            },
+            _isAdmin: true
+        })
+        posts.value = res.data.records
+        postsTotal.value = res.data.total
     } catch (error) {
         console.error('Failed to fetch posts', error)
         ElMessage.error('获取帖子列表失败')

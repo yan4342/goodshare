@@ -256,22 +256,26 @@ public class PostService {
         searchService.indexPost(post);
         return post;
     }
-
+// 获取帖子列表，支持标签过滤和分页
     public IPage<Post> getAllPosts(String tag, int page, int size) {
         Page<Post> pageParam = new Page<>(page, size);
+        IPage<Post> result;
         if (tag != null && !tag.isEmpty()) {
-            return postMapper.selectPostsByTagNamePage(pageParam, tag);
+            result = postMapper.selectPostsByTagNamePage(pageParam, tag);
+        } else {
+            result = postMapper.selectPostsWithUserPage(pageParam);
         }
-        return postMapper.selectPostsWithUserPage(pageParam);
+        loadTagsForPosts(result.getRecords());
+        return result;
     }
-
+// 获取帖子列表，不分页，支持标签过滤
     public List<Post> getAllPosts(String tag) {
         if (tag != null && !tag.isEmpty()) {
             return postMapper.selectPostsByTagName(tag);
         }
         return postMapper.selectPostsWithUser();
     }
-
+// 获取所有帖子用于管理员后台，包含待审核和被拒绝的帖子
     public List<Post> getAllPosts() {
         List<Post> posts = getAllPosts(null);
         loadTagsForPosts(posts);
