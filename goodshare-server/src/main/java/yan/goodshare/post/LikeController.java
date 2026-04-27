@@ -2,6 +2,9 @@ package yan.goodshare.post;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+
 import yan.goodshare.entity.Post;
 
 import java.util.List;
@@ -47,7 +50,7 @@ public class LikeController {
     }
 
     @GetMapping("/likes")
-    public ResponseEntity<List<Post>> getUserLikedPosts() {
-        return ResponseEntity.ok(likeService.getUserLikedPosts());
+    public ResponseEntity<IPage<Post>> getUserLikedPosts(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(likeService.getUserLikedPosts(page, size));
     }
 }

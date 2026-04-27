@@ -74,160 +74,183 @@
     <div class="content-tabs">
       <el-tabs v-model="activeTab" @tab-click="handleTabClick">
         <el-tab-pane label="帖子" name="posts">
-            <div v-if="posts.length === 0" class="empty-state">
-                <el-empty description="还没有发布过帖子哦" />
-            </div>
-            <div v-else class="masonry-grid">
-                <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
-                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }">
-                        <div v-if="post.status === 2" class="status-badge rejected">未通过</div>
-                        <div v-if="post.status === 0" class="status-badge pending">审核中</div>
-                        <div class="delete-btn" @click.stop="handleDelete(post)">
-                            <el-icon><Delete /></el-icon>
-                        </div>
-                    </div>
-                    <div class="card-content">
-                        <div v-if="!getCoverUrl(post) && post.status === 2" class="status-badge-inline rejected">未通过</div>
-                        <div v-if="!getCoverUrl(post) && post.status === 0" class="status-badge-inline pending">审核中</div>
-                        <h3 class="card-title">{{ post.title }}</h3>
-                        <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
-                                <span>{{ userProfile.nickname || userProfile.username }}</span>
+            <el-scrollbar ref="postsScrollbarRef" class="tab-scrollbar" @scroll="(e) => onTabScroll(e, 'posts')">
+                <div v-if="posts.length === 0 && !tabLoading.posts" class="empty-state">
+                    <el-empty description="还没有发布过帖子哦" />
+                </div>
+                <div v-else class="masonry-grid">
+                    <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
+                        <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }">
+                            <div v-if="post.status === 2" class="status-badge rejected">未通过</div>
+                            <div v-if="post.status === 0" class="status-badge pending">审核中</div>
+                            <div class="delete-btn" @click.stop="handleDelete(post)">
+                                <el-icon><Delete /></el-icon>
                             </div>
-                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
-                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><Star /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                        </div>
+                        <div class="card-content">
+                            <div v-if="!getCoverUrl(post) && post.status === 2" class="status-badge-inline rejected">未通过</div>
+                            <div v-if="!getCoverUrl(post) && post.status === 0" class="status-badge-inline pending">审核中</div>
+                            <h3 class="card-title">{{ post.title }}</h3>
+                            <div class="card-footer">
+                                <div class="author">
+                                    <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
+                                    <span>{{ userProfile.nickname || userProfile.username }}</span>
                                 </div>
-                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><ChatDotRound /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><Star /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                    </div>
+                                    <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><ChatDotRound /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="load-more-hint" v-if="tabLoading.posts">
+                    <el-skeleton :rows="3" animated />
+                </div>
+                <div class="load-more-hint no-more" v-else-if="posts.length > 0 && !tabHasMore.posts">没有更多了</div>
+            </el-scrollbar>
         </el-tab-pane>
 
         <el-tab-pane label="历史" name="history" v-if="isCurrentUser">
-            <div v-if="historyPosts.length === 0" class="empty-state">
-                <el-empty description="还没有浏览过帖子哦" />
-            </div>
-            <div v-else class="masonry-grid">
-                <div v-for="post in historyPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
-                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
-                    <div class="card-content">
-                        <h3 class="card-title">{{ post.title }}</h3>
-                        <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
-                                <span>{{ post.user?.username }}</span>
-                            </div>
-                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
-                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><Star /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+            <el-scrollbar ref="historyScrollbarRef" class="tab-scrollbar" @scroll="(e) => onTabScroll(e, 'history')">
+                <div v-if="historyPosts.length === 0 && !tabLoading.history" class="empty-state">
+                    <el-empty description="还没有浏览过帖子哦" />
+                </div>
+                <div v-else class="masonry-grid">
+                    <div v-for="post in historyPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
+                        <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                        <div class="card-content">
+                            <h3 class="card-title">{{ post.title }}</h3>
+                            <div class="card-footer">
+                                <div class="author">
+                                    <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                    <span>{{ post.user?.username }}</span>
                                 </div>
-                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><ChatDotRound /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><Star /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                    </div>
+                                    <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><ChatDotRound /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="load-more-hint" v-if="tabLoading.history"><el-icon class="is-loading"><Loading /></el-icon> <el-skeleton :rows="3" animated /></div>
+                <div class="load-more-hint no-more" v-else-if="historyPosts.length > 0 && !tabHasMore.history">没有更多了</div>
+            </el-scrollbar>
         </el-tab-pane>
-        
+
         <el-tab-pane label="鉴定" name="appraisals">
-            <div v-if="myAppraisals.length === 0" class="empty-state">
-                <el-empty description="还没有发布过鉴定哦" />
-            </div>
-            <div v-else class="masonry-grid">
-                <div v-for="item in myAppraisals" :key="item.id" class="post-card" @click="$router.push(`/appraisals/${item.id}`)">
-                    <div v-if="getAppraisalCover(item)" class="card-image" :style="{ backgroundImage: `url('${getAppraisalCover(item)}')` }">
-                        <div v-if="isCurrentUser" class="delete-btn" @click.stop="handleDeleteAppraisal(item)">
-                            <el-icon><Delete /></el-icon>
-                        </div>
-                    </div>
-                    <div class="card-content">
-                        <h3 class="card-title">{{ item.productName }}</h3>
-                        <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
-                                <span>{{ userProfile.nickname || userProfile.username }}</span>
+            <el-scrollbar ref="appraisalsScrollbarRef" class="tab-scrollbar" @scroll="(e) => onTabScroll(e, 'appraisals')">
+                <div v-if="myAppraisals.length === 0 && !tabLoading.appraisals" class="empty-state">
+                    <el-empty description="还没有发布过鉴定哦" />
+                </div>
+                <div v-else class="masonry-grid">
+                    <div v-for="item in myAppraisals" :key="item.id" class="post-card" @click="$router.push(`/appraisals/${item.id}`)">
+                        <div v-if="getAppraisalCover(item)" class="card-image" :style="{ backgroundImage: `url('${getAppraisalCover(item)}')` }">
+                            <div v-if="isCurrentUser" class="delete-btn" @click.stop="handleDeleteAppraisal(item)">
+                                <el-icon><Delete /></el-icon>
                             </div>
-                            <div class="likes">
-                                <span style="font-size: 12px; color: #666;">
-                                    <span style="color: #67c23a">真 {{ item.realVotes }}</span> / 
-                                    <span style="color: #f56c6c">假 {{ item.fakeVotes }}</span>
-                                </span>
+                        </div>
+                        <div class="card-content">
+                            <h3 class="card-title">{{ item.productName }}</h3>
+                            <div class="card-footer">
+                                <div class="author">
+                                    <el-avatar :size="16" :src="userProfile.avatarUrl || defaultAvatar" />
+                                    <span>{{ userProfile.nickname || userProfile.username }}</span>
+                                </div>
+                                <div class="likes">
+                                    <span style="font-size: 12px; color: #666;">
+                                        <span style="color: #67c23a">真 {{ item.realVotes }}</span> /
+                                        <span style="color: #f56c6c">假 {{ item.fakeVotes }}</span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="load-more-hint" v-if="tabLoading.appraisals"><el-icon class="is-loading"><Loading /></el-icon> <el-skeleton :rows="3" animated /></div>
+                <div class="load-more-hint no-more" v-else-if="myAppraisals.length > 0 && !tabHasMore.appraisals">没有更多了</div>
+            </el-scrollbar>
         </el-tab-pane>
 
         <el-tab-pane label="收藏" name="favorites" v-if="isCurrentUser">
-            <div v-if="favorites.length === 0" class="empty-state">
-                <el-empty description="还没有收藏过帖子哦" />
-            </div>
-            <div v-else class="masonry-grid">
-                <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
-                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
-                    <div class="card-content">
-                        <h3 class="card-title">{{ post.title }}</h3>
-                        <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
-                                <span>{{ post.user?.username }}</span>
-                            </div>
-                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
-                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><Star /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+            <el-scrollbar ref="favoritesScrollbarRef" class="tab-scrollbar" @scroll="(e) => onTabScroll(e, 'favorites')">
+                <div v-if="favorites.length === 0 && !tabLoading.favorites" class="empty-state">
+                    <el-empty description="还没有收藏过帖子哦" />
+                </div>
+                <div v-else class="masonry-grid">
+                    <div v-for="post in favorites" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
+                        <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                        <div class="card-content">
+                            <h3 class="card-title">{{ post.title }}</h3>
+                            <div class="card-footer">
+                                <div class="author">
+                                    <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                    <span>{{ post.user?.username }}</span>
                                 </div>
-                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><ChatDotRound /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><Star /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                    </div>
+                                    <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><ChatDotRound /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="load-more-hint" v-if="tabLoading.favorites"><el-icon class="is-loading"><Loading /></el-icon> <el-skeleton :rows="3" animated /></div>
+                <div class="load-more-hint no-more" v-else-if="favorites.length > 0 && !tabHasMore.favorites">没有更多了</div>
+            </el-scrollbar>
         </el-tab-pane>
+
         <el-tab-pane label="赞过" name="likes" v-if="isCurrentUser">
-            <div v-if="likedPosts.length === 0" class="empty-state">
-                <el-empty description="还没有赞过帖子哦" />
-            </div>
-            <div v-else class="masonry-grid">
-                <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
-                    <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
-                    <div class="card-content">
-                        <h3 class="card-title">{{ post.title }}</h3>
-                        <div class="card-footer">
-                            <div class="author">
-                                <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
-                                <span>{{ post.user?.username }}</span>
-                            </div>
-                            <div class="stats" style="display: flex; gap: 8px; align-items: center;">
-                                <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><Star /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+            <el-scrollbar ref="likesScrollbarRef" class="tab-scrollbar" @scroll="(e) => onTabScroll(e, 'likes')">
+                <div v-if="likedPosts.length === 0 && !tabLoading.likes" class="empty-state">
+                    <el-empty description="还没有赞过帖子哦" />
+                </div>
+                <div v-else class="masonry-grid">
+                    <div v-for="post in likedPosts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="handlePostClick(post, $event)">
+                        <div v-if="getCoverUrl(post)" class="card-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
+                        <div class="card-content">
+                            <h3 class="card-title">{{ post.title }}</h3>
+                            <div class="card-footer">
+                                <div class="author">
+                                    <el-avatar :size="16" :src="post.user?.avatarUrl || defaultAvatar" />
+                                    <span>{{ post.user?.username }}</span>
                                 </div>
-                                <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
-                                    <el-icon><ChatDotRound /></el-icon>
-                                    <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                <div class="stats" style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="likes" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><Star /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.likeCount || 0 }}</span>
+                                    </div>
+                                    <div class="comments" style="display: flex; align-items: center; color: #666; font-size: 12px;">
+                                        <el-icon><ChatDotRound /></el-icon>
+                                        <span style="margin-left: 2px;">{{ post.commentCount || 0 }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="load-more-hint" v-if="tabLoading.likes"><el-icon class="is-loading"><Loading /></el-icon> <el-skeleton :rows="3" animated /></div>
+                <div class="load-more-hint no-more" v-else-if="likedPosts.length > 0 && !tabHasMore.likes">没有更多了</div>
+            </el-scrollbar>
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -404,7 +427,7 @@ import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
 import authStore from '../stores/auth'
 import homeStore from '../stores/home'
-import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check, ArrowLeft } from '@element-plus/icons-vue'
+import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check, ArrowLeft, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
@@ -436,6 +459,30 @@ const showFollowingList = ref(false)
 const showFollowerList = ref(false)
 const followingList = ref([])
 const followerList = ref([])
+const loadingPosts = ref(false)
+
+const PAGE_SIZE = 10
+
+// Per-tab pagination state
+const tabPage = reactive({ posts: 1, history: 1, appraisals: 1, favorites: 1, likes: 1 })
+const tabHasMore = reactive({ posts: true, history: true, appraisals: true, favorites: true, likes: true })
+const tabLoading = reactive({ posts: false, history: false, appraisals: false, favorites: false, likes: false })
+const tabLoaded = reactive({ posts: false, history: false, appraisals: false, favorites: false, likes: false })
+
+// Scrollbar refs for each tab
+const postsScrollbarRef = ref(null)
+const historyScrollbarRef = ref(null)
+const appraisalsScrollbarRef = ref(null)
+const favoritesScrollbarRef = ref(null)
+const likesScrollbarRef = ref(null)
+
+const scrollbarRefMap = {
+    posts: postsScrollbarRef,
+    history: historyScrollbarRef,
+    appraisals: appraisalsScrollbarRef,
+    favorites: favoritesScrollbarRef,
+    likes: likesScrollbarRef,
+}
 
 // Post Detail Animation related refs
 const showPostDetail = ref(false)
@@ -495,6 +542,7 @@ const uploadHeaders = computed(() => ({
 }))
 
 const fetchUserProfile = async () => {
+    resetTabState()
     try {
         const userId = route.params.id
         let res
@@ -514,16 +562,13 @@ const fetchUserProfile = async () => {
         }
         
         userProfile.value = res.data
-        
-        // Fetch posts after profile to use ID
+
+        if (!isCurrentUser.value && ['history', 'favorites', 'likes'].includes(activeTab.value)) {
+            activeTab.value = 'posts'
+        }
+
         if (res.data.id) {
-            fetchMyPosts(res.data.id)
-            fetchMyAppraisals(res.data.id)
-            if (isCurrentUser.value) {
-                fetchHistoryPosts()
-                fetchMyFavorites()
-                fetchLikedPosts()
-            }
+            ensureTabLoaded(activeTab.value)
         }
     } catch (err) {
         console.error('Failed to load profile', err)
@@ -617,51 +662,152 @@ const goToUser = (id) => {
     }
 }
 
+const resetTabState = () => {
+    posts.value = []
+    myAppraisals.value = []
+    historyPosts.value = []
+    favorites.value = []
+    likedPosts.value = []
+    totalLikes.value = 0
 
-const fetchMyPosts = async (userId) => {
+    Object.keys(tabPage).forEach((key) => {
+        tabPage[key] = 1
+        tabHasMore[key] = true
+        tabLoading[key] = false
+        tabLoaded[key] = false
+    })
+}
+
+
+const fetchMyPosts = async (userId, page = 1) => {
+    if (tabLoading.posts) return
+    tabLoading.posts = true
     try {
-        const res = await request.get(`/posts/user/${userId}`)
-        posts.value = res.data
-        totalLikes.value = res.data.reduce((sum, post) => sum + (post.likeCount || 0), 0)
+        const res = await request.get(`/posts/user/${userId}`, { params: { page, size: PAGE_SIZE } })
+        const records = res.data.records || res.data
+        if (page === 1) {
+            posts.value = records
+            totalLikes.value = records.reduce((sum, post) => sum + (post.likeCount || 0), 0)
+            tabLoaded.posts = true
+        } else {
+            posts.value.push(...records)
+        }
+        tabHasMore.posts = records.length === PAGE_SIZE
+        tabPage.posts = page
     } catch (err) {
         console.error('Failed to load posts', err)
+    } finally {
+        tabLoading.posts = false
     }
 }
 //加载用户评价商品
-const fetchMyAppraisals = async (userId) => {
+const fetchMyAppraisals = async (userId, page = 1) => {
+    if (tabLoading.appraisals) return
+    tabLoading.appraisals = true
     try {
-        const res = await request.get(`/appraisals/user/${userId}`)
-        myAppraisals.value = res.data.records
+        const res = await request.get(`/appraisals/user/${userId}`, { params: { page, size: PAGE_SIZE } })
+        const records = res.data.records || res.data
+        if (page === 1) {
+            myAppraisals.value = records
+            tabLoaded.appraisals = true
+        } else myAppraisals.value.push(...records)
+        tabHasMore.appraisals = records.length === PAGE_SIZE
+        tabPage.appraisals = page
     } catch (err) {
         console.error('Failed to load appraisals', err)
+    } finally {
+        tabLoading.appraisals = false
     }
 }
 //加载用户浏览历史
-const fetchHistoryPosts = async () => {
+const fetchHistoryPosts = async (page = 1) => {
+    if (tabLoading.history) return
+    tabLoading.history = true
     try {
-        const res = await request.get('/posts/history')
-        historyPosts.value = res.data.records
+        const res = await request.get('/posts/history', { params: { page, size: PAGE_SIZE } })
+        const records = res.data.records || res.data
+        if (page === 1) {
+            historyPosts.value = records
+            tabLoaded.history = true
+        } else historyPosts.value.push(...records)
+        tabHasMore.history = records.length === PAGE_SIZE
+        tabPage.history = page
     } catch (err) {
         console.error('Failed to load history posts', err)
+    } finally {
+        tabLoading.history = false
     }
 }
 
-const fetchMyFavorites = async () => {
+const fetchMyFavorites = async (page = 1) => {
+    if (tabLoading.favorites) return
+    tabLoading.favorites = true
     try {
-        const res = await request.get('/favorites')
-        favorites.value = res.data
+        const res = await request.get('/favorites', { params: { page, size: PAGE_SIZE } })
+        const records = res.data.records || res.data
+        if (page === 1) {
+            favorites.value = records
+            tabLoaded.favorites = true
+        } else favorites.value.push(...records)
+        tabHasMore.favorites = records.length === PAGE_SIZE
+        tabPage.favorites = page
     } catch (err) {
         console.error('Failed to load favorites', err)
+    } finally {
+        tabLoading.favorites = false
     }
 }
 
-const fetchLikedPosts = async () => {
+const fetchLikedPosts = async (page = 1) => {
+    if (tabLoading.likes) return
+    tabLoading.likes = true
     try {
-        const res = await request.get('/likes')
-        likedPosts.value = res.data
+        const res = await request.get('/likes', { params: { page, size: PAGE_SIZE } })
+        const records = res.data.records || res.data
+        if (page === 1) {
+            likedPosts.value = records
+            tabLoaded.likes = true
+        } else likedPosts.value.push(...records)
+        tabHasMore.likes = records.length === PAGE_SIZE
+        tabPage.likes = page
     } catch (err) {
         console.error('Failed to load liked posts', err)
+    } finally {
+        tabLoading.likes = false
     }
+}
+
+const onTabScroll = ({ scrollTop }, tabName) => {
+    const sbRef = scrollbarRefMap[tabName]?.value
+    if (!sbRef) return
+    const wrap = sbRef.wrapRef
+    if (!wrap) return
+    if (tabLoading[tabName] || !tabHasMore[tabName]) return
+    if (wrap.scrollHeight - scrollTop - wrap.clientHeight < 150) {
+        loadMoreTab(tabName)
+    }
+}
+
+const loadMoreTab = (tabName) => {
+    const nextPage = tabPage[tabName] + 1
+    if (tabName === 'posts') fetchMyPosts(userProfile.value.id, nextPage)
+    else if (tabName === 'history') fetchHistoryPosts(nextPage)
+    else if (tabName === 'appraisals') fetchMyAppraisals(userProfile.value.id, nextPage)
+    else if (tabName === 'favorites') fetchMyFavorites(nextPage)
+    else if (tabName === 'likes') fetchLikedPosts(nextPage)
+}
+
+const loadTabData = (tabName, page = 1) => {
+    if (tabName === 'posts' && userProfile.value.id) fetchMyPosts(userProfile.value.id, page)
+    else if (tabName === 'history' && isCurrentUser.value) fetchHistoryPosts(page)
+    else if (tabName === 'appraisals' && userProfile.value.id) fetchMyAppraisals(userProfile.value.id, page)
+    else if (tabName === 'favorites' && isCurrentUser.value) fetchMyFavorites(page)
+    else if (tabName === 'likes' && isCurrentUser.value) fetchLikedPosts(page)
+}
+
+const ensureTabLoaded = (tabName) => {
+    if (!tabName || tabLoaded[tabName]) return
+    loadTabData(tabName, 1)
 }
 
 const openSettings = () => {
@@ -1035,15 +1181,10 @@ const handlePostUpdate = (updatedFields) => {
 }
 
 const handleTabClick = (tab) => {
-    if (tab.props.name === 'favorites') {
-        fetchMyFavorites()
-    } else if (tab.props.name === 'posts' && userProfile.value.id) {
-        fetchMyPosts(userProfile.value.id)
-    } else if (tab.props.name === 'likes') {
-        fetchLikedPosts()
-    } else if (tab.props.name === 'history' && isCurrentUser.value) {
-        fetchHistoryPosts()
-    }
+    const name = tab.props.name
+    tabPage[name] = 1
+    tabHasMore[name] = true
+    loadTabData(name, 1)
 }
 
 const handleDelete = async (post) => {
@@ -1389,6 +1530,25 @@ onMounted(() => {
     .stats {
         justify-content: center;
     }
+}
+
+.tab-scrollbar {
+    height: 620px;
+}
+
+.load-more-hint {
+    text-align: center;
+    padding: 16px 0 8px;
+    color: var(--text-color-secondary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.load-more-hint.no-more {
+    color: #c0c4cc;
 }
 
 .cropper-content {

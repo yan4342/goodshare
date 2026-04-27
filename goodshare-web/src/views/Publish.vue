@@ -153,11 +153,12 @@
              <div class="content-flex">
                  <!-- Left: Image Section -->
                  <div class="image-section">
-                     <el-carousel v-if="fileList.length > 0" height="100%" arrow="hover" :autoplay="false" indicator-position="none">
+                    <el-carousel v-if="fileList.length > 0" height="100%" arrow="hover" :autoplay="false" indicator-position="none">
                          <el-carousel-item v-for="(file, index) in fileList" :key="index">
                              <div class="image-wrapper" :style="{ backgroundImage: `url('${file.url || (file.response && file.response.url)}')` }"></div>
                          </el-carousel-item>
                      </el-carousel>
+                    <div v-else-if="contentPreviewImage" class="image-wrapper" :style="{ backgroundImage: `url('${contentPreviewImage}')` }"></div>
                      <div v-else-if="previewCoverUrl" class="image-wrapper" :style="{ backgroundImage: `url('${previewCoverUrl}')` }"></div>
                      <div v-else class="image-wrapper placeholder">
                          <span>封面预览</span>
@@ -399,6 +400,10 @@ const aiKeyword = ref('')
 const aiLoading = ref(false)
 const captureRef = ref(null)
 let quill = null
+let previousContentImageUrls = new Set()
+const editorUploadedImageUrls = new Set()
+let previewCoverTimer = null
+let previewCoverRequestId = 0
 
 const emojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -443,6 +448,23 @@ watch(() => authStore.state.user, (user) => {
 const previewData = ref({
     images: []
 })
+
+const getFirstContentImage = (html) => {
+    if (!html) return null
+    const imgRegex = /<img[^>]+src=['"]([^'">]+)['"][^>]*>/i
+    const match = html.match(imgRegex)
+    return match ? match[1] : null
+}
+
+const getContentImageUrls = (html) => {
+    if (!html) return []
+    const imgRegex = /<img[^>]+src=['"]([^'">]+)['"][^>]*>/gi
+    return [...html.matchAll(imgRegex)]
+        .map(match => match[1])
+        .filter(url => typeof url === 'string' && url.trim())
+}
+
+const contentPreviewImage = computed(() => getFirstContentImage(form.value.content))
 
 // Cover Templates 发布笔记封面模板
 const selectedTemplateIndex = ref(0)
@@ -750,12 +772,49 @@ const generateAndUploadCover = async () => {
 }
 
 const updatePreviewCover = async () => {
-    if (fileList.value.length === 0 && !hasContentImage.value) {
-        // Debounce slightly to allow DOM to render
-        setTimeout(async () => {
-             previewCoverUrl.value = await generateCoverDataUrl()
-        }, 100)
+    clearTimeout(previewCoverTimer)
+
+    if (fileList.value.length > 0 || hasContentImage.value) {
+        previewCoverRequestId += 1
+        previewCoverUrl.value = ''
+        return
     }
+
+    const requestId = ++previewCoverRequestId
+    // Wait a bit so the hidden capture DOM can finish rendering
+    previewCoverTimer = setTimeout(async () => {
+         const generatedUrl = await generateCoverDataUrl()
+         if (requestId === previewCoverRequestId && fileList.value.length === 0 && !hasContentImage.value) {
+             previewCoverUrl.value = generatedUrl
+         }
+    }, 100)
+}
+
+const deleteUploadedImageByUrl = async (url) => {
+    if (!url || !url.includes('/uploads/')) {
+        return
+    }
+
+    try {
+        await request.delete('/upload', { params: { url } })
+        console.log('Editor image deleted from server:', url)
+    } catch (err) {
+        console.error('Failed to delete editor image from server', err)
+    }
+}
+
+const syncRemovedEditorImages = async (html) => {
+    const currentUrls = new Set(getContentImageUrls(html))
+    const removedUrls = [...previousContentImageUrls].filter(
+        url => !currentUrls.has(url) && editorUploadedImageUrls.has(url)
+    )
+
+    for (const url of removedUrls) {
+        await deleteUploadedImageByUrl(url)
+        editorUploadedImageUrls.delete(url)
+    }
+
+    previousContentImageUrls = currentUrls
 }
 
 let debounceTimer = null
@@ -769,8 +828,9 @@ watch(() => fileList.value.length, () => {
 })
 
 watch(() => form.value.content, (newVal) => {
-    const imgRegex = /<img[^>]+src="([^">]+)"/g
-    hasContentImage.value = imgRegex.test(newVal)
+    hasContentImage.value = !!getFirstContentImage(newVal)
+    void syncRemovedEditorImages(newVal)
+    updatePreviewCover()
 })
 
 watch([() => form.value.title, () => form.value.content], () => {
@@ -802,6 +862,7 @@ const loadDraft = () => {
             ElMessage.info('已恢复上次未发布的草稿')
             form.value.title = data.title || ''
             form.value.content = data.content || ''
+            previousContentImageUrls = new Set(getContentImageUrls(form.value.content))
             form.value.tags = data.tags || []
             if (quill) {
                 quill.root.innerHTML = form.value.content
@@ -909,6 +970,11 @@ onMounted(async () => {
                     }
                 }
             })
+
+            const toolbar = quill.getModule('toolbar')
+            toolbar.addHandler('image', () => {
+                handleEditorImageUpload()
+            })
             
             quill.on('text-change', () => {
                 form.value.content = quill.root.innerHTML
@@ -920,6 +986,7 @@ onMounted(async () => {
                     const post = res.data
                     form.value.title = post.title
                     form.value.content = post.content
+                    previousContentImageUrls = new Set(getContentImageUrls(form.value.content))
                     if (quill) {
                          quill.root.innerHTML = post.content
                     }
@@ -1004,12 +1071,6 @@ const handleRemove = async (uploadFile, uploadFiles) => {
       url = uploadFile.url
   }
 
-  // Don't delete images that were pre-loaded from the existing post
-  if (url && originalImageUrls.value.includes(url)) {
-      console.log('Skipping deletion of pre-existing image:', url)
-      return
-  }
-
   console.log('Attempting to delete file with URL:', url)
 
   if (url) {
@@ -1029,35 +1090,70 @@ const handlePictureCardPreview = (uploadFile) => {
   dialogVisible.value = true
 }
 
-const customUpload = async (options) => {
-    const { file, onSuccess, onError } = options
-    
+const uploadImageFile = async (file) => {
+    const compressedFile = await compressImage(file)
+
     try {
-        ElMessage.info('正在处理图片...')
-        const compressedFile = await compressImage(file)
-        
-        // Update file object size to reflect compression (for UI/Console clarity)
-        if (compressedFile.size !== file.size) {
-            // file is a reactive proxy or object from el-upload
-            // We can try to update its size property if it's writable
-            try {
-                file.size = compressedFile.size
-            } catch (e) {
-                // Ignore if read-only
-            }
+        file.size = compressedFile.size
+    } catch (e) {
+        // Ignore if read-only
+    }
+
+    const formData = new FormData()
+    formData.append('file', compressedFile)
+
+    const res = await request.post('/upload', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+
+    return res.data
+}
+
+const handleEditorImageUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/jpeg,image/png'
+    input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file || !beforeUpload(file)) {
+            return
         }
 
-        const formData = new FormData()
-        formData.append('file', compressedFile)
-        
-        const res = await request.post('/upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data'
+        try {
+            ElMessage.info('正在处理图片...')
+            const response = await uploadImageFile(file)
+            const imageUrl = typeof response === 'string' ? response : (response.url || response.thumbnailUrl)
+            if (!imageUrl || !quill) {
+                throw new Error('未获取到图片地址')
             }
-        })
-        
-        // Handle success
-        const response = res.data
+
+            const range = quill.getSelection(true)
+            const insertIndex = range ? range.index : quill.getLength()
+            editorUploadedImageUrls.add(imageUrl)
+            quill.insertEmbed(insertIndex, 'image', imageUrl)
+            quill.setSelection(insertIndex + 1)
+            form.value.content = quill.root.innerHTML
+            ElMessage.success('图片上传成功')
+        } catch (err) {
+            console.error('Editor image upload failed', err)
+            if (err.response && err.response.status === 413) {
+                ElMessage.error('图片文件过大，请尝试上传更小的图片')
+            } else {
+                ElMessage.error('图片上传失败，请重试')
+            }
+        }
+    }
+    input.click()
+}
+
+const customUpload = async (options) => {
+    const { file, onSuccess, onError } = options
+
+    try {
+        ElMessage.info('正在处理图片...')
+        const response = await uploadImageFile(file)
 
         // Explicitly set response on the file object immediately
         // This ensures confirmPublish can find it even if el-upload's internal sync is slow
@@ -1106,12 +1202,6 @@ const beforeUpload = (file) => {
     ElMessage.error('图片尺寸不能超过20MB!')
   }
   return isJPG && isLt20M
-}
-
-const getFirstContentImage = (html) => {
-    const imgRegex = /<img[^>]+src="([^">]+)"/
-    const match = html.match(imgRegex)
-    return match ? match[1] : null
 }
 
 const handlePreview = async () => {
@@ -1241,9 +1331,11 @@ const confirmPublish = async () => {
     }
 
     form.value.imageUrls = urls
-    
-    if (!form.value.coverUrl && urls.length > 0) {
-        form.value.coverUrl = urls[0]
+
+    if (urls.length > 0) {
+        if (!form.value.coverUrl || !urls.includes(form.value.coverUrl)) {
+            form.value.coverUrl = urls[0]
+        }
     } else if (!form.value.coverUrl) {
         form.value.coverUrl = ''
     }

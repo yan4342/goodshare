@@ -355,6 +355,7 @@ const handleDislike = async (post) => {
     }
 }
 
+//用于在组件卸载时清除定时器或事件监听器等副作用
 onMounted(async () => {
     updateColumnCount()
     window.addEventListener('resize', updateColumnCount)

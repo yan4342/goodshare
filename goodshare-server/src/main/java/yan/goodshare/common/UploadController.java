@@ -132,14 +132,22 @@ public class UploadController {
                 return ResponseEntity.badRequest().body("Invalid file path");
             }
 
-            // Delete original file
+            // Delete the requested file first
             boolean deleted = Files.deleteIfExists(filePath);
-            
-            // Try to delete thumbnail if exists
+
+            // Delete thumbnail/original counterpart if exists so either URL works.
             if (isImage(fileName)) {
                 String thumbName = getThumbFilename(fileName);
                 Path thumbPath = this.fileStorageLocation.resolve(thumbName);
-                Files.deleteIfExists(thumbPath);
+                boolean thumbDeleted = Files.deleteIfExists(thumbPath);
+
+                String originalName = getOriginalFilename(fileName);
+                if (originalName != null) {
+                    Path originalPath = this.fileStorageLocation.resolve(originalName);
+                    deleted = Files.deleteIfExists(originalPath) || deleted;
+                }
+
+                deleted = thumbDeleted || deleted;
             }
 
             if (deleted) {
@@ -164,6 +172,21 @@ public class UploadController {
         int dotIndex = filename.lastIndexOf('.');
         if (dotIndex == -1) return filename + "_thumb";
         return filename.substring(0, dotIndex) + "_thumb" + filename.substring(dotIndex);
+    }
+
+    private String getOriginalFilename(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex == -1) {
+            if (filename.endsWith("_thumb")) {
+                return filename.substring(0, filename.length() - 6);
+            }
+            return null;
+        }
+        String base = filename.substring(0, dotIndex);
+        if (base.endsWith("_thumb")) {
+            return base.substring(0, base.length() - 6) + filename.substring(dotIndex);
+        }
+        return null;
     }
 
     private boolean createThumbnail(File originalFile, File thumbFile) throws IOException {

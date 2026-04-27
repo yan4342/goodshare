@@ -92,8 +92,12 @@ public class PostController {
 
     // 获取用户发布的所有帖子
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Post>> getPostsByUserId(@PathVariable Long userId) {
-        return ResponseEntity.ok(postService.getPostsByUserId(userId));
+    
+    public ResponseEntity<IPage<Post>> getPostsByUserId(
+        @PathVariable Long userId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(postService.getPostsByUserId(userId, page, size));
     }
 
     // 删除帖子

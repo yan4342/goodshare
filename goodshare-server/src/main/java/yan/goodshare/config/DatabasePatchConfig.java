@@ -261,6 +261,21 @@ public class DatabasePatchConfig {
             } catch (Exception e) {
                 System.err.println("Error creating appraisal_votes table: " + e.getMessage());
             }
+
+            //15. Create appraisal_comments table
+            try {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS appraisal_comments (" +
+                        "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                        "appraisal_id BIGINT NOT NULL," +
+                        "user_id BIGINT NOT NULL," +
+                        "content TEXT NOT NULL," +
+                        "parent_id BIGINT," +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        ")");
+                //System.out.println("Ensured appraisal_comments table exists.");
+            } catch (Exception e) {
+                System.err.println("Error creating appraisal_comments table: " + e.getMessage());
+            }
         };
     }
 }

@@ -57,7 +57,7 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "likeCount", column = "like_count"),
             @Result(property = "commentCount", column = "comment_count")
     })
-    List<Post> selectPostsByUserIdWithUser(Long userId);
+    IPage<Post> selectPostsByUserIdWithUser(IPage<Post> page, @Param("userId") Long userId);
 
     @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = #{userId} ORDER BY p.created_at DESC")
     @Results({
@@ -67,7 +67,7 @@ public interface PostMapper extends BaseMapper<Post> {
             @Result(property = "likeCount", column = "like_count"),
             @Result(property = "commentCount", column = "comment_count")
     })
-    List<Post> selectPostsByUserIdWithUserIgnoreStatus(Long userId);
+    IPage<Post> selectPostsByUserIdWithUserIgnoreStatus(IPage<Post> page, @Param("userId") Long userId);
 
     @Select("SELECT p.*, (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) as like_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count, u.username, u.nickname, u.avatar_url, u.level, u.active_style FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = #{id} AND (p.status != 2 OR p.status IS NULL)")
     @Results({

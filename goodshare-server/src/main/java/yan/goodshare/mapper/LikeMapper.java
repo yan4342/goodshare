@@ -1,13 +1,14 @@
 package yan.goodshare.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Result;
 import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import yan.goodshare.entity.Like;
 import yan.goodshare.entity.Post;
 
-import java.util.List;
 
 public interface LikeMapper extends BaseMapper<Like> {
     @Select("SELECT p.*, u.username, u.avatar_url FROM posts p " +
@@ -18,5 +19,5 @@ public interface LikeMapper extends BaseMapper<Like> {
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.avatarUrl", column = "avatar_url")
     })
-    List<Post> selectLikedPosts(Long userId);
+    IPage<Post> selectLikedPostsPage(IPage<Post> page, @Param("userId") Long userId);
 }

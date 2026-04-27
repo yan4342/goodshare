@@ -4,6 +4,8 @@ import yan.goodshare.entity.Post;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+
 import java.util.List;
 
 @RestController
@@ -37,8 +39,8 @@ public class FavoriteController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Post>> getUserFavorites() {
-        return ResponseEntity.ok(favoriteService.getUserFavorites());
+    public ResponseEntity<IPage<Post>> getUserFavorites(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(favoriteService.getUserFavorites(page, size));
     }
 
     @GetMapping("/{postId}/check")

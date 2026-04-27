@@ -3,6 +3,8 @@ package yan.goodshare.post;
 import yan.goodshare.entity.Like;
 import yan.goodshare.entity.Post;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -115,7 +117,7 @@ public class LikeService {
         }
     }
 
-    public List<Post> getUserLikedPosts() {
+    public IPage<Post> getUserLikedPosts(int page, int size) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
@@ -124,6 +126,6 @@ public class LikeService {
             throw new RuntimeException("User not found");
         }
 
-        return likeMapper.selectLikedPosts(user.getId());
+        return likeMapper.selectLikedPostsPage(new Page<>(page, size), user.getId());
     }
 }

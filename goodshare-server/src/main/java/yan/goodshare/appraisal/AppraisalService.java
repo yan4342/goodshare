@@ -10,6 +10,7 @@ import yan.goodshare.entity.User;
 import yan.goodshare.mapper.AppraisalMapper;
 import yan.goodshare.mapper.AppraisalVoteMapper;
 import yan.goodshare.mapper.UserMapper;
+import yan.goodshare.mapper.AppraisalCommentMapper;
 
 import java.time.LocalDateTime;
 
@@ -18,11 +19,13 @@ public class AppraisalService {
 
     private final AppraisalMapper appraisalMapper;
     private final AppraisalVoteMapper appraisalVoteMapper;
+    private final AppraisalCommentMapper appraisalCommentMapper;
     private final UserMapper userMapper;
 
-    public AppraisalService(AppraisalMapper appraisalMapper, AppraisalVoteMapper appraisalVoteMapper, UserMapper userMapper) {
+    public AppraisalService(AppraisalMapper appraisalMapper, AppraisalVoteMapper appraisalVoteMapper, AppraisalCommentMapper appraisalCommentMapper, UserMapper userMapper) {
         this.appraisalMapper = appraisalMapper;
         this.appraisalVoteMapper = appraisalVoteMapper;
+        this.appraisalCommentMapper = appraisalCommentMapper;
         this.userMapper = userMapper;
     }
 
@@ -167,12 +170,16 @@ public class AppraisalService {
         return result;
     }
 
+    // Admin delete (hard delete)
     public void deleteAppraisal(Long id) {
         appraisalMapper.deleteById(id);
         // Also delete votes
         appraisalVoteMapper.delete(new QueryWrapper<AppraisalVote>().eq("appraisal_id", id));
+        // Also delete comments
+        appraisalCommentMapper.deleteByAppraisalId(id);
     }
 
+    // User delete (soft delete)
     public void deleteAppraisal(Long id, Long userId) {
         Appraisal appraisal = appraisalMapper.selectById(id);
         if (appraisal == null) {

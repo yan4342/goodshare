@@ -3,6 +3,8 @@ package yan.goodshare.post;
 import yan.goodshare.entity.Favorite;
 import yan.goodshare.entity.Post;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -77,7 +79,7 @@ public class FavoriteService {
         }
     }
 
-    public List<Post> getUserFavorites() {
+    public IPage<Post> getUserFavorites(int page, int size) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = userDetails.getUsername();
 
@@ -86,7 +88,7 @@ public class FavoriteService {
             throw new RuntimeException("User not found");
         }
 
-        return favoriteMapper.selectFavoritedPosts(user.getId());
+        return favoriteMapper.selectFavoritedPostsPage(new Page<>(page, size), user.getId());
     }
 
     public boolean isFavorited(Long postId) {

@@ -202,7 +202,7 @@ public class PostService {
             }
         }
         
-        // Fetch trending tags if needed
+        // 任务模块：如果热搜关键词不足5个，再补充一些近期热门标签（不包含纯数字且长度大于1的标签）
         if (trendingTasks.size() < 5) {
             List<java.util.Map<String, Object>> trendingTagsRaw = tagMapper.selectTrendingTags(50);
             for (java.util.Map<String, Object> map : trendingTagsRaw) {
@@ -275,7 +275,7 @@ public class PostService {
         }
         return postMapper.selectPostsWithUser();
     }
-// 获取所有帖子用于管理员后台，包含待审核和被拒绝的帖子
+// 获取所有帖子用于管理员后台，包含待审核和被拒绝的帖子，已弃用
     public List<Post> getAllPosts() {
         List<Post> posts = getAllPosts(null);
         loadTagsForPosts(posts);
@@ -320,7 +320,8 @@ public class PostService {
         return post;
     }
 
-    public List<Post> getPostsByUserId(Long userId) {
+    public IPage<Post> getPostsByUserId(Long userId, int page, int size) {
+        Page<Post> pageParam = new Page<>(page, size);
         // Check if current user is the requested user
         try {
             var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -330,14 +331,14 @@ public class PostService {
                 
                 if (currentUser != null && currentUser.getId().equals(userId)) {
                     // Owner can see all posts including rejected
-                    return postMapper.selectPostsByUserIdWithUserIgnoreStatus(userId);
+                    return postMapper.selectPostsByUserIdWithUserIgnoreStatus(pageParam, userId);
                 }
             }
         } catch (Exception e) {
             // Ignore auth errors, fall back to public view
         }
-        
-        return postMapper.selectPostsByUserIdWithUser(userId);
+
+        return postMapper.selectPostsByUserIdWithUser(pageParam, userId);
     }
 
     @Transactional
