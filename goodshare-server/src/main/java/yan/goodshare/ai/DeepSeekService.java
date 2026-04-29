@@ -21,6 +21,9 @@ public class DeepSeekService {
     @Value("${deepseek.api.model}")
     private String model;
 
+    @Value("${deepseek.api.thinking.type:disabled}")
+    private String thinkingType;
+
     @Value("${app.proxy.host:}")
     private String proxyHost;
 
@@ -79,7 +82,8 @@ public class DeepSeekService {
                         Map.of("role", "system", "content", systemMessage),
                         Map.of("role", "user", "content", userMessage)
                 ),
-                "stream", true
+                "stream", true,
+                "thinking", Map.of("type", thinkingType)
         );
 
         try {
@@ -148,7 +152,8 @@ public class DeepSeekService {
                         Map.of("role", "system", "content", systemMessage),
                         Map.of("role", "user", "content", userMessage)
                 ),
-                "stream", false
+                "stream", false,
+                "thinking", Map.of("type", thinkingType)
         );
 
         ChatCompletionResponse response = restClient.post()

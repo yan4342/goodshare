@@ -59,6 +59,7 @@ public class SearchService {
                 .collect(Collectors.toList());
     }
 
+    //为了强制更新mapping和清空数据，直接删除索引比deleteAll更快更可靠
     public void deleteAllPosts() {
         // Explicitly delete index to force mapping update and clear all data
         // postSearchRepository.deleteAll() can be slow and cause timeouts
@@ -139,12 +140,14 @@ public class SearchService {
         
         String safeQuery = query.replace("\"", "\\\"");
 
-        // Only show Approved posts (status=1)
-        // Use bool query with should clauses to match EITHER text search OR exact tag match
+        // Two-tier Chinese text search:
+        // 1. phrase match with boost 2.0 → adjacent tokens score highest (precision)
+        // 2. operator:and fallback → catches queries with extra stopwords like "三体的读后感" matching "三体读后感" (recall)
         Query stringQuery = new StringQuery(
             "{\"bool\": {\"must\": [" +
             "  {\"bool\": {" +
             "    \"should\": [" +
+            "      {\"multi_match\":{\"query\":\"" + safeQuery + "\",\"fields\":[\"title^3\",\"content\",\"username\",\"nickname\"],\"type\":\"phrase\",\"slop\":0,\"boost\":2.0}}," +
             "      {\"multi_match\":{\"query\":\"" + safeQuery + "\",\"fields\":[\"title^3\",\"content\",\"username\",\"nickname\"],\"operator\":\"and\"}}," +
             "      {\"term\":{\"tags\":\"" + safeQuery + "\"}}," +
             "      {\"term\":{\"tags.keyword\":\"" + safeQuery + "\"}}" +

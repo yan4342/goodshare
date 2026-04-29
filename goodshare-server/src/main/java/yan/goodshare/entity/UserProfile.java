@@ -12,6 +12,7 @@ public class UserProfile {
     private String username;
     private String nickname;
     private String email;
+    private String role;
     private String bio;
     private String avatarUrl;
     private int postCount;
@@ -22,11 +23,12 @@ public class UserProfile {
     private Integer activeStyle;
 
     // Manual All-Args Constructor
-    public UserProfile(Long id, String username, String nickname, String email, String bio, String avatarUrl, int postCount, int followerCount, int followingCount, Integer level, Integer experience, Integer activeStyle) {
+    public UserProfile(Long id, String username, String nickname, String email, String role, String bio, String avatarUrl, int postCount, int followerCount, int followingCount, Integer level, Integer experience, Integer activeStyle) {
         this.id = id;
         this.username = username;
         this.nickname = nickname;
         this.email = email;
+        this.role = role;
         this.bio = bio;
         this.avatarUrl = avatarUrl;
         this.postCount = postCount;

@@ -58,7 +58,7 @@ public class AIController {
             throw new IllegalArgumentException("Keyword cannot be empty");
         }
 
-        String systemPrompt = "你是一个专业的小红书/社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的种草/测评笔记。" +
+        String systemPrompt = "你是一个专业的社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的测评笔记。" +
                 "要求：\n" +
                 "1. 标题要吸引人，包含emoji。\n" +
                 "2. 正文分段落，包含使用体验、优缺点分析等。\n" +
@@ -79,7 +79,7 @@ public class AIController {
             throw new IllegalArgumentException("Keyword cannot be empty");
         }
 
-        String systemPrompt = "你是一个专业的小红书/社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的种草/测评笔记。" +
+        String systemPrompt = "你是一个专业的社交媒体内容创作者。请根据用户提供的商品名或主题，写一篇吸引人的测评笔记。" +
                 "要求：\n" +
                 "1. 标题要吸引人，包含emoji。\n" +
                 "2. 正文分段落，包含使用体验、优缺点分析等。\n" +

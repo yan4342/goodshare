@@ -11,10 +11,10 @@ public class PostDocument {
     @Id
     private String id;
 
-    @Field(type = FieldType.Text, name = "title")
+    @Field(type = FieldType.Text, name = "title", analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String title;
 
-    @Field(type = FieldType.Text, name = "content")
+    @Field(type = FieldType.Text, name = "content", analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String content;
 
     @Field(type = FieldType.Keyword, name = "coverUrl")
@@ -23,10 +23,10 @@ public class PostDocument {
     @Field(type = FieldType.Long, name = "userId")
     private Long userId;
 
-    @Field(type = FieldType.Text, name = "username")
+    @Field(type = FieldType.Text, name = "username", analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String username;
 
-    @Field(type = FieldType.Text, name = "nickname")
+    @Field(type = FieldType.Text, name = "nickname", analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String nickname;
 
     @Field(type = FieldType.Keyword, name = "avatarUrl")

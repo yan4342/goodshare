@@ -1748,9 +1748,13 @@ const confirmPublish = async () => {
 .style-preview-mini.scribble {
     background: #f9f9f9;
 }
+.style-preview-mini.handwriting .mini-text {
+    color: #333;
+}
 .style-preview-mini.scribble .mini-text {
     background: #fff100;
     padding: 2px;
+    color: #333;
 }
 .mini-text-small {
     font-size: 10px;

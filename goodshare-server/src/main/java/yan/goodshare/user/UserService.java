@@ -118,6 +118,7 @@ public class UserService {
                 user.getUsername(),
                 user.getNickname(),
                 user.getEmail(),
+                user.getRole(),
                 user.getBio(),
                 user.getAvatarUrl(),
                 postCount,
@@ -125,7 +126,7 @@ public class UserService {
                 followingCount,
                 user.getLevel() != null ? user.getLevel() : 1,
                 user.getExperience() != null ? user.getExperience() : 0,
-                user.getActiveStyle() != null ? user.getActiveStyle() : (user.getLevel() != null ? user.getLevel() : 1)
+                user.getActiveStyle() != null ? user.getActiveStyle() : 1
         );
     }
 
