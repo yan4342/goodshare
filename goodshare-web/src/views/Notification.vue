@@ -244,6 +244,7 @@ import { Compass, StarFilled, UserFilled, Comment, Message, MoreFilled, Star, Ch
 import PostDetail from './PostDetail.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import authStore from '../stores/auth'
+import { parseServerTime } from '../utils/time'
 
 const router = useRouter()
 const activeTab = ref('dynamic')
@@ -452,14 +453,16 @@ const follows = computed(() => notifications.value.filter(n => n.type === 'FOLLO
 const comments = computed(() => notifications.value.filter(n => n.type === 'COMMENT'))
 
 const formatTime = (timeStr) => {
-    if (!timeStr) return ''
-    const date = new Date(timeStr)
+    const date = parseServerTime(timeStr)
+    if (!date) return ''
     const now = new Date()
-    const diff = now - date
-    
+    const diff = now.getTime() - date.getTime()
+
     if (diff < 60 * 1000) return '刚刚'
     if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}分钟前`
     if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}小时前`
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+    if (days < 30) return `${days}天前`
     return date.toLocaleDateString()
 }
 

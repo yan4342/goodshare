@@ -1500,17 +1500,20 @@ const confirmPublish = async () => {
     line-height: 1.5;
     margin-bottom: 12px;
 }
-.post-detail-preview .post-text a {
-    color: #ff2442;
-    background-color: #fffacd;
-    text-decoration: underline;
-    transition: color 0.2s, background-color 0.2s;
-    padding: 2px 4px;
-    border-radius: 2px;
+.post-detail-preview .post-text :deep(a),
+.preview-post-text :deep(a) {
+    color: #ff2442 !important;
+    text-decoration: underline !important;
+    transition: color 0.2s, background-color 0.2s !important;
+    padding: 2px 4px !important;
+    border-radius: 2px !important;
+    box-decoration-break: clone;
+    word-break: break-word;
 }
-.post-detail-preview .post-text a:hover {
-    color: #e61f3c;
-    background-color: #ffeb99;
+
+.post-detail-preview .post-text :deep(a:hover),
+.preview-post-text :deep(a:hover) {
+    color: #e61f3c !important;
 }
 
 .post-detail-preview .post-text :deep(img) {
@@ -2183,19 +2186,6 @@ const confirmPublish = async () => {
     margin-bottom: 20px;
     min-height: auto;
 }
-.preview-post-text a {
-    color: #ff2442;
-    background-color: #fffacd;
-    text-decoration: underline;
-    transition: color 0.2s, background-color 0.2s;
-    padding: 2px 4px;
-    border-radius: 2px;
-}
-.preview-post-text a:hover {
-    color: #e61f3c;
-    background-color: #ffeb99;
-}
-
 .preview-post-text :deep(img) {
     max-width: 100%;
     border-radius: 8px;

@@ -161,6 +161,7 @@ import request from '../utils/request'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
+import { parseServerTime } from '../utils/time'
 
 const route = useRoute()
 const router = useRouter()
@@ -206,10 +207,10 @@ const parseImages = (jsonStr) => {
 }
 
 const formatDate = (date) => {
-    if (!date) return ''
+    const d = parseServerTime(date)
+    if (!d) return ''
     const now = new Date()
-    const d = new Date(date)
-    const diff = now - d
+    const diff = now.getTime() - d.getTime()
     const seconds = Math.floor(diff / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)

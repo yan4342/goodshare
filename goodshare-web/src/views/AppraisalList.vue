@@ -93,6 +93,7 @@
 import { ref, onMounted } from 'vue'
 import request from '../utils/request'
 import { Plus, Check, Close, CaretTop, CaretBottom } from '@element-plus/icons-vue'
+import { parseServerTime } from '../utils/time'
 
 const appraisals = ref([])
 const loading = ref(false)
@@ -141,10 +142,10 @@ const getFakePercent = (item) => {
 }
 
 const formatDate = (date) => {
-    if (!date) return ''
+    const d = parseServerTime(date)
+    if (!d) return ''
     const now = new Date()
-    const d = new Date(date)
-    const diff = now - d
+    const diff = now.getTime() - d.getTime()
     const seconds = Math.floor(diff / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)

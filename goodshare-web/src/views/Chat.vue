@@ -107,6 +107,7 @@ import authStore from '../stores/auth'
 import { Loading, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import SockJS from 'sockjs-client/dist/sockjs.min.js'
+import { parseServerTime } from '../utils/time'
 import Stomp from 'stompjs'
 
 const route = useRoute()
@@ -264,14 +265,12 @@ const scrollToBottom = () => {
 }
 
 const formatTime = (timeStr) => {
-    if (!timeStr) return ''
-    const date = new Date(timeStr)
+    const date = parseServerTime(timeStr)
+    if (!date) return ''
     const now = new Date()
-    // If today, show time
     if (date.toDateString() === now.toDateString()) {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
-    // Else show date
     return date.toLocaleDateString()
 }
 

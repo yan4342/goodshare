@@ -36,7 +36,7 @@
 
       <el-table-column prop="createdAt" label="发布时间" width="180">
         <template #default="scope">
-            {{ new Date(scope.row.createdAt).toLocaleString() }}
+            {{ formatDate(scope.row.createdAt) }}
         </template>
       </el-table-column>
 
@@ -68,6 +68,12 @@
 import { ref, onMounted } from 'vue'
 import request from '../../utils/request'
 import { ElMessage } from 'element-plus'
+import { parseServerTime } from '../../utils/time'
+
+const formatDate = (timeStr) => {
+    const date = parseServerTime(timeStr)
+    return date ? date.toLocaleString() : ''
+}
 
 const appraisals = ref([])
 const loading = ref(false)

@@ -452,6 +452,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import authStore from '../../stores/auth'
 import { getThumbnailUrl } from '../../utils/image'
+import { parseServerTime } from '../../utils/time'
 
 const router = useRouter()
 const currentTab = ref('tags')
@@ -897,8 +898,8 @@ const getAppraisalCover = (item) => {
 }
 
 const formatDate = (dateStr) => {
-    if (!dateStr) return ''
-    const date = new Date(dateStr)
+    const date = parseServerTime(dateStr)
+    if (!date) return ''
     return date.toLocaleString()
 }
 

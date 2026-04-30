@@ -223,6 +223,7 @@ import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View 
 import { ElMessage } from 'element-plus'
 import authStore from '../stores/auth'
 import { getAvatarClass, getNameClass, getLevelTagType } from '../utils/style'
+import { parseServerTime } from '../utils/time'
 
 const props = defineProps({
     postId: {
@@ -420,8 +421,8 @@ const handleTagClick = (tagName) => {
 }
 
 const formatDate = (dateStr) => {
-    if (!dateStr) return ''
-    const date = new Date(dateStr)
+    const date = parseServerTime(dateStr)
+    if (!date) return ''
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
