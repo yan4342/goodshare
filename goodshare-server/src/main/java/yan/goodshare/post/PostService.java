@@ -268,6 +268,13 @@ public class PostService {
         loadTagsForPosts(result.getRecords());
         return result;
     }
+
+    public IPage<Post> searchAdminPosts(String keyword, Page<Post> pageParam) {
+        IPage<Post> result = postMapper.selectAdminPostsByKeyword(pageParam, keyword);
+        loadTagsForPosts(result.getRecords());
+        return result;
+    }
+
 // 获取帖子列表，不分页，支持标签过滤
     public List<Post> getAllPosts(String tag) {
         if (tag != null && !tag.isEmpty()) {

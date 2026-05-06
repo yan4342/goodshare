@@ -61,6 +61,7 @@ public class CommentService {
         comment.setCreatedAt(LocalDateTime.now());
 
         commentMapper.insert(comment);
+        postMapper.updateCommentCount(postId, 1);
 
         userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.comment");
         

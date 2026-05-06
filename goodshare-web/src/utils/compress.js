@@ -1,16 +1,11 @@
 
-/**
- * Compress image file using Canvas
- * Strategy: Quality priority, NO resizing (unless strictly necessary for browser limits), pure JPEG compression
- * @param {File} file Original file
- * @returns {Promise<File>} Compressed file
- */
+const THUMB_MAX_DIM = 400
+const THUMB_QUALITY = 0.7
+
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
-        // Increase threshold to 2MB - only compress really large files
-        // For files < 2MB, upload original to keep max quality
         if (file.size < 2 * 1024 * 1024) {
-            resolve(file)
+            resolve({ file, thumbnail: null })
             return
         }
 
@@ -20,53 +15,79 @@ export const compressImage = (file) => {
             const img = new Image()
             img.src = e.target.result
             img.onload = () => {
-                // Keep original dimensions
                 const width = img.width
                 const height = img.height
-                
-                // High quality compression only
-                let quality = 0.92 
 
-                // For files > 7MB, use lower quality to save space
+                let quality = 0.92
                 if (file.size > 7 * 1024 * 1024) {
                     quality = 0.85
                 } else if (file.size > 5 * 1024 * 1024) {
                     quality = 0.88
                 }
 
-                const canvas = document.createElement('canvas')
-                canvas.width = width
-                canvas.height = height
-                const ctx = canvas.getContext('2d')
-                
-                // Best interpolation settings
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                ctx.drawImage(img, 0, 0, width, height)
+                const mainCanvas = document.createElement('canvas')
+                mainCanvas.width = width
+                mainCanvas.height = height
+                const mainCtx = mainCanvas.getContext('2d')
+                mainCtx.imageSmoothingEnabled = true
+                mainCtx.imageSmoothingQuality = 'high'
+                mainCtx.drawImage(img, 0, 0, width, height)
 
-                canvas.toBlob((blob) => {
-                    if (!blob) {
+                let thumbWidth, thumbHeight
+                if (width > THUMB_MAX_DIM || height > THUMB_MAX_DIM) {
+                    if (width > height) {
+                        thumbWidth = THUMB_MAX_DIM
+                        thumbHeight = Math.round(height / width * THUMB_MAX_DIM)
+                    } else {
+                        thumbHeight = THUMB_MAX_DIM
+                        thumbWidth = Math.round(width / height * THUMB_MAX_DIM)
+                    }
+                } else {
+                    thumbWidth = width
+                    thumbHeight = height
+                }
+
+                const thumbCanvas = document.createElement('canvas')
+                thumbCanvas.width = thumbWidth
+                thumbCanvas.height = thumbHeight
+                const thumbCtx = thumbCanvas.getContext('2d')
+                thumbCtx.imageSmoothingEnabled = true
+                thumbCtx.imageSmoothingQuality = 'high'
+                thumbCtx.drawImage(img, 0, 0, thumbWidth, thumbHeight)
+
+                const thumbNeeded = thumbWidth !== width || thumbHeight !== height
+
+                const promises = [
+                    new Promise(res => mainCanvas.toBlob(res, 'image/jpeg', quality))
+                ]
+                if (thumbNeeded) {
+                    promises.push(new Promise(res => thumbCanvas.toBlob(res, 'image/jpeg', THUMB_QUALITY)))
+                }
+
+                Promise.all(promises).then(([mainBlob, thumbBlob]) => {
+                    if (!mainBlob) {
                         reject(new Error('Canvas to Blob failed'))
                         return
                     }
-                    
-                    console.log(`Compression: ${file.name} | Original: ${(file.size/1024/1024).toFixed(2)}MB | Compressed: ${(blob.size/1024/1024).toFixed(2)}MB | Quality: ${quality}`)
-                    console.log(`Size reduction: ${((1 - blob.size/file.size) * 100).toFixed(2)}%`)
-                    // Strict check: if compression doesn't save significant space (e.g. < 5% savings)
-                    // or actually increases size, return ORIGINAL file
-                    if (blob.size > file.size * 0.95) {
-                        console.log('Compression inefficient, using original file')
-                        resolve(file)
-                        return
+
+                    console.log(`Compression: ${file.name} | Original: ${(file.size/1024/1024).toFixed(2)}MB | Compressed: ${(mainBlob.size/1024/1024).toFixed(2)}MB | Quality: ${quality}`)
+
+                    const mainFile = mainBlob.size > file.size * 0.95
+                        ? file
+                        : new File([mainBlob], file.name, { type: 'image/jpeg', lastModified: Date.now() })
+
+                    let thumbFile = null
+                    if (thumbBlob && thumbNeeded) {
+                        const thumbName = file.name.replace(/\.[^.]+$/, '_thumb.jpg')
+                        thumbFile = new File([thumbBlob], thumbName, { type: 'image/jpeg', lastModified: Date.now() })
+                        if (thumbFile.size >= mainFile.size) {
+                            console.log('Thumbnail not smaller than main, discarding')
+                            thumbFile = null
+                        }
                     }
 
-                    const newFile = new File([blob], file.name, {
-                        type: 'image/jpeg',
-                        lastModified: Date.now()
-                    })
-                    resolve(newFile)
-                }, 'image/jpeg', quality)
+                    resolve({ file: mainFile, thumbnail: thumbFile })
+                }).catch(reject)
             }
             img.onerror = (err) => reject(err)
         }

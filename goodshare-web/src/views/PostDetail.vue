@@ -24,13 +24,13 @@
             <el-carousel-item v-for="(img, index) in imageList" :key="index">
               <div class="carousel-item-wrapper">
                 <img :src="img" class="blurred-bg" />
-                <img :src="img" class="post-image" alt="Post image" />
+                <img :src="img" class="post-image clickable-image" alt="Post image" @click="openImageViewer(index)" />
               </div>
             </el-carousel-item>
           </el-carousel>
           <template v-else>
             <img :src="imageList[0]" class="blurred-bg" />
-            <img :src="imageList[0]" class="post-image" alt="Post image" />
+            <img :src="imageList[0]" class="post-image clickable-image" alt="Post image" @click="openImageViewer(0)" />
           </template>
         </div>
         
@@ -212,6 +212,15 @@
       </div>
       </div>
     </transition>
+    
+    <!-- Image Viewer -->
+    <ElImageViewer
+      v-if="showImageViewer"
+      :url-list="imageList"
+      :initial-index="viewerInitialIndex"
+      :hide-on-click-modal="true"
+      @close="closeImageViewer"
+    />
   </div>
 </template>
 
@@ -220,7 +229,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
 import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElImageViewer } from 'element-plus'
 import authStore from '../stores/auth'
 import { getAvatarClass, getNameClass, getLevelTagType } from '../utils/style'
 import { parseServerTime } from '../utils/time'
@@ -562,6 +571,18 @@ const toggleFavorite = async () => {
     }
 }
 
+const showImageViewer = ref(false)
+const viewerInitialIndex = ref(0)
+
+const openImageViewer = (index) => {
+    viewerInitialIndex.value = index
+    showImageViewer.value = true
+}
+
+const closeImageViewer = () => {
+    showImageViewer.value = false
+}
+
 const replyTo = ref(null)
 
 const handleReply = (comment) => {
@@ -784,6 +805,9 @@ const handleClose = () => {
   object-fit: contain;
   display: block;
   z-index: 1;
+}
+.clickable-image {
+  cursor: zoom-in;
 }
 /* Duplicates removed */
 .info-section {

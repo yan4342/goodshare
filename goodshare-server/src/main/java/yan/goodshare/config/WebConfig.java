@@ -32,6 +32,8 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     private static class UploadsThumbFallbackResolver extends PathResourceResolver {
+        private static final String[] IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp", "webp"};
+
         @Override
         protected org.springframework.core.io.Resource getResource(String resourcePath, org.springframework.core.io.Resource location) throws java.io.IOException {
             try {
@@ -43,11 +45,12 @@ public class WebConfig implements WebMvcConfigurer {
                 // If not found, check if it is a thumbnail request and try to return the original image
                 int thumbIndex = resourcePath.lastIndexOf("_thumb.");
                 if (thumbIndex >= 0) {
-                    // Reconstruct original filename: image_thumb.png -> image.png
-                    String originalPath = resourcePath.substring(0, thumbIndex) + "." + resourcePath.substring(thumbIndex + 7);
-                    org.springframework.core.io.Resource originalResource = super.getResource(originalPath, location);
-                    if (originalResource != null && originalResource.exists() && originalResource.isReadable()) {
-                        return originalResource;
+                    String base = resourcePath.substring(0, thumbIndex);
+                    for (String ext : IMAGE_EXTENSIONS) {
+                        org.springframework.core.io.Resource originalResource = super.getResource(base + "." + ext, location);
+                        if (originalResource != null && originalResource.exists() && originalResource.isReadable()) {
+                            return originalResource;
+                        }
                     }
                 }
             } catch (Exception e) {

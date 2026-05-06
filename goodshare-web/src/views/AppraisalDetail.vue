@@ -38,22 +38,22 @@
                 <div class="vote-buttons">
                     <button 
                         class="vote-btn real" 
-                        :class="{ active: appraisal.currentUserVote === 1 }"
+                        :class="{ active: appraisal?.currentUserVote === 1 }"
                         @click="handleVote(1)"
                     >
                         <el-icon class="vote-icon"><Check /></el-icon>
                         <span class="text">真</span>
-                        <span class="count">{{ appraisal.realVotes }}</span>
+                        <span class="count">{{ appraisal?.realVotes }}</span>
                     </button>
                     
                     <button 
                         class="vote-btn fake" 
-                        :class="{ active: appraisal.currentUserVote === 2 }"
+                        :class="{ active: appraisal?.currentUserVote === 2 }"
                         @click="handleVote(2)"
                     >
                         <el-icon class="vote-icon"><Close /></el-icon>
                         <span class="text">假</span>
-                        <span class="count">{{ appraisal.fakeVotes }}</span>
+                        <span class="count">{{ appraisal?.fakeVotes }}</span>
                     </button>
                 </div>
                 
@@ -125,30 +125,66 @@
                   </div>
                 </div>
               </div>
-              <!-- 评论输入区 -->
-              <div class="comment-input-wrapper">
-                <div v-if="replyTo" class="reply-badge">
-                    <span>回复 @{{ replyTo.user?.nickname || replyTo.user?.username }}:</span>
-                    <el-icon class="close-reply" @click="cancelReply"><Close /></el-icon>
+            </div>
+        </div>
+        
+        <!-- 浮动投票栏 -->
+        <div class="floating-vote-bar" v-show="showFloatingVote && appraisal">
+            <div class="floating-vote-inner">
+                <button 
+                    class="floating-vote-btn real" 
+                    :class="{ active: appraisal?.currentUserVote === 1 }"
+                    @click="handleVote(1)"
+                >
+                    <el-icon><Check /></el-icon>
+                    <span>真</span>
+                    <span class="count">{{ appraisal?.realVotes }}</span>
+                </button>
+                <div class="floating-vs-progress">
+                    <div class="floating-progress-track">
+                        <div class="floating-progress real-fill" :style="{ width: realPercent + '%' }"></div>
+                        <div class="floating-progress fake-fill" :style="{ width: fakePercent + '%' }"></div>
+                    </div>
+                    <div class="floating-vs-divider" :style="{ left: realPercent + '%' }">
+                        <span class="floating-vs-badge">VS</span>
+                    </div>
                 </div>
-                <div class="comment-input-area">
-                    <el-popover placement="top" :width="300" trigger="click">
-                        <template #reference>
-                            <el-button circle class="emoji-btn">
-                                <span style="font-size: 18px; line-height: 1;">😀</span>
-                            </el-button>
-                        </template>
-                        <div class="emoji-picker">
-                            <span v-for="emoji in emojis" :key="emoji" class="emoji-item" @click="addEmoji(emoji)">{{ emoji }}</span>
-                        </div>
-                    </el-popover>
-                    <el-input v-model="newComment" placeholder="说点什么..." class="comment-input" @keyup.enter="submitComment">
-                        <template #append>
-                            <el-button @click="submitComment" :loading="submitting">发送</el-button>
-                        </template>
-                    </el-input>
-                </div>
-              </div>
+                <button 
+                    class="floating-vote-btn fake" 
+                    :class="{ active: appraisal?.currentUserVote === 2 }"
+                    @click="handleVote(2)"
+                >
+                    <el-icon><Close /></el-icon>
+                    <span>假</span>
+                    <span class="count">{{ appraisal?.fakeVotes }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 固定底部评论输入区 -->
+    <div class="fixed-comment-bar" v-if="appraisal">
+        <div class="fixed-comment-inner">
+            <div v-if="replyTo" class="reply-badge">
+                <span>回复 @{{ replyTo.user?.nickname || replyTo.user?.username }}:</span>
+                <el-icon class="close-reply" @click="cancelReply"><Close /></el-icon>
+            </div>
+            <div class="comment-input-area">
+                <el-popover placement="top" :width="300" trigger="click">
+                    <template #reference>
+                        <el-button circle class="emoji-btn">
+                            <span style="font-size: 18px; line-height: 1;">😀</span>
+                        </el-button>
+                    </template>
+                    <div class="emoji-picker">
+                        <span v-for="emoji in emojis" :key="emoji" class="emoji-item" @click="addEmoji(emoji)">{{ emoji }}</span>
+                    </div>
+                </el-popover>
+                <el-input v-model="newComment" placeholder="说点什么..." class="comment-input" @keyup.enter="submitComment">
+                    <template #append>
+                        <el-button @click="submitComment" :loading="submitting">发送</el-button>
+                    </template>
+                </el-input>
             </div>
         </div>
     </div>
@@ -156,17 +192,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import request from '../utils/request'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Close } from '@element-plus/icons-vue'
+import { Check, Close } from '@element-plus/icons-vue'
 import { parseServerTime } from '../utils/time'
 
 const route = useRoute()
 const router = useRouter()
 const appraisal = ref(null)
 const loading = ref(false)
+const showFloatingVote = ref(false)
+
+let votingObserver = null
+let commentsObserver = null
+let votingVisible = true
+let commentsVisible = false
 
 const realPercent = computed(() => {
     if (!appraisal.value) return 0
@@ -322,9 +364,47 @@ const submitComment = async () => {
     }
 }
 
+const setupObservers = () => {
+    cleanupObservers()
+    const votingEl = document.querySelector('.voting-section')
+    const commentsEl = document.getElementById('comments')
+    
+    if (votingEl) {
+        votingObserver = new IntersectionObserver(([entry]) => {
+            votingVisible = entry.isIntersecting
+            showFloatingVote.value = !votingVisible && !commentsVisible
+        }, { threshold: 0.1 })
+        votingObserver.observe(votingEl)
+    }
+    
+    if (commentsEl) {
+        commentsObserver = new IntersectionObserver(([entry]) => {
+            commentsVisible = entry.isIntersecting
+            showFloatingVote.value = !votingVisible && !commentsVisible
+        }, { rootMargin: '80px 0px 0px 0px' })
+        commentsObserver.observe(commentsEl)
+    }
+}
+
+const cleanupObservers = () => {
+    if (votingObserver) { votingObserver.disconnect(); votingObserver = null }
+    if (commentsObserver) { commentsObserver.disconnect(); commentsObserver = null }
+}
+
 onMounted(() => {
     loadDetail()
     fetchComments()
+})
+
+// 数据加载完成后绑定滚动观察器
+watch(appraisal, (val) => {
+    if (val) {
+        nextTick(() => setupObservers())
+    }
+})
+
+onUnmounted(() => {
+    cleanupObservers()
 })
 </script>
 
@@ -333,6 +413,7 @@ onMounted(() => {
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-color);
+  padding-bottom: 100px;
 }
 
 .main-content {
@@ -437,15 +518,15 @@ onMounted(() => {
 }
 
 .vote-btn.real.active, .vote-btn.real:hover {
-    border-color: #67c23a;
-    background: var(--hover-bg);
-    color: #67c23a;
-}
-
-.vote-btn.fake.active, .vote-btn.fake:hover {
     border-color: #f56c6c;
     background: var(--hover-bg);
     color: #f56c6c;
+}
+
+.vote-btn.fake.active, .vote-btn.fake:hover {
+    border-color: #9e9e9e;
+    background: var(--hover-bg);
+    color: #9e9e9e;
 }
 
 .vote-result-bar {
@@ -457,11 +538,11 @@ onMounted(() => {
 }
 
 .real-bar {
-    background: #67c23a;
+    background: #f56c6c;
 }
 
 .fake-bar {
-    background: #f56c6c;
+    background: #9e9e9e;
 }
 
 .vote-labels {
@@ -687,5 +768,199 @@ onMounted(() => {
 
 .comment-input {
   flex: 1;
+}
+
+/* ========== 浮动投票栏 ========== */
+.floating-vote-bar {
+    position: fixed;
+    bottom: 65px;
+    left: 272px;
+    right: 0;
+    z-index: 99;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    animation: floatUp 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes floatUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.floating-vote-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--bg-color-overlay);
+    border: 1px solid var(--border-color);
+    border-radius: 22px;
+    padding: 8px 20px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+}
+
+.floating-vote-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 18px;
+    border: 2px solid #eee;
+    background: transparent;
+    border-radius: 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    transition: all 0.2s;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.floating-vote-btn .count {
+    font-size: 11px;
+    color: #999;
+    font-weight: 500;
+}
+
+.floating-vote-btn.real.active,
+.floating-vote-btn.real:hover {
+    border-color: #f56c6c;
+    color: #f56c6c;
+    background: rgba(245, 108, 108, 0.07);
+}
+
+.floating-vote-btn.fake.active,
+.floating-vote-btn.fake:hover {
+    border-color: #7b7b7b;
+    color: #7b7b7b;
+    background: rgba(37, 189, 73, 0.07);
+}
+
+/* 浮动 VS 进度条 */
+.floating-vs-progress {
+    position: relative;
+    width: 110px;
+    display: flex;
+    align-items: center;
+}
+
+.floating-progress-track {
+    display: flex;
+    height: 7px;
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border-color);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.floating-progress {
+    height: 100%;
+}
+
+.floating-progress.real-fill {
+    background: linear-gradient(90deg, #f56c6c, #f89898);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-progress.fake-fill {
+    background: linear-gradient(90deg, #7b7b7b, #9e9e9e);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-vs-divider {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    pointer-events: none;
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-vs-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fa4b4b;
+    border: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+/* ========== 固定底部评论栏 ========== */
+.fixed-comment-bar {
+    position: fixed;
+    bottom: 0;
+    left: 272px;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+}
+
+.fixed-comment-inner {
+    width: 100%;
+    max-width: 800px;
+    padding: 0 40px;
+    background: var(--bg-color-overlay);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.fixed-comment-bar .reply-badge {
+    padding: 6px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-color-secondary);
+}
+
+.fixed-comment-bar .close-reply {
+    cursor: pointer;
+    padding: 4px;
+}
+
+.fixed-comment-bar .close-reply:hover {
+    color: var(--text-color);
+}
+
+.fixed-comment-bar .comment-input-area {
+    padding: 10px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+}
+
+@media (max-width: 768px) {
+    .floating-vote-bar {
+        left: 0;
+        bottom: 60px;
+    }
+    .fixed-comment-bar {
+        left: 0;
+    }
+    .fixed-comment-inner {
+        padding: 0 16px;
+    }
+    .floating-vote-inner {
+        gap: 8px;
+        padding: 6px 12px;
+    }
+    .floating-vs-progress {
+        width: 80px;
+    }
+    .appraisal-detail-container {
+        padding-bottom: 120px;
+    }
 }
 </style>

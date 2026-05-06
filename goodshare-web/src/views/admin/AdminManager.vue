@@ -3,53 +3,86 @@
     <div class="admin-sidebar">
       <div class="logo">好物分享管理</div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
         :class="{ active: currentTab === 'tags' }"
         @click="currentTab = 'tags'"
       >
         <span>标签管理</span>
       </div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
         :class="{ active: currentTab === 'posts' }"
         @click="currentTab = 'posts'"
       >
         <span>帖子管理</span>
       </div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
         :class="{ active: currentTab === 'audit' }"
         @click="currentTab = 'audit'"
       >
         <span>内容审核</span>
       </div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
         :class="{ active: currentTab === 'users' }"
         @click="currentTab = 'users'"
       >
         <span>用户管理</span>
       </div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
         :class="{ active: currentTab === 'weights' }"
         @click="currentTab = 'weights'"
       >
         <span>算法权重</span>
       </div>
       <div 
-        class="menu-item" 
+        class="menu-items" 
+        :class="{ active: currentTab === 'appraisals' }"
+        @click="currentTab = 'appraisals'"
+      >
+        <span>鉴定管理</span>
+      </div>      
+      <div 
+        class="menu-items" 
         :class="{ active: currentTab === 'moderation' }"
         @click="currentTab = 'moderation'"
       >
         <span>违禁词配置</span>
       </div>
-      <div 
-        class="menu-item" 
-        :class="{ active: currentTab === 'appraisals' }"
-        @click="currentTab = 'appraisals'"
-      >
-        <span>鉴定管理</span>
+
+      <div class="bottom-menu">
+        <el-popover
+        placement="right-end"
+        :width="220"
+        trigger="click"
+        popper-class="more-popover"
+        >
+        <template #reference>
+            <div class="menu-item">
+            <el-icon :size="24"><MoreFilled /></el-icon>
+            <span class="label">更多</span>
+            </div>
+        </template>
+        
+        <div class="more-menu">
+            <div class="menu-option">
+            <div class="option-label">
+                <el-icon><Moon /></el-icon>
+                <span>深色模式</span>
+            </div>
+            <el-switch v-model="isDark" @change="toggleDark" />
+            </div>
+            <el-divider style="margin: 8px 0" />
+            <div class="menu-option hover-item" @click="logout">
+            <div class="option-label">
+                <el-icon><SwitchButton /></el-icon>
+                <span>退出登录</span>
+            </div>
+            </div>
+        </div>
+        </el-popover>
       </div>
     </div>
     
@@ -96,9 +129,17 @@
       <!-- Posts Management -->
       <div v-if="currentTab === 'posts'">
         <div class="actions">
-            <el-button 
-                type="danger" 
-                @click="deleteSelectedPosts" 
+            <el-input
+                v-model="postsSearchQuery"
+                placeholder="搜索帖子标题或内容"
+                clearable
+                style="width: 240px; margin-right: 10px;"
+                @input="handlePostsSearchInput"
+                @clear="handlePostsSearchClear"
+            />
+            <el-button
+                type="danger"
+                @click="deleteSelectedPosts"
                 :disabled="selectedPosts.length === 0"
             >
                 批量删除
@@ -106,8 +147,8 @@
         </div>
          <el-table :data="posts" style="width: 100%; margin-top: 20px;" v-loading="postsLoading" @selection-change="handlePostSelectionChange">
           <el-table-column type="selection" width="45" />
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column label="封面" width="100">
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column label="封面" width="90">
              <template #default="scope">
                 <el-image 
                     v-if="getCoverUrl(scope.row)"
@@ -119,9 +160,9 @@
                 />
              </template>
           </el-table-column>
-          <el-table-column prop="title" label="标题" show-overflow-tooltip />
+          <el-table-column prop="title" label="标题" width="150" show-overflow-tooltip />
           <el-table-column prop="content" label="内容" show-overflow-tooltip />
-          <el-table-column label="标签" width="100">
+          <el-table-column label="标签" width="120">
              <template #default="scope">
                 <el-tag
                    v-for="tag in scope.row.tags"
@@ -134,17 +175,17 @@
                 <span v-if="!scope.row.tags || scope.row.tags.length === 0" style="color: #999;">无标签</span>
              </template>
           </el-table-column>
-          <el-table-column label="作者" width="150">
+          <el-table-column label="作者" width="140">
              <template #default="scope">
                 {{ scope.row.user?.nickname || scope.row.user?.username }}
              </template>
           </el-table-column>
-          <el-table-column prop="createdAt" label="发布时间" width="180">
+          <el-table-column prop="createdAt" label="发布时间" width="160">
               <template #default="scope">
                   {{ formatDate(scope.row.createdAt) }}
               </template>
           </el-table-column>
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="100">
             <template #default="scope">
               <el-button 
                 type="danger" 
@@ -171,7 +212,7 @@
       <!-- Audit Management -->
       <div v-if="currentTab === 'audit'">
          <el-table :data="auditPosts" style="width: 100%; margin-top: 20px;" v-loading="auditLoading">
-          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="id" label="ID" width="60" />
           <el-table-column label="封面" width="100">
              <template #default="scope">
                 <el-image 
@@ -185,9 +226,9 @@
                 <div v-else style="width: 60px; height: 60px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999;">无图</div>
              </template>
           </el-table-column>
-          <el-table-column prop="title" label="标题" show-overflow-tooltip />
-          <el-table-column prop="content" label="内容摘要" show-overflow-tooltip />
-          <el-table-column label="标签" width="100">
+          <el-table-column prop="title" label="标题" width="150" show-overflow-tooltip />
+          <el-table-column prop="content" label="内容" show-overflow-tooltip />
+          <el-table-column label="标签" width="120">
              <template #default="scope">
                 <el-tag
                    v-for="tag in scope.row.tags"
@@ -210,7 +251,7 @@
                   {{ formatDate(scope.row.createdAt) }}
               </template>
           </el-table-column>
-          <el-table-column label="操作" width="180">
+          <el-table-column label="操作" width="160">
             <template #default="scope">
               <el-button 
                 type="success" 
@@ -261,20 +302,27 @@
 
       <!-- Users Management -->
       <div v-if="currentTab === 'users'">
+        <div class="actions">
+            <el-input
+                v-model="usersSearchQuery"
+                placeholder="搜索用户名或昵称"
+                clearable
+                style="width: 240px;"
+                @input="handleUsersSearchInput"
+                @clear="handleUsersSearchClear"
+            />
+        </div>
         <el-table :data="users" style="width: 100%; margin-top: 20px;" v-loading="usersLoading">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="username" label="用户名" width="150" />
-          <el-table-column prop="nickname" label="昵称" width="150" />
+          <el-table-column prop="username" label="用户名" width="180" />
+          <el-table-column prop="nickname" label="昵称" width="180" />
           <el-table-column prop="email" label="邮箱" show-overflow-tooltip />
-          <el-table-column prop="role" label="角色" width="120">
+          <el-table-column prop="role" label="角色" width="130">
              <template #default="scope">
                  <el-tag :type="scope.row.role.includes('ADMIN') ? 'danger' : 'info'">{{ scope.row.role }}</el-tag>
              </template>
           </el-table-column>
-          <el-table-column prop="createdAt" label="注册时间" width="180">
-              <template #default="scope">
-                  {{ formatDate(scope.row.createdAt) }}
-              </template>
+          <el-table-column prop="level" label="等级" width="100">
           </el-table-column>
           <el-table-column label="操作" width="120">
             <template #default="scope">
@@ -446,7 +494,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import request from '../../utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -469,6 +517,8 @@ const selectedPosts = ref([])
 const postsPage = ref(1)
 const postsPageSize = ref(10)
 const postsTotal = ref(0)
+const postsSearchQuery = ref('')
+let postsSearchTimer = null
 
 // Users Data
 const users = ref([])
@@ -476,6 +526,8 @@ const usersLoading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalUsers = ref(0)
+const usersSearchQuery = ref('')
+let usersSearchTimer = null
 
 // Audit Data
 const auditPosts = ref([])
@@ -515,6 +567,11 @@ const appraisalTotal = ref(0)
 
 onMounted(() => {
   fetchTags()
+})
+
+onBeforeUnmount(() => {
+    clearTimeout(postsSearchTimer)
+    clearTimeout(usersSearchTimer)
 })
 
 watch(currentTab, (newTab) => {
@@ -590,13 +647,14 @@ const deleteTag = (id) => {
 const fetchPosts = async () => {
     postsLoading.value = true
     try {
-        const res = await request.get('/admin/posts', {
-            params: {
-                page: postsPage.value,
-                size: postsPageSize.value
-            },
-            _isAdmin: true
-        })
+        const params = {
+            page: postsPage.value,
+            size: postsPageSize.value
+        }
+        if (postsSearchQuery.value.trim()) {
+            params.query = postsSearchQuery.value.trim()
+        }
+        const res = await request.get('/admin/posts', { params, _isAdmin: true })
         posts.value = res.data.records
         postsTotal.value = res.data.total
     } catch (error) {
@@ -605,6 +663,20 @@ const fetchPosts = async () => {
     } finally {
         postsLoading.value = false
     }
+}
+
+const handlePostsSearchInput = () => {
+    clearTimeout(postsSearchTimer)
+    postsSearchTimer = setTimeout(() => {
+        postsPage.value = 1
+        fetchPosts()
+    }, 300)
+}
+
+const handlePostsSearchClear = () => {
+    postsSearchQuery.value = ''
+    postsPage.value = 1
+    fetchPosts()
 }
 
 const deletePost = (id) => {
@@ -740,13 +812,14 @@ const handleAuditCurrentChange = (val) => {
 const fetchUsers = async () => {
     usersLoading.value = true
     try {
-        const res = await request.get('/admin/users', {
-            params: {
-                page: currentPage.value,
-                size: pageSize.value
-            },
-            _isAdmin: true
-        })
+        const params = {
+            page: currentPage.value,
+            size: pageSize.value
+        }
+        if (usersSearchQuery.value.trim()) {
+            params.query = usersSearchQuery.value.trim()
+        }
+        const res = await request.get('/admin/users', { params, _isAdmin: true })
         users.value = res.data.records
         totalUsers.value = res.data.total
     } catch (e) {
@@ -754,6 +827,20 @@ const fetchUsers = async () => {
     } finally {
         usersLoading.value = false
     }
+}
+
+const handleUsersSearchInput = () => {
+    clearTimeout(usersSearchTimer)
+    usersSearchTimer = setTimeout(() => {
+        currentPage.value = 1
+        fetchUsers()
+    }, 300)
+}
+
+const handleUsersSearchClear = () => {
+    usersSearchQuery.value = ''
+    currentPage.value = 1
+    fetchUsers()
 }
 
 const handleSizeChange = (val) => {
@@ -926,6 +1013,31 @@ const logout = () => {
     localStorage.removeItem('admin_token')
     router.push('/admin/login')
 }
+
+const isDark = ref(false)
+// Check initial state
+onMounted(() => {
+  const savedTheme = localStorage.getItem('theme')
+  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    isDark.value = true
+    document.documentElement.classList.add('dark')
+  } else {
+    isDark.value = false
+    document.documentElement.classList.remove('dark')
+  }
+})
+
+const toggleDark = (value) => {
+  if (value) {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('theme', 'dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+    localStorage.setItem('theme', 'light')
+  }
+}
+
+
 </script>
 
 <style scoped>
@@ -935,10 +1047,12 @@ const logout = () => {
 }
 
 .admin-sidebar {
-  width: 250px;
+  width: 220px;
   background-color: #304156;
   color: #fff;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .logo {
@@ -950,7 +1064,7 @@ const logout = () => {
   border-bottom: 1px solid #1f2d3d;
 }
 
-.menu-item {
+.menu-items {
   height: 50px;
   line-height: 50px;
   padding: 0 20px;
@@ -958,11 +1072,11 @@ const logout = () => {
   transition: background-color 0.3s;
 }
 
-.menu-item:hover {
+.menu-items:hover {
   background-color: #263445;
 }
 
-.menu-item.active {
+.menu-items.active {
   background-color: #1890ff;
 }
 
@@ -1010,5 +1124,57 @@ const logout = () => {
 
 .forbidden-word-tag {
   margin: 0;
+}
+
+.bottom-menu {
+  margin-top: auto;
+  margin-bottom: 40px;
+  width: 100%;
+}
+
+.more-menu {
+  padding: 4px 0;
+ 
+}
+
+.menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 8px;
+  color: var(--text-color);
+}
+
+.menu-option.hover-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.option-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  height: 50px;
+  padding: 0 20px;
+  border-radius: 32px;
+  cursor: pointer;
+  transition: background-color 0.2s, padding 0.3s;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.menu-item .el-icon {
+  margin-right: 12px;
+}
+
+.label {
+  line-height: 1;
 }
 </style>

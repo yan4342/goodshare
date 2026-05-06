@@ -64,6 +64,7 @@ public class LikeService {
         like.setPostId(postId);
 
         likeMapper.insert(like);
+        postMapper.updateLikeCount(postId, 1);
 
         userTagWeightService.applyInteractionWeight(user.getId(), postId, "weight.like");
         
@@ -90,6 +91,7 @@ public class LikeService {
         if (deleted == 0) {
             throw new RuntimeException("You have not liked this post");
         }
+        postMapper.updateLikeCount(postId, -1);
         
         // Update ES index
         searchService.updateLikeCount(postId, (int) getLikeCount(postId));

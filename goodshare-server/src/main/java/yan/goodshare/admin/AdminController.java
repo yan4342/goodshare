@@ -48,8 +48,16 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<com.baomidou.mybatisplus.core.metadata.IPage<User>> getAllUsers(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(userMapper.selectPage(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(page, size), null));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String query) {
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<User> pageParam = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(page, size);
+        if (query != null && !query.trim().isEmpty()) {
+            String keyword = query.trim();
+            QueryWrapper<User> wrapper = new QueryWrapper<User>()
+                    .and(w -> w.like("username", keyword).or().like("nickname", keyword));
+            return ResponseEntity.ok(userMapper.selectPage(pageParam, wrapper));
+        }
+        return ResponseEntity.ok(userMapper.selectPage(pageParam, null));
     }
 
     @DeleteMapping("/users/{id}")
@@ -117,7 +125,13 @@ public class AdminController {
     @GetMapping("/posts")
     public ResponseEntity<com.baomidou.mybatisplus.core.metadata.IPage<Post>> getAllPosts(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String query) {
+        if (query != null && !query.trim().isEmpty()) {
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<Post> pageParam = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(page, size);
+            com.baomidou.mybatisplus.core.metadata.IPage<Post> result = postService.searchAdminPosts(query.trim(), pageParam);
+            return ResponseEntity.ok(result);
+        }
         return ResponseEntity.ok(postService.getAllPosts(null, page, size));
     }
 

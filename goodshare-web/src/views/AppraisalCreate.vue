@@ -122,7 +122,7 @@ const customUpload = async (options) => {
     
     try {
         ElMessage.info('正在处理图片...')
-        const compressedFile = await compressImage(file)
+        const { file: compressedFile } = await compressImage(file)
         
         // Update file object size to reflect compression
         if (compressedFile.size !== file.size) {

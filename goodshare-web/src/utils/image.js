@@ -13,7 +13,7 @@ export const getThumbnailUrl = (url) => {
         
         const lastDotIndex = url.lastIndexOf('.')
         if (lastDotIndex !== -1) {
-            return url.substring(0, lastDotIndex) + '_thumb' + url.substring(lastDotIndex)
+            return url.substring(0, lastDotIndex) + '_thumb.jpg'
         }
     }
     return url

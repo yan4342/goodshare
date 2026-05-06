@@ -69,10 +69,14 @@ public class UserService {
         }
 
         // 2. Delete interactions on OTHER posts
-        
+
+        // Update denormalized counts before deleting
+        postMapper.decrementLikeCountByUser(userId);
+        postMapper.decrementCommentCountByUser(userId);
+
         // Likes
         likeMapper.delete(new QueryWrapper<Like>().eq("user_id", userId));
-        
+
         // Comments
         commentMapper.delete(new QueryWrapper<Comment>().eq("user_id", userId));
         

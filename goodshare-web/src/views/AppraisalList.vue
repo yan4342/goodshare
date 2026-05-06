@@ -39,8 +39,12 @@
                  </div>
                  <div class="vote-progress-wrapper">
                     <div class="progress-track">
-                        <div class="progress-bar real-bar" :style="{ width: getRealPercent(item) + '%' }"></div>
-                        <div class="progress-bar fake-bar" :style="{ width: getFakePercent(item) + '%' }"></div>
+                        <div class="progress-bar real-bar" :class="{ 'leading-bar': getVoteResult(item) === 'true', 'losing-bar': getVoteResult(item) === 'false' }" :style="{ width: getRealPercent(item) + '%' }"></div>
+                        <div class="progress-bar fake-bar" :class="{ 'leading-bar': getVoteResult(item) === 'false', 'losing-bar': getVoteResult(item) === 'true' }" :style="{ width: getFakePercent(item) + '%' }"></div>
+                    </div>
+                    <!-- VS 分隔 -->
+                    <div class="vs-divider" :style="{ left: getRealPercent(item) + '%' }">
+                        <div class="vs-badge" :class="getVoteResult(item)">VS</div>
                     </div>
                  </div>
              </div>
@@ -139,6 +143,15 @@ const getFakePercent = (item) => {
     const total = (item.realVotes || 0) + (item.fakeVotes || 0)
     if (total === 0) return 50
     return (item.fakeVotes / total) * 100
+}
+
+const getVoteResult = (item) => {
+    const real = item.realVotes || 0
+    const fake = item.fakeVotes || 0
+    if (real === 0 && fake === 0) return 'tie'
+    if (real > fake) return 'true'
+    if (fake > real) return 'false'
+    return 'tie'
 }
 
 const formatDate = (date) => {
@@ -285,26 +298,28 @@ onMounted(() => {
 }
 
 .vote-pill.real {
-    color: #67c23a;
-    background-color: rgba(103, 194, 58, 0.1);
+    color: #ff2442;
+    background-color: rgba(245, 108, 108, 0.1);   
 }
 
 .vote-pill.fake {
-    color: #f56c6c;
-    background-color: rgba(245, 108, 108, 0.1);
+    color: #fafafa;
+    background-color: rgb(51, 51, 54);
 }
 
 .vote-progress-wrapper {
     width: 140px;
+    position: relative;
 }
 
 .progress-track {
     display: flex;
-    height: 6px;
+    height: 8px;
     width: 100%;
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
     background: var(--border-color);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .progress-bar {
@@ -312,13 +327,52 @@ onMounted(() => {
 }
 
 .real-bar {
-    background: #67c23a;
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, #ff2442, #ff667b);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fake-bar {
-    background: #f56c6c;
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, #7b7b7b, #9e9e9e);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* VS 分隔标 */
+.vs-divider{
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    pointer-events: none;
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vs-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s;
+}
+
+.vs-badge.true {
+    background: #fa4b4b;
+}
+
+.vs-badge.false {
+    background: #9e9e9e;
+}
+
+.vs-badge.tie {
+    background: linear-gradient(135deg, #fa4b4b 50%, #9e9e9e 50%);
 }
 
 .item-content {
@@ -340,7 +394,7 @@ onMounted(() => {
   line-height: 1.6;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

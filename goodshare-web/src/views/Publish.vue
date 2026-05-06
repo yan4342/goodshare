@@ -1091,7 +1091,7 @@ const handlePictureCardPreview = (uploadFile) => {
 }
 
 const uploadImageFile = async (file) => {
-    const compressedFile = await compressImage(file)
+    const { file: compressedFile, thumbnail } = await compressImage(file)
 
     try {
         file.size = compressedFile.size
@@ -1101,6 +1101,9 @@ const uploadImageFile = async (file) => {
 
     const formData = new FormData()
     formData.append('file', compressedFile)
+    if (thumbnail) {
+        formData.append('thumb', thumbnail)
+    }
 
     const res = await request.post('/upload', formData, {
         headers: {

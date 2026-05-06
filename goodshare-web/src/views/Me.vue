@@ -1019,7 +1019,7 @@ const confirmCrop = () => {
                 ElMessage.info('图片较大，正在压缩...')
                 // Convert Blob to File for compressImage
                 const file = new File([blob], tempFile.value.name, { type: blob.type })
-                const compressedFile = await compressImage(file)
+                const { file: compressedFile } = await compressImage(file)
                 finalBlob = compressedFile
             }
             

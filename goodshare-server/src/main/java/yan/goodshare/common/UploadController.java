@@ -73,7 +73,9 @@ public class UploadController {
     }
 
     @PostMapping
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> uploadFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "thumb", required = false) MultipartFile thumb) {
         String fileName = StringUtils.cleanPath(file.getOriginalFilename());
         try {
             if(fileName.contains("..")) {
@@ -87,19 +89,11 @@ public class UploadController {
             String fileUrl = "http://localhost:8080/uploads/" + newFileName;
             String thumbnailUrl = fileUrl;
 
-            // Generate thumbnail if image
-            if (isImage(newFileName)) {
+            if (thumb != null && !thumb.isEmpty() && isImage(newFileName)) {
                 String thumbFileName = getThumbFilename(newFileName);
                 Path thumbLocation = this.fileStorageLocation.resolve(thumbFileName);
-                try {
-                    boolean resized = createThumbnail(targetLocation.toFile(), thumbLocation.toFile());
-                    if (resized) {
-                        thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
-                    }
-                } catch (Exception e) {
-                    System.err.println("Failed to generate thumbnail: " + e.getMessage());
-                    thumbnailUrl = fileUrl;
-                }
+                Files.copy(thumb.getInputStream(), thumbLocation, StandardCopyOption.REPLACE_EXISTING);
+                thumbnailUrl = "http://localhost:8080/uploads/" + thumbFileName;
             }
 
             Map<String, String> response = new HashMap<>();
@@ -170,28 +164,26 @@ public class UploadController {
 
     private String getThumbFilename(String filename) {
         int dotIndex = filename.lastIndexOf('.');
-        if (dotIndex == -1) return filename + "_thumb";
-        return filename.substring(0, dotIndex) + "_thumb" + filename.substring(dotIndex);
+        if (dotIndex == -1) return filename + "_thumb.jpg";
+        return filename.substring(0, dotIndex) + "_thumb.jpg";
     }
 
     private String getOriginalFilename(String filename) {
-        int dotIndex = filename.lastIndexOf('.');
-        if (dotIndex == -1) {
-            if (filename.endsWith("_thumb")) {
-                return filename.substring(0, filename.length() - 6);
-            }
+        if (!filename.contains("_thumb.")) {
             return null;
         }
-        String base = filename.substring(0, dotIndex);
-        if (base.endsWith("_thumb")) {
-            return base.substring(0, base.length() - 6) + filename.substring(dotIndex);
+        String base = filename.substring(0, filename.lastIndexOf("_thumb."));
+        File dir = this.fileStorageLocation.toFile();
+        String[] matches = dir.list((d, name) -> name.startsWith(base + ".") && isImage(name) && !name.contains("_thumb."));
+        if (matches != null && matches.length > 0) {
+            return matches[0];
         }
         return null;
     }
 
     private boolean createThumbnail(File originalFile, File thumbFile) throws IOException {
         BufferedImage originalImage = ImageIO.read(originalFile);
-        if (originalImage == null) return false; // Not a valid image file
+        if (originalImage == null) return false;
 
         int originalWidth = originalImage.getWidth();
         int originalHeight = originalImage.getHeight();
@@ -214,16 +206,9 @@ public class UploadController {
             newWidth = (int) ((double) originalWidth / originalHeight * maxDim);
         }
 
-        String extension = getExtension(thumbFile.getName());
-        boolean isPng = "png".equalsIgnoreCase(extension);
-
-        // Preserve transparency for PNG, use RGB for others to avoid color issues
-        int type = isPng ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
-
-        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, type);
+        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = resizedImage.createGraphics();
         
-        // Improve quality with Bicubic interpolation and other hints
         g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
@@ -231,10 +216,11 @@ public class UploadController {
         g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
         g.dispose();
 
-        if ("jpg".equalsIgnoreCase(extension) || "jpeg".equalsIgnoreCase(extension)) {
-             writeJpeg(resizedImage, thumbFile, 0.9f); // 90% quality
-        } else {
-             ImageIO.write(resizedImage, extension, thumbFile);
+        writeJpeg(resizedImage, thumbFile, 0.75f);
+
+        if (thumbFile.length() >= originalFile.length()) {
+            thumbFile.delete();
+            return false;
         }
         return true;
     }
@@ -254,10 +240,5 @@ public class UploadController {
         } finally {
             writer.dispose();
         }
-    }
-
-    private String getExtension(String filename) {
-        int dotIndex = filename.lastIndexOf('.');
-        return (dotIndex == -1) ? "jpg" : filename.substring(dotIndex + 1);
     }
 }

@@ -6,8 +6,8 @@
       <div class="content-body">
         <div class="search-layout">
           <div class="search-results">
-            <h2 class="search-title" v-if="tag">标签: #{{ tag }}</h2>
-            <h2 class="search-title" v-else>搜索结果: "{{ query }}"</h2>
+            <h2 class="search-title" v-if="tag">标签: <span style="color:#ff2442">#{{ tag }}</span></h2>
+            <h2 class="search-title" v-else>搜索结果: "<span style="color:#ff2442">{{ query }}</span>"</h2>
 
             <el-tabs v-model="activeTab" class="search-tabs">
               <el-tab-pane label="帖子" name="posts">
@@ -16,7 +16,7 @@
                   <div v-for="post in posts" :key="post.id" class="post-card" :class="{ 'no-image': !getCoverUrl(post) }" @click="openPost(post, $event)">
                     <div v-if="getCoverUrl(post)" class="cover-image" :style="{ backgroundImage: `url('${getCoverUrl(post)}')` }"></div>
                     <div class="card-info">
-                      <h3 class="post-title">{{ post.title }}</h3>
+                      <h3 class="post-title" v-html="highlightText(post.title)"></h3>
                       <div class="post-meta">
                         <div class="author">
                           <el-avatar :size="20" icon="UserFilled" :src="post.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
@@ -42,8 +42,8 @@
                     <el-avatar :size="60" :src="user.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
                     <div class="user-info">
                       <div class="user-name">
-                        <span class="nickname">{{ user.nickname || user.username }}</span>
-                        <span class="username">@{{ user.username }}</span>
+                        <span class="nickname" v-html="highlightText(user.nickname || user.username)"></span>
+                        <span class="username" v-html="'@' + highlightText(user.username)"></span>
                       </div>
                       <div class="user-bio" v-if="user.bio">{{ user.bio }}</div>
                     </div>
@@ -230,6 +230,17 @@ const handlePostUpdate = (updatedFields) => {
 
 const openUser = (user) => {
   router.push(`/user/${user.id}`)
+}
+
+const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+const highlightText = (text) => {
+    if (!text || (!query.value && !tag.value)) return escapeHtml(text)
+    const keyword = tag.value || query.value
+    if (!keyword) return escapeHtml(text)
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(${escaped})`, 'gi')
+    return escapeHtml(text).replace(regex, '<span style="color:#ff2442;font-weight:600">$1</span>')
 }
 
 const getCoverUrl = (post) => {

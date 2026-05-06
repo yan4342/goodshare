@@ -37,10 +37,10 @@ public class Post {
     @TableField(exist = false)
     private Set<Tag> tags = new HashSet<>();
 
-    @TableField(exist = false)
+    @TableField("like_count")
     private Integer likeCount = 0;
 
-    @TableField(exist = false)
+    @TableField("comment_count")
     private Integer commentCount = 0;
 
     @TableField(exist = false)
