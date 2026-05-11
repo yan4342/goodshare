@@ -139,12 +139,12 @@ def evaluate_leave_one_out():
 
     # Step 5: Train a temporary recommender on the train set
     import database as db_module
-    from recommender import UserCF
+    from recommender import HybridRecommender
 
     original_fetch = db_module.fetch_interactions
     db_module.fetch_interactions = lambda: train_df  # monkey-patch
 
-    eval_recommender = UserCF()
+    eval_recommender = HybridRecommender()
     try:
         eval_recommender.train()
     finally:

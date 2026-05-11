@@ -700,7 +700,7 @@ const fetchMyPosts = async (userId, page = 1) => {
         tabLoading.posts = false
     }
 }
-//加载用户评价商品
+//加载用户鉴定商品
 const fetchMyAppraisals = async (userId, page = 1) => {
     if (tabLoading.appraisals) return
     tabLoading.appraisals = true
@@ -941,11 +941,7 @@ const handleDeleteAppraisal = (item) => {
         }
     ).then(async () => {
         try {
-            // Re-use admin endpoint? No, normal users need a delete endpoint
-            // Currently AppraisalService.deleteAppraisal is public, but controller?
-            // AppraisalController doesn't have delete. I should add it.
-            // Wait, for now I can try using the admin one if I am admin, but normal user?
-            // I need to add DELETE /api/appraisals/{id} to AppraisalController.
+            // add DELETE /api/appraisals/{id} to AppraisalController.
             await request.delete(`/appraisals/${item.id}`)
             ElMessage.success('删除成功')
             fetchMyAppraisals(userProfile.value.id)

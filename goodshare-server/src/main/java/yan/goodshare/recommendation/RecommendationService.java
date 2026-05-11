@@ -25,6 +25,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.PostConstruct;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import org.springframework.web.client.RestTemplate;
@@ -62,6 +64,10 @@ public class RecommendationService {
 
     @Autowired
     private SearchService searchService;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("recommendationExecutor")
+    private Executor recommendationExecutor;
 
     private Map<String, Double> weights = new HashMap<>();
 
@@ -136,9 +142,32 @@ public class RecommendationService {
         long startTime = System.currentTimeMillis();
         log.info("开始为用户 {} 生成推荐 (页码: {}, 数量: {})", userId, page, size);
 
+        // 0. New User / Cold Start Check
+        // If user has no interactions, directly recommend hot posts to avoid unnecessary computation
+        if (isNewUser(userId)) {
+            log.info("检测到新用户 {} (无交互数据)。返回热门帖子作为冷启动推荐。", userId);
+            // Quick fetch of authored posts to exclude
+            Set<Long> newUserExcluded = new HashSet<>();
+            List<Object> authoredIds = postMapper.selectObjs(new QueryWrapper<Post>()
+                    .select("id")
+                    .eq("user_id", userId));
+            if (authoredIds != null) {
+                for (Object id : authoredIds) {
+                    if (id != null) {
+                        newUserExcluded.add(((Number) id).longValue());
+                    }
+                }
+            }
+            int offset = (page - 1) * size;
+            return postMapper.selectHotPostsWithUser(size, offset, new ArrayList<>(newUserExcluded));
+        }
+
+        // --- Phase 1: 串行获取排除帖子ID和用户交互数据（快速DB查询，异步开销大于收益）---
+        log.debug("正在获取用户 {} 的排除帖子ID和交互数据...", userId);
+
         // Optimize: Fetch all viewed post IDs by this user first
         Set<Long> excludedPostIds = new HashSet<>();
-        
+
         // 1. Fetch Viewed Posts
         List<Object> viewIds = postViewMapper.selectObjs(new QueryWrapper<PostView>()
                 .select("post_id")
@@ -163,18 +192,8 @@ public class RecommendationService {
             }
         }
 
-        // 0. New User / Cold Start Check
-        // If user has no interactions, directly recommend hot posts to avoid unnecessary computation
-        if (isNewUser(userId)) {
-            log.info("检测到新用户 {} (无交互数据)。返回热门帖子作为冷启动推荐。", userId);
-            int offset = (page - 1) * size;
-            // FIX: Pass excludedPostIds to exclude watched/owned content
-            return postMapper.selectHotPostsWithUser(size, offset, new ArrayList<>(excludedPostIds));
-        }
-
         // 1. Fetch target user's interactions only (for Step 5 seed selection)
         // NOTE: Full user-item matrix is no longer needed — CF is handled by Python microservice.
-        log.debug("正在获取用户 {} 的交互数据 (用于内容推荐种子选择)...", userId);
         Map<Long, Double> targetUserInteractions = new HashMap<>();
 
         List<PostView> targetViews = postViewMapper.selectList(new QueryWrapper<PostView>().eq("user_id", userId).orderByDesc("id").last("LIMIT " + DATA_LIMIT));
@@ -194,68 +213,119 @@ public class RecommendationService {
             targetUserInteractions.merge(c.getPostId(), weights.getOrDefault("weight.comment", 2.0), (a, b) -> a + b);
         }
 
-        log.debug("用户 {} 交互数据获取完成，涉及 {} 篇帖子，耗时: {}ms", userId, targetUserInteractions.size(), (System.currentTimeMillis() - startTime));
+        log.debug("用户 {} 数据获取完成，排除 {} 个帖子，交互涉及 {} 篇帖子，耗时: {}ms",
+                userId, excludedPostIds.size(), targetUserInteractions.size(), (System.currentTimeMillis() - startTime));
 
         Map<Long, Double> recommendedPosts = new HashMap<>();
 
-        // 3. Collaborative Filtering (Python Microservice)
-        try {
-            log.info("调用 Python 协同过滤微服务...");
-            // Call Python Service
-            // 注意：在 Docker 环境中，goodshare-server 访问宿主机的 5000 端口需要用 host.docker.internal 或者服务名
-            // 为了兼容本地和 Docker 环境，优先尝试 recommendation-service，然后回退
-            String url = "http://recommendation-service:5000/recommend?user_id=" + userId + "&limit=40";
-            
+        // --- Phase 2: 并行调用协同过滤(Python)和内容推荐(ES) ---
+        log.info("并行调用协同过滤和内容推荐引擎...");
+
+        // 3. Collaborative Filtering (Python Microservice) - async
+        CompletableFuture<Map<Long, Double>> cfFuture = CompletableFuture.supplyAsync(() -> {
+            Map<Long, Double> cfScores = new HashMap<>();
             try {
-                ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
-                    url, 
-                    HttpMethod.GET, 
-                    null, 
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
-                );
-                
-                List<Map<String, Object>> cfRecs = response.getBody();
-                if (cfRecs != null) {
-                    log.info("Python 协同过滤微服务返回了 {} 条推荐结果。", cfRecs.size());
-                    for (Map<String, Object> rec : cfRecs) {
-                        Long postId = ((Number) rec.get("post_id")).longValue();
-                        Double score = ((Number) rec.get("score")).doubleValue();
-                        
-                        // Filter out items already viewed/authored (unified with excludedPostIds)
-                        if (!excludedPostIds.contains(postId)) {
-                            recommendedPosts.merge(postId, score, (a, b) -> a + b);
+                log.info("调用 Python 协同过滤微服务...");
+                // Call Python Service
+                // 注意：在 Docker 环境中，goodshare-server 访问宿主机的 5000 端口需要用 host.docker.internal 或者服务名
+                // 为了兼容本地和 Docker 环境，优先尝试 recommendation-service，然后回退
+                String url = "http://recommendation-service:5000/recommend?user_id=" + userId + "&limit=40";
+
+                try {
+                    ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        null,
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+                    );
+
+                    List<Map<String, Object>> cfRecs = response.getBody();
+                    if (cfRecs != null) {
+                        log.info("Python 协同过滤微服务返回了 {} 条推荐结果。", cfRecs.size());
+                        for (Map<String, Object> rec : cfRecs) {
+                            Long postId = ((Number) rec.get("post_id")).longValue();
+                            Double score = ((Number) rec.get("score")).doubleValue();
+                            cfScores.merge(postId, score, (a, b) -> a + b);
+                        }
+                    }
+                } catch (Exception innerE) {
+                    log.warn("通过 recommendation-service 调用失败，尝试回退到 localhost:5000 : {}", innerE.getMessage());
+                    url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=40";
+                    ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        null,
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+                    );
+
+                    List<Map<String, Object>> cfRecs = response.getBody();
+                    if (cfRecs != null) {
+                        log.info("Python 协同过滤微服务 (localhost) 返回了 {} 条推荐结果。", cfRecs.size());
+                        for (Map<String, Object> rec : cfRecs) {
+                            Long postId = ((Number) rec.get("post_id")).longValue();
+                            Double score = ((Number) rec.get("score")).doubleValue();
+                            cfScores.merge(postId, score, (a, b) -> a + b);
                         }
                     }
                 }
-            } catch (Exception innerE) {
-                log.warn("通过 recommendation-service 调用失败，尝试回退到 localhost:5000 : {}", innerE.getMessage());
-                url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=40";
-                ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
-                    url, 
-                    HttpMethod.GET, 
-                    null, 
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
-                );
-                
-                List<Map<String, Object>> cfRecs = response.getBody();
-                if (cfRecs != null) {
-                    log.info("Python 协同过滤微服务 (localhost) 返回了 {} 条推荐结果。", cfRecs.size());
-                    for (Map<String, Object> rec : cfRecs) {
-                        Long postId = ((Number) rec.get("post_id")).longValue();
-                        Double score = ((Number) rec.get("score")).doubleValue();
-                        
-                        // Filter out items already viewed/authored (unified with excludedPostIds)
-                        if (!excludedPostIds.contains(postId)) {
-                            recommendedPosts.merge(postId, score, (a, b) -> a + b);
+            } catch (Exception e) {
+                log.error("调用 Python 推荐微服务最终失败: {}", e.getMessage());
+                // Fallback: If Python service fails, we might want to use the local logic or just skip CF
+                // For now, we log and skip, relying on Hot Posts fallback later.
+            }
+            return cfScores;
+        }, recommendationExecutor).exceptionally(ex -> {
+            log.error("CF异步调用异常: {}", ex.getMessage());
+            return Collections.emptyMap();
+        });
+
+        // 5. Content-Based Recommendation (Elasticsearch MoreLikeThis) - async
+        // (launched in parallel with CF above; ES uses targetUserInteractions for seed selection)
+        CompletableFuture<Map<Long, Double>> esFuture = CompletableFuture.supplyAsync(() -> {
+            Map<Long, Double> esScores = new HashMap<>();
+            log.info("开始执行基于内容的推荐召回 (Elasticsearch)...");
+            // Select top 3 interacted posts as seeds
+            List<Long> topInteractedPosts = targetUserInteractions.entrySet().stream()
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .limit(3)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            for (Long seedId : topInteractedPosts) {
+                try {
+                    SearchHits<PostDocument> similarDocs = searchService.findSimilarPosts(seedId.toString());
+                    for (SearchHit<PostDocument> hit : similarDocs) {
+                        try {
+                            Long similarId = Long.valueOf(hit.getContent().getId());
+                            if (!similarId.equals(seedId)) {
+                                // Boost score: Fixed boost 1.0 per occurrence or based on ES score
+                                // Using a moderate boost to complement UserCF
+                                double boost = weights.getOrDefault("weight.content", 1.0);
+                                double randomNoise = random.nextDouble() * 0.01;
+                                esScores.merge(similarId, boost + randomNoise, (a, b) -> a + b);
+                            }
+                        } catch (NumberFormatException e) {
+                            // Ignore invalid IDs
                         }
                     }
+                } catch (Exception e) {
+                    log.error("基于ES内容的推荐召回失败，种子帖子ID {}: {}", seedId, e.getMessage());
                 }
             }
-        } catch (Exception e) {
-            log.error("调用 Python 推荐微服务最终失败: {}", e.getMessage());
-            // Fallback: If Python service fails, we might want to use the local logic or just skip CF
-            // For now, we log and skip, relying on Hot Posts fallback later.
-        }
+            return esScores;
+        }, recommendationExecutor).exceptionally(ex -> {
+            log.error("ES异步调用异常: {}", ex.getMessage());
+            return Collections.emptyMap();
+        });
+
+        // Wait for CF results first — tag boosting depends on CF candidates
+        Map<Long, Double> cfScores = cfFuture.join();
+        // Merge CF into recommendedPosts (filter excluded)
+        cfScores.forEach((postId, score) -> {
+            if (!excludedPostIds.contains(postId)) {
+                recommendedPosts.merge(postId, score, (a, b) -> a + b);
+            }
+        });
 
         // 4. Partition Recommendation (Tag-based Boosting — prioritize CF candidates)
         log.info("开始执行基于标签权重的分区推荐调整...");
@@ -338,36 +408,13 @@ public class RecommendationService {
             }
         }
 
-        // 5. Content-Based Recommendation (Elasticsearch MoreLikeThis)
-        log.info("开始执行基于内容的推荐召回 (Elasticsearch)...");
-        // Select top 3 interacted posts as seeds
-        List<Long> topInteractedPosts = targetUserInteractions.entrySet().stream()
-                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .limit(3)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        for (Long seedId : topInteractedPosts) {
-            try {
-                SearchHits<PostDocument> similarDocs = searchService.findSimilarPosts(seedId.toString());
-                for (SearchHit<PostDocument> hit : similarDocs) {
-                    try {
-                        Long similarId = Long.valueOf(hit.getContent().getId());
-                        if (!excludedPostIds.contains(similarId) && !similarId.equals(seedId)) {
-                            // Boost score: Fixed boost 1.0 per occurrence or based on ES score
-                            // Using a moderate boost to complement UserCF
-                            double boost = weights.getOrDefault("weight.content", 1.0);
-                            double randomNoise = random.nextDouble() * 0.01;
-                            recommendedPosts.merge(similarId, boost + randomNoise, (a, b) -> a + b);
-                        }
-                    } catch (NumberFormatException e) {
-                        // Ignore invalid IDs
-                    }
-                }
-            } catch (Exception e) {
-                log.error("基于内容的推荐召回失败，种子帖子ID {}: {}", seedId, e.getMessage());
+        // Now wait for ES results and merge them into the candidate pool
+        Map<Long, Double> esScores = esFuture.join();
+        esScores.forEach((postId, score) -> {
+            if (!excludedPostIds.contains(postId)) {
+                recommendedPosts.merge(postId, score, (a, b) -> a + b);
             }
-        }
+        });
 
         // 5.5 Comment Count Boosting (Popularity)
         log.info("开始应用评论热度加分策略...");

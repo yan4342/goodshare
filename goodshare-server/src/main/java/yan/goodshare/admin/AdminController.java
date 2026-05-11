@@ -16,8 +16,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin")
 @PreAuthorize("hasRole('ADMIN')")
@@ -141,13 +143,21 @@ public class AdminController {
         if (ids == null || ids.isEmpty()) {
             return ResponseEntity.badRequest().body("Ids are required");
         }
-        postService.deletePosts(ids);
+        for (Long id : ids) {
+            ResponseEntity<?> errorResponse = deletePostAndNotify(id);
+            if (errorResponse != null) {
+                return errorResponse;
+            }
+        }
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/posts/{id}")
     public ResponseEntity<?> deletePost(@PathVariable Long id) {
-        postService.deletePost(id);
+        ResponseEntity<?> errorResponse = deletePostAndNotify(id);
+        if (errorResponse != null) {
+            return errorResponse;
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -190,6 +200,9 @@ public class AdminController {
                 messageContent += "\n详细说明：" + reasonDetail;
             }
             
+            // Append post link marker for frontend rendering
+            messageContent += "\n[POST:" + post.getId() + "]";
+            
             yan.goodshare.entity.Message savedMsg = messageService.sendMessage(systemUser.getId(), post.getUserId(), messageContent);
             savedMsg.setSender(systemUser); // Populate sender info for frontend
             
@@ -202,6 +215,41 @@ public class AdminController {
         }
         
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Delete a post and send a system message to the author.
+     * Returns null on success, or a ResponseEntity with an error on failure.
+     */
+    private ResponseEntity<?> deletePostAndNotify(Long id) {
+        Post post = postService.getPostById(id);
+        String postTitle = post != null ? (post.getTitle() != null ? post.getTitle() : "无标题") : null;
+        Long authorId = post != null ? post.getUserId() : null;
+
+        try {
+            postService.deletePost(id);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("删除帖子失败: " + e.getMessage());
+        }
+
+        // Notify the author after successful deletion
+        if (authorId != null) {
+            String messageContent = String.format("您的帖子《%s》因违规已被管理员删除。", postTitle);
+            try {
+                User systemUser = userService.getSystemUser();
+                yan.goodshare.entity.Message savedMsg = messageService.sendMessage(systemUser.getId(), authorId, messageContent);
+                savedMsg.setSender(systemUser);
+                messagingTemplate.convertAndSendToUser(
+                        String.valueOf(authorId),
+                        "/queue/messages",
+                        savedMsg
+                );
+            } catch (Exception e) {
+                // Log but don't fail the delete operation for notification errors
+                log.error("帖子删除通知发送失败 (帖子ID: {}): {}", id, e.getMessage());
+            }
+        }
+        return null; // success
     }
 
     private String getForbiddenWordsConfigValue() {

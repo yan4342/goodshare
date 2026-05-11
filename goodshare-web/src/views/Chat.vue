@@ -56,7 +56,7 @@
                     >
                         <el-avatar class="message-avatar" :size="32" :src="(msg.senderId === currentUser?.id ? currentUser.avatarUrl : currentChatUser.avatarUrl) || defaultAvatar" />
                         <div class="message-bubble">
-                            <div class="message-content">{{ msg.content }}</div>
+                            <div class="message-content" v-html="formatMessageContent(msg.content)"></div>
                             <div class="message-time">{{ formatTime(msg.createdAt) }}</div>
                         </div>
                     </div>
@@ -143,6 +143,11 @@ const emojis = [
 
 
 onMounted(async () => {
+    // Register global navigation handler for post links in messages
+    window.__navigateToPost = (postId) => {
+        router.push(`/post/${postId}`)
+    }
+    
     if (!currentUser.value) {
         await authStore.fetchUser()
     }
@@ -214,6 +219,20 @@ const addEmoji = (emoji) => {
     newMessage.value += emoji
 }
 
+const formatMessageContent = (content) => {
+    if (!content) return ''
+    // Escape HTML to prevent XSS, then convert [POST:ID] to clickable links
+    const escaped = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/\[POST:(\d+)\]/g, (_, postId) => {
+            return `<a href="#/post/${postId}" onclick="event.preventDefault(); window.__navigateToPost('${postId}')" class="post-link">查看帖子 →</a>`
+        })
+    return escaped
+}
+
 const sendMessage = async () => {
     if (!newMessage.value.trim() || !currentChatUser.value) return
     
@@ -282,6 +301,7 @@ onUnmounted(() => {
     if (stompClient && stompClient.connected) {
         stompClient.disconnect()
     }
+    delete window.__navigateToPost
 })
 
 const connectWebSocket = () => {
@@ -578,5 +598,16 @@ const updateConversationList = (msg) => {
 
 .emoji-item:hover {
     background-color: var(--hover-bg);
+}
+
+:deep(.post-link) {
+    color: #ffb3bd;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+:deep(.post-link:hover) {
+    color: #ff2442;
 }
 </style>
