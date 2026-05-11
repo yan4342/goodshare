@@ -65,7 +65,7 @@ public class RecommendationService {
 
     private Map<String, Double> weights = new HashMap<>();
 
-    private static final int NEIGHBOR_COUNT = 5;
+//    private static final int NEIGHBOR_COUNT = 10;已弃用
     private static final int RECOMMENDATION_COUNT = 10;
     private static final int DATA_LIMIT = 1000; // Limit interactions to recent 1000 for performance
     private static final double STRONG_REJECT_THRESHOLD = 0.6;
@@ -172,39 +172,30 @@ public class RecommendationService {
             return postMapper.selectHotPostsWithUser(size, offset, new ArrayList<>(excludedPostIds));
         }
 
-        // 1. Fetch recent interactions (Limit to avoid OOM and Timeouts)
-        // Note: For UserCF, we ideally need the target user's full history, but for performance we limit all.
-        // A better approach would be: All target user's + Recent others'. For now, simple limit.
-        log.debug("正在从数据库获取近期交互数据...");
-        List<Like> likes = likeMapper.selectList(new QueryWrapper<Like>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
-        List<Favorite> favorites = favoriteMapper.selectList(new QueryWrapper<Favorite>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
-        List<Comment> comments = commentMapper.selectList(new QueryWrapper<Comment>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
-        List<PostView> views = postViewMapper.selectList(new QueryWrapper<PostView>().orderByDesc("id").last("LIMIT " + DATA_LIMIT));
+        // 1. Fetch target user's interactions only (for Step 5 seed selection)
+        // NOTE: Full user-item matrix is no longer needed — CF is handled by Python microservice.
+        log.debug("正在获取用户 {} 的交互数据 (用于内容推荐种子选择)...", userId);
+        Map<Long, Double> targetUserInteractions = new HashMap<>();
 
-        log.debug("交互数据获取完成，耗时: {}ms", (System.currentTimeMillis() - startTime));
-        
-        // 2. Build User-Item Matrix
-        // Map<UserId, Map<PostId, Weight>>
-        Map<Long, Map<Long, Double>> userItemMatrix = new HashMap<>();
-
-        for (PostView view : views) {
-            userItemMatrix.computeIfAbsent(view.getUserId(), k -> new HashMap<>())
-                    .merge(view.getPostId(), weights.getOrDefault("weight.view", 0.5), (a, b) -> a + b);
+        List<PostView> targetViews = postViewMapper.selectList(new QueryWrapper<PostView>().eq("user_id", userId).orderByDesc("id").last("LIMIT " + DATA_LIMIT));
+        for (PostView v : targetViews) {
+            targetUserInteractions.merge(v.getPostId(), weights.getOrDefault("weight.view", 0.5), (a, b) -> a + b);
         }
-        for (Like like : likes) {
-            userItemMatrix.computeIfAbsent(like.getUserId(), k -> new HashMap<>())
-                    .merge(like.getPostId(), weights.getOrDefault("weight.like", 1.0), (a, b) -> a + b);
+        List<Like> targetLikes = likeMapper.selectList(new QueryWrapper<Like>().eq("user_id", userId).orderByDesc("id").last("LIMIT " + DATA_LIMIT));
+        for (Like l : targetLikes) {
+            targetUserInteractions.merge(l.getPostId(), weights.getOrDefault("weight.like", 1.0), (a, b) -> a + b);
         }
-        for (Favorite favorite : favorites) {
-            userItemMatrix.computeIfAbsent(favorite.getUserId(), k -> new HashMap<>())
-                    .merge(favorite.getPostId(), weights.getOrDefault("weight.favorite", 3.0), (a, b) -> a + b);
+        List<Favorite> targetFavorites = favoriteMapper.selectList(new QueryWrapper<Favorite>().eq("user_id", userId).orderByDesc("id").last("LIMIT " + DATA_LIMIT));
+        for (Favorite f : targetFavorites) {
+            targetUserInteractions.merge(f.getPostId(), weights.getOrDefault("weight.favorite", 3.0), (a, b) -> a + b);
         }
-        for (Comment comment : comments) {
-            userItemMatrix.computeIfAbsent(comment.getUserId(), k -> new HashMap<>())
-                    .merge(comment.getPostId(), weights.getOrDefault("weight.comment", 2.0), (a, b) -> a + b);
+        List<Comment> targetComments = commentMapper.selectList(new QueryWrapper<Comment>().eq("user_id", userId).orderByDesc("id").last("LIMIT " + DATA_LIMIT));
+        for (Comment c : targetComments) {
+            targetUserInteractions.merge(c.getPostId(), weights.getOrDefault("weight.comment", 2.0), (a, b) -> a + b);
         }
 
-        Map<Long, Double> targetUserInteractions = userItemMatrix.getOrDefault(userId, new HashMap<>());
+        log.debug("用户 {} 交互数据获取完成，涉及 {} 篇帖子，耗时: {}ms", userId, targetUserInteractions.size(), (System.currentTimeMillis() - startTime));
+
         Map<Long, Double> recommendedPosts = new HashMap<>();
 
         // 3. Collaborative Filtering (Python Microservice)
@@ -230,15 +221,15 @@ public class RecommendationService {
                         Long postId = ((Number) rec.get("post_id")).longValue();
                         Double score = ((Number) rec.get("score")).doubleValue();
                         
-                        // Filter out items already interacted by target user
-                        if (!targetUserInteractions.containsKey(postId)) {
+                        // Filter out items already viewed/authored (unified with excludedPostIds)
+                        if (!excludedPostIds.contains(postId)) {
                             recommendedPosts.merge(postId, score, (a, b) -> a + b);
                         }
                     }
                 }
             } catch (Exception innerE) {
                 log.warn("通过 recommendation-service 调用失败，尝试回退到 localhost:5000 : {}", innerE.getMessage());
-                url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=50";
+                url = "http://localhost:5000/recommend?user_id=" + userId + "&limit=40";
                 ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
                     url, 
                     HttpMethod.GET, 
@@ -253,8 +244,8 @@ public class RecommendationService {
                         Long postId = ((Number) rec.get("post_id")).longValue();
                         Double score = ((Number) rec.get("score")).doubleValue();
                         
-                        // Filter out items already interacted by target user
-                        if (!targetUserInteractions.containsKey(postId)) {
+                        // Filter out items already viewed/authored (unified with excludedPostIds)
+                        if (!excludedPostIds.contains(postId)) {
                             recommendedPosts.merge(postId, score, (a, b) -> a + b);
                         }
                     }
@@ -266,42 +257,81 @@ public class RecommendationService {
             // For now, we log and skip, relying on Hot Posts fallback later.
         }
 
-        // 4. Partition Recommendation (Tag-based Boosting)
+        // 4. Partition Recommendation (Tag-based Boosting — prioritize CF candidates)
         log.info("开始执行基于标签权重的分区推荐调整...");
-        // Use selectList directly to ensure proper mapping (avoid custom query potential mapping issues)
         List<UserTagWeight> userWeights = userTagWeightMapper.selectList(new QueryWrapper<UserTagWeight>().eq("user_id", userId));
+
+        // Pre-fetch tags for all CF candidates to enable tag-based boosting on CF results
+        Map<Long, List<Long>> cfCandidateTagMap = new HashMap<>();
+        if (!recommendedPosts.isEmpty()) {
+            List<Long> cfCandidateIds = new ArrayList<>(recommendedPosts.keySet());
+            int tagBatchSize = 100;
+            for (int i = 0; i < cfCandidateIds.size(); i += tagBatchSize) {
+                int end = Math.min(cfCandidateIds.size(), i + tagBatchSize);
+                List<Long> batchIds = cfCandidateIds.subList(i, end);
+                List<Map<String, Object>> postTags = postMapper.selectTagsByPostIds(batchIds);
+                for (Map<String, Object> row : postTags) {
+                    Long pId = ((Number) row.get("post_id")).longValue();
+                    Long tId = ((Number) row.get("id")).longValue();
+                    cfCandidateTagMap.computeIfAbsent(pId, k -> new ArrayList<>()).add(tId);
+                }
+            }
+            log.info("为 {} 篇协同过滤候选预取标签完成，命中标签的帖子 {} 篇。", cfCandidateIds.size(), cfCandidateTagMap.size());
+        }
+
+        // Build reverse map: tagId -> list of CF candidate postIds
+        Map<Long, List<Long>> tagToCfCandidates = new HashMap<>();
+        for (Map.Entry<Long, List<Long>> entry : cfCandidateTagMap.entrySet()) {
+            Long postId = entry.getKey();
+            for (Long tagId : entry.getValue()) {
+                tagToCfCandidates.computeIfAbsent(tagId, k -> new ArrayList<>()).add(postId);
+            }
+        }
+
+        final int TAG_LIMIT = 5;
 
         if (userWeights != null && !userWeights.isEmpty()) {
             for (UserTagWeight uw : userWeights) {
-                // Only consider weights != 1.0 (1.0 is default/neutral)
                 if (Math.abs(uw.getWeight() - 1.0) > 0.01) {
-                    // Fetch recent posts for this tag (Fetch more to allow randomization)
-                    List<Post> tagPosts = postMapper.selectPostsByTagId(uw.getTagId(), 50);
-                    Collections.shuffle(tagPosts); // Randomize to ensure variety on refresh
-                    
-                    // Limit to 10 after shuffle
-                    tagPosts = tagPosts.stream().limit(10).collect(Collectors.toList());
-                    
-                    for (Post p : tagPosts) {
-                        // Filter out items already interacted by target user
-                        if (!targetUserInteractions.containsKey(p.getId())) {
-                            // Boost/Penalize score: (Weight - 1.0) * BaseMultiplier (e.g. 2.0)
-                            double boost = (uw.getWeight() - 1.0) * 2.0;
-                            double randomNoise = random.nextDouble() * 0.01; // Small noise to break ties
+                    double boost = (uw.getWeight() - 1.0) * 2.0;
+                    int cfUsed = 0;
 
+                    // Phase A: Boost/penalize CF candidates that match this tag
+                    List<Long> cfMatched = tagToCfCandidates.getOrDefault(uw.getTagId(), Collections.emptyList());
+                    for (Long postId : cfMatched) {
+                        if (cfUsed >= TAG_LIMIT) break;
+                        if (!excludedPostIds.contains(postId)) {
+                            double randomNoise = random.nextDouble() * 0.01;
                             if (boost > 0) {
-                                // Positive boost: Add or increase score
-                                recommendedPosts.merge(p.getId(), boost + randomNoise, (a, b) -> a + b);
+                                recommendedPosts.merge(postId, boost + randomNoise, (a, b) -> a + b);
                             } else {
-                                // Negative boost: Only penalize if already recommended (don't recommend purely negative items)
-                                if (recommendedPosts.containsKey(p.getId())) {
-                                    recommendedPosts.merge(p.getId(), boost, (a, b) -> a + b);
-                                    // Remove if score drops below zero
-                                    if (recommendedPosts.get(p.getId()) < 0) {
-                                        recommendedPosts.remove(p.getId());
-                                    }
+                                recommendedPosts.merge(postId, boost, (a, b) -> a + b);
+                                if (recommendedPosts.get(postId) < 0) {
+                                    recommendedPosts.remove(postId);
                                 }
                             }
+                            cfUsed++;
+                        }
+                    }
+
+                    // Phase B: If not enough, fetch remaining from DB (positive weights only)
+                    if (cfUsed < TAG_LIMIT && boost > 0) {
+                        int needed = TAG_LIMIT - cfUsed;
+                        List<Post> tagPosts = postMapper.selectPostsByTagId(uw.getTagId(), 20);
+                        // Exclude already-candidate posts and excluded posts
+                        Set<Long> alreadyCandidate = new HashSet<>(recommendedPosts.keySet());
+                        tagPosts = tagPosts.stream()
+                                .filter(p -> !alreadyCandidate.contains(p.getId()) && !excludedPostIds.contains(p.getId()))
+                                .collect(Collectors.toList());
+                        Collections.shuffle(tagPosts);
+                        tagPosts = tagPosts.stream().limit(needed).collect(Collectors.toList());
+
+                        for (Post p : tagPosts) {
+                            double randomNoise = random.nextDouble() * 0.01;
+                            recommendedPosts.merge(p.getId(), boost + randomNoise, (a, b) -> a + b);
+                        }
+                        if (!tagPosts.isEmpty()) {
+                            log.debug("标签 {} (权重={}) 从DB补充 {} 篇帖子。", uw.getTagId(), uw.getWeight(), tagPosts.size());
                         }
                     }
                 }
@@ -323,7 +353,7 @@ public class RecommendationService {
                 for (SearchHit<PostDocument> hit : similarDocs) {
                     try {
                         Long similarId = Long.valueOf(hit.getContent().getId());
-                        if (!targetUserInteractions.containsKey(similarId) && !similarId.equals(seedId)) {
+                        if (!excludedPostIds.contains(similarId) && !similarId.equals(seedId)) {
                             // Boost score: Fixed boost 1.0 per occurrence or based on ES score
                             // Using a moderate boost to complement UserCF
                             double boost = weights.getOrDefault("weight.content", 1.0);
