@@ -135,20 +135,31 @@ public class RecommendationService {
     }
 
     public List<Post> getRecommendations(Long userId, int page, int size) {
+        return getRecommendationsInternal(userId, page, size, true);
+    }
+
+    // 评估专用：不过滤已浏览帖子
+    public List<Post> getRecommendationsForEval(Long userId, int page, int size) {
+        return getRecommendationsInternal(userId, page, size, false);
+    }
+
+    private List<Post> getRecommendationsInternal(Long userId, int page, int size, boolean excludeViewed) {
         long startTime = System.currentTimeMillis();
-        log.info("开始为用户 {} 生成推荐 (页码: {}, 数量: {})", userId, page, size);
+        log.info("开始为用户 {} 生成推荐 (页码: {}, 数量: {}, excludeViewed={})", userId, page, size, excludeViewed);
 
         // Optimize: Fetch all viewed post IDs by this user first
         Set<Long> excludedPostIds = new HashSet<>();
         
-        // 1. Fetch Viewed Posts
-        List<Object> viewIds = postViewMapper.selectObjs(new QueryWrapper<PostView>()
-                .select("post_id")
-                .eq("user_id", userId));
-        if (viewIds != null) {
-            for (Object id : viewIds) {
-                if (id != null) {
-                    excludedPostIds.add(((Number) id).longValue());
+        // 1. Fetch Viewed Posts (only when excludeViewed=true)
+        if (excludeViewed) {
+            List<Object> viewIds = postViewMapper.selectObjs(new QueryWrapper<PostView>()
+                    .select("post_id")
+                    .eq("user_id", userId));
+            if (viewIds != null) {
+                for (Object id : viewIds) {
+                    if (id != null) {
+                        excludedPostIds.add(((Number) id).longValue());
+                    }
                 }
             }
         }
@@ -295,7 +306,7 @@ public class RecommendationService {
         if (userWeights != null && !userWeights.isEmpty()) {
             for (UserTagWeight uw : userWeights) {
                 if (Math.abs(uw.getWeight() - 1.0) > 0.01) {
-                    double boost = (uw.getWeight() - 1.0) * 2.0;
+                    double boost = (uw.getWeight() - 1.0) * 2.0;// - 1.0 是为了区分加分和减分，乘以 2.0 是为了放大效果（可以调整这个放大倍数）
                     int cfUsed = 0;
 
                     // Phase A: Boost/penalize CF candidates that match this tag
@@ -536,11 +547,17 @@ public class RecommendationService {
             List<Long> subList = filteredRecommendedPostIds.subList(recStart, actualEnd);
             List<Post> recPosts = postMapper.selectPostsWithUserByIds(subList);
             
-            // Maintain order
+            // Maintain order and attach recommendation scores
             Map<Long, Post> postMap = recPosts.stream().collect(Collectors.toMap(Post::getId, p -> p));
             for (Long id : subList) {
                 if (postMap.containsKey(id)) {
-                    finalPosts.add(postMap.get(id));
+                    Post p = postMap.get(id);
+                    // Attach the recommendation score (used by eval endpoint)
+                    Double score = recommendedPosts.get(id);
+                    if (score != null) {
+                        p.setRecommendScore(score);
+                    }
+                    finalPosts.add(p);
                 }
             }
         }

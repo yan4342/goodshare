@@ -18,16 +18,23 @@ public class RecommendationController {
     @Autowired
     private RecommendationService recommendationService;
 
-    // 获取用户推荐帖子
-    // @RequestParam("user_id") Long userId：用户ID，用于指定获取该用户的推荐帖子
-    // @RequestParam(defaultValue = "1") int page：分页参数，默认值为1
-    // @RequestParam(defaultValue = "10") int size：分页参数，默认值为10
+    // 获取用户推荐帖子（正常模式，过滤已浏览帖子）
     @GetMapping
     public ResponseEntity<List<Post>> getRecommendations(
             @RequestParam("user_id") Long userId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         List<Post> recommendations = recommendationService.getRecommendations(userId, page, size);
+        return ResponseEntity.ok(recommendations);
+    }
+
+    // 评估专用接口：不过滤已浏览帖子，用于 Leave-One-Out 评估
+    @GetMapping("/eval")
+    public ResponseEntity<List<Post>> getRecommendationsForEval(
+            @RequestParam("user_id") Long userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        List<Post> recommendations = recommendationService.getRecommendationsForEval(userId, page, size);
         return ResponseEntity.ok(recommendations);
     }
 }

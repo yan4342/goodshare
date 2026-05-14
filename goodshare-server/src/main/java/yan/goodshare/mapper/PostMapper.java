@@ -64,16 +64,17 @@ public interface PostMapper extends BaseMapper<Post> {
     List<Post> selectPostsByTagName(String tagName);
 
     @Select("SELECT p.*, " +
-            "(SELECT COUNT(*) > 0 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = #{userId}) as is_liked, " +
-            "(SELECT COUNT(*) > 0 FROM favorites fav WHERE fav.post_id = p.id AND fav.user_id = #{userId}) as is_favorited, " +
-            "u.username, u.nickname, u.avatar_url " +
+            "u.username, u.nickname, u.avatar_url, " +
+            "CASE WHEN pl.post_id IS NOT NULL THEN TRUE ELSE FALSE END as is_liked, " +
+            "CASE WHEN fav.post_id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited " +
             "FROM posts p " +
             "JOIN users u ON p.user_id = u.id " +
             "JOIN follows f ON p.user_id = f.followed_id " +
+            "LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = #{userId} " +
+            "LEFT JOIN favorites fav ON fav.post_id = p.id AND fav.user_id = #{userId} " +
             "WHERE f.follower_id = #{userId} AND (p.status != 2 OR p.status IS NULL) " +
             "ORDER BY p.created_at DESC")
     @Results(id = "postWithFollowResult", value = {
-            @Result(property = "userId", column = "user_id"),
             @Result(property = "user.username", column = "username"),
             @Result(property = "user.nickname", column = "nickname"),
             @Result(property = "user.avatarUrl", column = "avatar_url"),
@@ -113,10 +114,10 @@ public interface PostMapper extends BaseMapper<Post> {
     @Select("SELECT t.* FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = #{postId}")
     Set<Tag> selectTagsByPostId(Long postId);
 
-    @Select("SELECT pt.post_id FROM post_tags pt WHERE pt.tag_id = #{tagId} AND (SELECT COUNT(DISTINCT pt2.tag_id) FROM post_tags pt2 WHERE pt2.post_id = pt.post_id) = 1")
+    @Select("SELECT pt.post_id FROM post_tags pt GROUP BY pt.post_id HAVING COUNT(DISTINCT pt.tag_id) = 1 AND MAX(CASE WHEN pt.tag_id = #{tagId} THEN 1 ELSE 0 END) = 1")
     List<Long> selectPostIdsWithOnlyTag(@Param("tagId") Long tagId);
 
-    @Select("SELECT pt.post_id FROM post_tags pt WHERE pt.tag_id = #{tagId} AND (SELECT COUNT(DISTINCT pt2.tag_id) FROM post_tags pt2 WHERE pt2.post_id = pt.post_id) > 1")
+    @Select("SELECT pt.post_id FROM post_tags pt GROUP BY pt.post_id HAVING COUNT(DISTINCT pt.tag_id) > 1 AND MAX(CASE WHEN pt.tag_id = #{tagId} THEN 1 ELSE 0 END) = 1")
     List<Long> selectPostIdsWithMultipleTags(@Param("tagId") Long tagId);
 
     @Delete("<script>" +

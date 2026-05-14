@@ -12,7 +12,7 @@
   - Catalog Coverage@K (覆盖率)
   - Intra-List Diversity@K (多样性)
 
-对比策略: Hybrid, UserCF, ContentCF, ItemCF
+对比策略: Hybrid, UserCF, ContentBase, ItemCF
 对比 K 值: 5, 10, 20
 
 当真实交互数据不足时，自动生成高仿真合成数据。
@@ -422,7 +422,7 @@ def _generate_charts(results: dict):
     strategy_labels = {
         "hybrid": "混合推荐 (Hybrid)",
         "user_cf": "用户协同过滤 (UserCF)",
-        "content_cf": "内容过滤 (ContentCF)",
+        "content_cf": "内容过滤 (ContentBase)",
         "item_cf": "物品协同过滤 (ItemCF)",
     }
 
@@ -620,7 +620,7 @@ def _generate_summary_table(results, strategies, labels):
 def evaluate_leave_one_out():
     """
     完整的离线评估流程。
-    评估 Hybrid / UserCF / ContentCF / ItemCF 四种策略，
+    评估 Hybrid / UserCF / ContentBase / ItemCF 四种策略，
     在 K=5, 10, 20 上分别计算各项指标。
     """
     eval_logger.info("=" * 70)
@@ -701,7 +701,7 @@ def _print_report(results: dict, has_synthetic: bool, n_qualifying: int, n_evalu
     sl = {
         "hybrid": "混合推荐 (Hybrid)",
         "user_cf": "用户协同过滤 (UserCF)",
-        "content_cf": "内容过滤 (ContentCF)",
+        "content_cf": "内容过滤 (ContentBase)",
         "item_cf": "物品协同过滤 (ItemCF)",
     }
     strat_order = ["hybrid", "user_cf", "content_cf", "item_cf"]

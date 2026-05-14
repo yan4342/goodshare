@@ -139,9 +139,15 @@ class GoodshareClient:
         return self._request("POST", f"/api/posts/{post_id}/comments",
                              json={"content": content}, token=token)
 
-    # ---- 推荐 ----
+    # ---- 推荐（正常模式，过滤已浏览） ----
     def get_recommendations(self, user_id: int, size: int = 20, token: str = None) -> list:
         data = self._request("GET", "/api/recommendations",
+                             params={"user_id": user_id, "size": size}, token=token)
+        return data if isinstance(data, list) else data.get("data", data.get("content", []))
+
+    # ---- 推荐（评估专用，不过滤已浏览帖子） ----
+    def get_recommendations_eval(self, user_id: int, size: int = 20, token: str = None) -> list:
+        data = self._request("GET", "/api/recommendations/eval",
                              params={"user_id": user_id, "size": size}, token=token)
         return data if isinstance(data, list) else data.get("data", data.get("content", []))
 
@@ -155,6 +161,26 @@ class GoodshareClient:
             self._request("GET", "/api/posts?page=1&size=1")
             return True
         except Exception:
+            return False
+
+    # ---- 触发 Python 推荐服务重训 ----
+    def trigger_retrain(self, rec_service_url: str = "http://localhost:5000") -> bool:
+        """调用 Python 推荐服务的 /retrain 端点，强制重训模型"""
+        try:
+            resp = requests.get(f"{rec_service_url}/retrain", timeout=120)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "ok":
+                    sys_logger.info("  ✓ Python 推荐模型重训完成")
+                    return True
+                else:
+                    sys_logger.warning(f"  重训返回错误: {data}")
+                    return False
+            else:
+                sys_logger.warning(f"  重训请求失败: HTTP {resp.status_code}")
+                return False
+        except Exception as e:
+            sys_logger.warning(f"  调用重训接口失败: {e}")
             return False
 
 
@@ -233,13 +259,18 @@ def _register_and_login(client: GoodshareClient, username: str) -> dict:
 
 def _build_user_profiles(client: GoodshareClient, users: list,
                          tag_post_map: dict, all_tags: list,
-                         rng: np.random.Generator):
+                         rng: np.random.Generator,
+                         skip_phase2: bool = False):
     """为活跃用户和轻度用户建立交互画像。
 
     活跃用户 (Group A) 采用 Leave-One-Out 高交互切分：
-      - Phase 1 (训练): 从候选池取 60% 的帖子进行浏览/点赞/收藏/评论
-      - Phase 2 (测试): 从候选池剩余 40% 的帖子中取少量做高交互（点赞+收藏）
+      - Phase 1 (训练): 从候选池取 80% 的帖子进行浏览/点赞/收藏/评论
+      - Phase 2 (测试): 从候选池剩余 20% 的帖子中取少量做高交互（点赞+收藏）
         这些帖子作为 ground truth，用于评估推荐质量
+
+    当 skip_phase2=True 时，仅执行 Phase 1 交互，Phase 2 帖子会被选中但不执行交互。
+    Phase 2 的选择结果保存在 user["phase2_posts_pending"] 中，后续调用
+    _execute_phase2_interactions() 来执行。
 
     轻度用户 (Group C): 交互量太少，不做切分，全部作为训练数据
     """
@@ -268,16 +299,17 @@ def _build_user_profiles(client: GoodshareClient, users: list,
 
         if group == "A":
             # ---- Leave-One-Out 高交互切分 ----
-            # 需要至少 8 篇候选帖子才能做切分
-            if len(candidate_posts) >= 8:
+            # 需要至少 10 篇候选帖子才能做切分
+            if len(candidate_posts) >= 10:
                 rng.shuffle(candidate_posts)
-                n_phase2 = max(3, int(len(candidate_posts) * 0.3))  # 30% 留给 Phase 2
-                phase2_posts = candidate_posts[:n_phase2]
-                phase1_posts = candidate_posts[n_phase2:]
+                # 留出 30% 帖子作为 Phase 2 候选池（最少 10 篇，最多 30 篇）
+                n_phase2_pool = max(10, min(30, int(len(candidate_posts) * 0.3)))
+                phase2_pool = candidate_posts[:n_phase2_pool]
+                phase1_posts = candidate_posts[n_phase2_pool:]
             else:
                 # 候选太少，无法切分，全部作为训练
                 phase1_posts = candidate_posts
-                phase2_posts = []
+                phase2_pool = []
 
             # ---- Phase 1: 训练交互 ----
             n_view = max(5, int(rng.integers(8, min(len(phase1_posts) + 1, 16))))
@@ -330,41 +362,61 @@ def _build_user_profiles(client: GoodshareClient, users: list,
             user["phase1_viewed"] = set(viewed_posts)
 
             # ---- Phase 2: 测试交互（留出） ----
-            # 先浏览 Phase 2 帖子
-            n_phase2_view = min(len(phase2_posts), max(3, int(len(phase2_posts) * 0.8)))
-            if n_phase2_view > 0:
-                phase2_viewed = rng.choice(phase2_posts, size=n_phase2_view, replace=False).tolist()
-                for pid in phase2_viewed:
-                    try:
-                        client.view_post(pid, token=token)
-                    except APIError:
-                        pass
-                    time.sleep(0.05)
+            # 从 Phase 2 候选池中生成真实、多样化的用户行为
+            # 浏览率 ~50-80%，点赞率 ~20-40%，收藏率 ~10-20%（均相对于浏览数）
+            if phase2_pool:
+                # 从候选池中随机选择浏览的帖子（50%~80% 的候选池）
+                view_ratio = rng.uniform(0.5, 0.8)
+                n_phase2_view = max(3, min(len(phase2_pool), int(len(phase2_pool) * view_ratio)))
+                phase2_viewed = rng.choice(phase2_pool, size=n_phase2_view, replace=False).tolist()
 
-                # 从浏览的 Phase 2 帖子中选高交互（点赞 + 收藏 = ground truth）
-                n_phase2_like = max(1, min(int(len(phase2_viewed) * 0.7), len(phase2_viewed)))
+                # 从浏览的帖子中随机选择点赞（20%~40%，至少 1 篇）
+                like_ratio = rng.uniform(0.2, 0.4)
+                n_phase2_like = max(1, min(len(phase2_viewed), int(len(phase2_viewed) * like_ratio)))
                 phase2_liked = rng.choice(phase2_viewed, size=n_phase2_like, replace=False).tolist()
-                for pid in phase2_liked:
-                    try:
-                        client.like_post(pid, token=token)
-                    except APIError:
-                        pass
-                    time.sleep(0.05)
 
-                n_phase2_fav = max(0, min(int(len(phase2_liked) * 0.5), len(phase2_liked)))
-                phase2_fav = rng.choice(phase2_liked, size=n_phase2_fav, replace=False).tolist() if n_phase2_fav > 0 else []
-                for pid in phase2_fav:
-                    try:
-                        client.favorite_post(pid, token=token)
-                    except APIError:
-                        pass
-                    time.sleep(0.05)
+                # 从点赞的帖子中随机选择收藏（30%~60%，至少 1 篇）
+                fav_ratio = rng.uniform(0.3, 0.6)
+                n_phase2_fav = max(1, min(len(phase2_liked), int(len(phase2_liked) * fav_ratio)))
+                phase2_fav = rng.choice(phase2_liked, size=n_phase2_fav, replace=False).tolist()
 
-                # ground truth = Phase 2 中点赞+收藏的帖子
-                user["test_relevant"] = set(phase2_liked) | set(phase2_fav)
-                user["phase2_viewed"] = set(phase2_viewed)
-                user["phase2_liked"] = set(phase2_liked)
-                user["phase2_favorited"] = set(phase2_fav)
+                if skip_phase2:
+                    # 仅保存 Phase 2 选择结果，不执行交互
+                    user["phase2_posts_pending"] = {
+                        "phase2_viewed": phase2_viewed,
+                        "phase2_gt": phase2_liked,
+                        "phase2_fav": phase2_fav,
+                    }
+                    user["test_relevant"] = set()
+                    user["phase2_viewed"] = set()
+                    user["phase2_liked"] = set()
+                    user["phase2_favorited"] = set()
+                else:
+                    # 立即执行 Phase 2 交互
+                    for pid in phase2_viewed:
+                        try:
+                            client.view_post(pid, token=token)
+                        except APIError:
+                            pass
+                        time.sleep(0.05)
+                    for pid in phase2_liked:
+                        try:
+                            client.like_post(pid, token=token)
+                        except APIError:
+                            pass
+                        time.sleep(0.05)
+                    for pid in phase2_fav:
+                        try:
+                            client.favorite_post(pid, token=token)
+                        except APIError:
+                            pass
+                        time.sleep(0.05)
+
+                    # ground truth = 点赞 ∪ 收藏（通常收藏 ⊂ 点赞，所以 = 点赞集）
+                    user["test_relevant"] = set(phase2_liked) | set(phase2_fav)
+                    user["phase2_viewed"] = set(phase2_viewed)
+                    user["phase2_liked"] = set(phase2_liked)
+                    user["phase2_favorited"] = set(phase2_fav)
             else:
                 user["test_relevant"] = set()
                 user["phase2_viewed"] = set()
@@ -374,8 +426,10 @@ def _build_user_profiles(client: GoodshareClient, users: list,
             sys_logger.info(f"  用户 {user['username']} ({group}): "
                             f"Phase1 浏览={len(viewed_posts)}, 点赞={len(liked_posts)}, "
                             f"收藏={fav_count} | "
-                            f"Phase2 浏览={len(user.get('phase2_viewed', set()))}, "
-                            f"点赞={len(user.get('phase2_liked', set()))}, "
+                            f"Phase2 候选池={len(phase2_pool) if phase2_pool else 0}, "
+                            f"浏览={n_phase2_view if phase2_pool else 0}, "
+                            f"点赞={n_phase2_like if phase2_pool else 0}, "
+                            f"收藏={n_phase2_fav if phase2_pool else 0}, "
                             f"Ground Truth={len(user['test_relevant'])}")
 
         else:
@@ -428,11 +482,60 @@ def _build_user_profiles(client: GoodshareClient, users: list,
                             f"收藏={fav_count}, 评论={comment_count}")
 
 
+def _execute_phase2_interactions(client: GoodshareClient, users: list):
+    """在获取推荐之后，执行之前跳过的 Phase 2 交互（ground truth）。
+
+    此函数从 user["phase2_posts_pending"] 中读取待执行的 Phase 2 帖子选择，
+    执行浏览/点赞/收藏操作，并设置 test_relevant 等字段供评估使用。
+    """
+    for user in users:
+        pending = user.get("phase2_posts_pending")
+        if not pending:
+            continue
+
+        token = user["token"]
+        phase2_viewed = pending["phase2_viewed"]
+        phase2_gt = pending["phase2_gt"]
+        phase2_fav = pending["phase2_fav"]
+
+        # 执行 Phase 2 交互
+        for pid in phase2_viewed:
+            try:
+                client.view_post(pid, token=token)
+            except APIError:
+                pass
+            time.sleep(0.05)
+        for pid in phase2_gt:
+            try:
+                client.like_post(pid, token=token)
+            except APIError:
+                pass
+            time.sleep(0.05)
+        for pid in phase2_fav:
+            try:
+                client.favorite_post(pid, token=token)
+            except APIError:
+                pass
+            time.sleep(0.05)
+
+        # 设置评估字段
+        user["test_relevant"] = set(phase2_gt) | set(phase2_fav)
+        user["phase2_viewed"] = set(phase2_viewed)
+        user["phase2_liked"] = set(phase2_gt)
+        user["phase2_favorited"] = set(phase2_fav)
+
+        sys_logger.info(f"  用户 {user['username']} Phase2 执行: "
+                        f"浏览={len(phase2_viewed)}, 点赞={len(phase2_gt)}, "
+                        f"收藏={len(phase2_fav)}, "
+                        f"Ground Truth={len(user['test_relevant'])}")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. 获取推荐并计算指标
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _fetch_recommendations(client: GoodshareClient, users: list):
+    """获取推荐结果。Group A 活跃用户使用评估专用接口（不过滤已浏览），其他用正常接口。"""
     fallback_token = None
     for u in users:
         if u.get("token"):
@@ -447,7 +550,19 @@ def _fetch_recommendations(client: GoodshareClient, users: list):
             continue
         token = user.get("token") or fallback_token
         try:
-            recs = client.get_recommendations(uid, size=RECOMMEND_SIZE, token=token)
+            if user.get("group") == "A":
+                # Group A: 使用评估专用接口，不过滤已浏览帖子
+                recs = client.get_recommendations_eval(uid, size=RECOMMEND_SIZE, token=token)
+                # 按 recommendScore 降序重排，消除 Java 端 shuffle 的影响
+                if isinstance(recs, list) and recs:
+                    recs = sorted(
+                        recs,
+                        key=lambda p: p.get("recommendScore", 0) if isinstance(p, dict) else 0,
+                        reverse=True
+                    )
+            else:
+                # Group B/C: 使用正常接口
+                recs = client.get_recommendations(uid, size=RECOMMEND_SIZE, token=token)
             user["recommendations"] = recs if isinstance(recs, list) else []
         except APIError as e:
             sys_logger.warning(f"获取推荐失败 ({user['username']}): {e}")
@@ -504,7 +619,7 @@ def _compute_tag_consistency(recs: list, preferred_tags: list, post_tag_map: dic
 
 
 def _compute_preference_match_rate(recs: list, preferred_tags: list, post_tag_map: dict) -> float:
-    """推荐帖子中包含偏好友标签的比例"""
+    """推荐帖子中包含偏好标签的比例"""
     if not recs or not preferred_tags:
         return 0.0
     hits = 0
@@ -526,73 +641,118 @@ def _compute_precision_recall(rec_ids: list, relevant: set, k: int) -> dict:
     return {"precision": precision, "recall": recall}
 
 
-def _compute_offline_eval_results() -> dict:
+def _compute_offline_eval_results(user_metrics: list = None) -> dict:
     """
-    从数据库读取真实交互数据，用 train-test split 方式评估 Python 端各算法。
-    返回: {strategy: {k: {precision, recall, hit_rate, coverage, diversity}}}
+    计算 Python 各算法在 Group A 测试用户上的推荐质量指标，与 Java 系统做公平对比。
+
+    公平性保证：
+    - 使用与 Java 系统**完全相同的测试用户** (Group A 的 eval 用户)
+    - 使用**完全相同的 Ground Truth** (Phase 2 高交互帖子)
+    - Python 算法在 Phase 1 交互数据上训练，与 Java 系统使用相同的训练数据
+
+    返回: {strategy: {k: {precision, recall, hit_rate}}}
     """
     try:
-        from database import fetch_interactions, fetch_post_contents
+        from sqlalchemy import create_engine, text
         from recommender import HybridRecommender
-
-        real_df = fetch_interactions()
-        if real_df.empty:
-            sys_logger.warning("离线数据为空，跳过离线评估对比")
-            return {}
-
-        contents_df = fetch_post_contents()
-        post_tag_map_db = {}
-        if not contents_df.empty and 'tags' in contents_df.columns:
-            for _, row in contents_df.iterrows():
-                if row['tags'] and str(row['tags']).strip():
-                    post_tag_map_db[row['post_id']] = str(row['tags']).strip().split()
-
-        # 筛选符合条件的用户
-        user_counts = real_df.groupby("user_id").size()
-        qualifying = user_counts[user_counts >= 3].index.tolist()
-        if len(qualifying) < 10:
-            sys_logger.warning(f"活跃用户不足 ({len(qualifying)})，跳过离线评估对比")
-            return {}
-
-        # Train-Test Split
-        rng = np.random.default_rng(42)
-        train_records = []
-        test_cases = []
-        TEST_RATIO = 0.2
-
-        for uid in qualifying:
-            user_data = real_df[real_df["user_id"] == uid].copy()
-            high_score = user_data[user_data["score"] >= 3].sort_values(
-                by=["score", "post_id"], ascending=[False, False])
-            low_score = user_data[user_data["score"] < 3]
-
-            if len(high_score) < 2:
-                train_records.append(user_data)
-                continue
-
-            n_test = max(1, min(5, max(1, int(len(high_score) * TEST_RATIO))))
-            holdout_idx = rng.choice(len(high_score), size=n_test, replace=False)
-            test_items = high_score.iloc[holdout_idx]
-            train_from_high = high_score.drop(high_score.index[holdout_idx])
-
-            train_data = pd.concat([train_from_high, low_score], ignore_index=True)
-            relevant_posts = set(int(p) for p in test_items["post_id"].tolist())
-
-            if len(train_data) >= 1:
-                train_records.append(train_data)
-                test_cases.append((int(uid), relevant_posts))
-
-        if not test_cases:
-            sys_logger.warning("无有效测试用例，跳过离线评估对比")
-            return {}
-
-        train_df = pd.concat(train_records, ignore_index=True)
-        all_item_ids = set(real_df["post_id"].unique())
-
-        # Monkey-patch 训练
         import database as db_module
         import recommender as rec_module
 
+        DB_URL = os.getenv("DB_URL", "mysql+pymysql://root:123456@localhost:3306/goodshare")
+        engine = create_engine(DB_URL, pool_pre_ping=True)
+
+        if user_metrics is None:
+            sys_logger.warning("未传入 user_metrics，跳过离线评估对比")
+            return {}
+
+        # 筛选 Group A 活跃用户（有 Phase 1 交互且有 Ground Truth）
+        group_a = [u for u in user_metrics
+                    if u.get("group") == "A"
+                    and u.get("user_id")
+                    and u.get("test_relevant")]
+        if len(group_a) < 5:
+            sys_logger.warning(f"Group A 有效用户不足 ({len(group_a)})，跳过离线评估对比")
+            return {}
+
+        sys_logger.info(f"  离线评估: 使用 {len(group_a)} 个 Group A 测试用户")
+
+        # ----------------------------------------------------------------
+        # 构建训练集：仅包含 Phase 1 交互（排除 Phase 2 帖子），
+        # 与 Java 系统在获取推荐时使用的数据完全一致
+        # ----------------------------------------------------------------
+        # 收集所有 Group A 用户的 Phase 2 帖子（需要从训练集中排除）
+        phase2_post_ids = set()
+        test_cases = []  # [(user_id, relevant_set)]
+
+        for u in group_a:
+            phase2 = u.get("phase2_liked", set()) | u.get("phase2_favorited", set())
+            phase2_post_ids.update(phase2)
+            test_cases.append((u["user_id"], u["test_relevant"]))
+
+        # 从数据库读取所有真实交互
+        real_df = db_module.fetch_interactions()
+        if real_df.empty:
+            sys_logger.warning("数据库中无交互数据，跳过离线评估对比")
+            return {}
+
+        # 排除 eval 测试用户的交互（他们的数据是合成的，不参与训练）
+        eval_user_ids = set(u["user_id"] for u in user_metrics if u.get("user_id"))
+        real_df_filtered = real_df[~real_df["user_id"].isin(eval_user_ids)]
+
+        # 获取每个 Group A 用户的 Phase 1 交互（从数据库读取）
+        with engine.connect() as conn:
+            phase1_records = []
+            for u in group_a:
+                uid = u["user_id"]
+                phase2_ids = u.get("phase2_liked", set()) | u.get("phase2_favorited", set())
+                phase2_view_ids = u.get("phase2_viewed", set())
+                all_phase2 = phase2_ids | phase2_view_ids
+
+                # 读取该用户的所有交互，排除 Phase 2 帖子
+                if all_phase2:
+                    # 构建排除列表的 SQL
+                    exclude_str = ",".join(str(int(p)) for p in all_phase2)
+                    rows = conn.execute(text(f"""
+                        SELECT user_id, post_id, score FROM (
+                            SELECT user_id, post_id,
+                                   (CASE WHEN src='view' THEN 1 WHEN src='like' THEN 3
+                                         WHEN src='comment' THEN 5 WHEN src='favorite' THEN 5 END) as score
+                            FROM (
+                                SELECT user_id, post_id, 'view' as src FROM post_views WHERE user_id = :uid AND post_id NOT IN ({exclude_str})
+                                UNION ALL
+                                SELECT user_id, post_id, 'like' as src FROM post_likes WHERE user_id = :uid AND post_id NOT IN ({exclude_str})
+                                UNION ALL
+                                SELECT user_id, post_id, 'comment' as src FROM comments WHERE user_id = :uid AND post_id NOT IN ({exclude_str})
+                                UNION ALL
+                                SELECT user_id, post_id, 'favorite' as src FROM favorites WHERE user_id = :uid AND post_id NOT IN ({exclude_str})
+                            ) raw
+                        ) scored
+                    """), {"uid": uid}).fetchall()
+                else:
+                    rows = []
+
+                for row in rows:
+                    phase1_records.append({
+                        "user_id": int(row[0]),
+                        "post_id": int(row[1]),
+                        "score": int(row[2]),
+                    })
+
+        # 合并：真实用户交互 + Group A 用户的 Phase 1 交互
+        if phase1_records:
+            phase1_df = pd.DataFrame(phase1_records)
+            phase1_df = phase1_df.groupby(["user_id", "post_id"])["score"].sum().reset_index()
+            train_df = pd.concat([real_df_filtered, phase1_df], ignore_index=True)
+        else:
+            train_df = real_df_filtered
+
+        # 去重聚合
+        train_df = train_df.groupby(["user_id", "post_id"])["score"].sum().reset_index()
+        sys_logger.info(f"  训练集: {len(train_df)} 条交互, "
+                        f"{train_df['user_id'].nunique()} 个用户, "
+                        f"{train_df['post_id'].nunique()} 个帖子")
+
+        # Monkey-patch 训练
         original_db_fetch = db_module.fetch_interactions
         original_rec_fetch = rec_module.fetch_interactions
         db_module.fetch_interactions = lambda: train_df
@@ -605,19 +765,19 @@ def _compute_offline_eval_results() -> dict:
             db_module.fetch_interactions = original_db_fetch
             rec_module.fetch_interactions = original_rec_fetch
 
-        # Coverage 分母
-        if hasattr(eval_rec, 'item_similarity_df') and eval_rec.item_similarity_df is not None and not eval_rec.item_similarity_df.empty:
-            all_item_ids = all_item_ids | set(eval_rec.item_similarity_df.index)
+        # 检查测试用户是否在训练矩阵中
+        in_matrix = sum(1 for uid, _ in test_cases if uid in eval_rec.user_item_matrix.index)
+        sys_logger.info(f"  测试用户在 Python 矩阵中: {in_matrix}/{len(test_cases)}")
 
-        sys_logger.info(f"  离线评估: {len(test_cases)} 测试用户, {len(train_df)} 训练交互")
-
+        # ----------------------------------------------------------------
         # 评估各策略
-        strategies = ["hybrid", "user_cf", "content_cf", "item_cf"]
+        # ----------------------------------------------------------------
+        strategies = ["hybrid", "user_cf", "content_base", "item_cf"]
         k_values = [5, 10, 20]
         strategy_map = {
             "hybrid": lambda uid, k: eval_rec.recommend(uid, top_k=k),
             "user_cf": lambda uid, k: eval_rec._recommend_user_cf(uid, top_k=k),
-            "content_cf": lambda uid, k: eval_rec._recommend_content_based(uid, top_k=k),
+            "content_base": lambda uid, k: eval_rec._recommend_content_based(uid, top_k=k),
             "item_cf": lambda uid, k: eval_rec._recommend_item_cf(uid, top_k=k),
         }
 
@@ -626,8 +786,7 @@ def _compute_offline_eval_results() -> dict:
             results[strat] = {}
             recommend_fn = strategy_map[strat]
             for k in k_values:
-                precisions, recalls = [],[]
-                all_rec_lists, all_relevant = {}, {}
+                precisions, recalls, hit_flags = [], [], []
 
                 for uid, relevant in test_cases:
                     try:
@@ -636,55 +795,23 @@ def _compute_offline_eval_results() -> dict:
                         recs = []
 
                     rec_ids_list = [r["post_id"] for r in recs]
-                    rec_ids_set = set(rec_ids_list)
-
                     m = _compute_precision_recall(rec_ids_list, relevant, k)
                     precisions.append(m["precision"])
                     recalls.append(m["recall"])
-                    all_rec_lists[uid] = rec_ids_list
-                    all_relevant[uid] = relevant
-
-                # Hit Rate
-                hits = 0
-                for uid in all_relevant:
-                    if uid in all_rec_lists:
-                        if set(all_rec_lists[uid][:k]) & all_relevant[uid]:
-                            hits += 1
-                hit_rate = hits / len(all_relevant) if all_relevant else 0.0
-
-                # Coverage
-                rec_items = set()
-                for rec_list in all_rec_lists.values():
-                    rec_items.update(rec_list[:k])
-                coverage = min(len(rec_items) / len(all_item_ids), 1.0) if all_item_ids else 0.0
-
-                # Diversity
-                sim_df = getattr(eval_rec, "item_similarity_df", None)
-                if sim_df is None or (hasattr(sim_df, 'empty') and sim_df.empty):
-                    sim_df = getattr(eval_rec, "item_cf_similarity_df", None)
-                div_scores = []
-                if sim_df is not None and not (hasattr(sim_df, 'empty') and sim_df.empty):
-                    for rec_list in all_rec_lists.values():
-                        items = [i for i in rec_list[:k] if i in sim_df.index]
-                        if len(items) < 2:
-                            div_scores.append(1.0)
-                            continue
-                        total_sim = 0.0
-                        cnt = 0
-                        for i in range(len(items)):
-                            for j in range(i + 1, len(items)):
-                                if items[j] in sim_df.columns:
-                                    total_sim += sim_df.loc[items[i], items[j]]
-                                    cnt += 1
-                        div_scores.append(1.0 - (total_sim / cnt) if cnt > 0 else 1.0)
+                    hit_flags.append(1 if set(rec_ids_list[:k]) & relevant else 0)
 
                 results[strat][k] = {
-                    "precision": np.mean(precisions),
-                    "recall": np.mean(recalls),
-                    "hit_rate": hit_rate,
-                    "coverage": coverage,
-                    "diversity": np.mean(div_scores) if div_scores else 0.0,
+                    "precision": np.mean(precisions) if precisions else 0.0,
+                    "recall": np.mean(recalls) if recalls else 0.0,
+                    "hit_rate": np.mean(hit_flags) if hit_flags else 0.0,
                 }
+
+        # 打印结果
+        for strat in strategies:
+            for k in k_values:
+                r = results[strat][k]
+                sys_logger.info(f"  [{strat}] K={k}: "
+                                f"P={r['precision']:.4f} R={r['recall']:.4f} HR={r['hit_rate']:.4f}")
 
         return results
 
@@ -773,7 +900,7 @@ def _get_python_recommendations_for_real_users(sample_size: int = 50) -> dict:
             user_tag_map[uid] = [t for t, _ in tag_counter.most_common(3)]
 
         # 各算法推荐
-        strategies = ["hybrid", "user_cf", "content_cf", "item_cf"]
+        strategies = ["hybrid", "user_cf", "content_base", "item_cf"]
         results = {}
 
         for strat in strategies:
@@ -784,7 +911,7 @@ def _get_python_recommendations_for_real_users(sample_size: int = 50) -> dict:
                         recs = eval_rec.recommend(uid, top_k=RECOMMEND_SIZE)
                     elif strat == "user_cf":
                         recs = eval_rec._recommend_user_cf(uid, top_k=RECOMMEND_SIZE)
-                    elif strat == "content_cf":
+                    elif strat == "content_base":
                         recs = eval_rec._recommend_content_based(uid, top_k=RECOMMEND_SIZE)
                     elif strat == "item_cf":
                         recs = eval_rec._recommend_item_cf(uid, top_k=RECOMMEND_SIZE)
@@ -861,11 +988,11 @@ def _generate_charts(group_metrics: dict, user_metrics: list,
     else:
         _chart_tag_distribution(user_metrics, post_tag_map)
 
-    # --- 图 4: 离线评估算法雷达图 (K=10) ---
+# --- 图 4: 推荐质量 @K — Java 系统 vs Python 算法 ---
     if offline_results:
-        _chart_offline_radar(offline_results)
+        _chart_precision_at_k(user_metrics, offline_results, group_labels, group_colors, groups, post_tag_map)
     else:
-        _chart_precision_at_k(user_metrics, group_labels, group_colors, groups, post_tag_map)
+        _chart_precision_at_k(user_metrics, {}, group_labels, group_colors, groups, post_tag_map)
 
     # --- 图 5: 汇总表格 ---
     _generate_system_summary_table(group_metrics, group_labels, group_colors)
@@ -923,7 +1050,7 @@ def _chart_cold_start(group_metrics, group_labels, group_colors, groups):
     metrics = [
         ("avg_tag_coverage", "标签覆盖度"),
         ("avg_diversity_entropy", "多样性"),
-        ("avg_recommend_count", "平均推荐数"),
+        ("avg_tag_consistency", "标签一致性"),
     ]
 
     for ax_idx, (metric_key, title) in enumerate(metrics):
@@ -932,7 +1059,7 @@ def _chart_cold_start(group_metrics, group_labels, group_colors, groups):
         bars = ax.bar(x, vals, color=[group_colors[g] for g in groups], alpha=0.85, width=0.5)
         for bar, val in zip(bars, vals):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                    f"{val:.1f}" if metric_key == "avg_recommend_count" else f"{val:.3f}",
+                    f"{val:.3f}",
                     ha='center', va='bottom', fontsize=12, fontweight='bold')
         ax.set_xlabel("用户组", fontsize=12)
         ax.set_ylabel(title, fontsize=12)
@@ -990,15 +1117,15 @@ def _chart_java_vs_python(python_comparison, user_metrics, post_tag_map,
         "hybrid": "混合推荐\n(Hybrid)",
         "user_cf": "用户协同过滤\n(UserCF)",
         "item_cf": "物品协同过滤\n(ItemCF)",
-        "content_cf": "内容过滤\n(ContentCF)",
+        "content_base": "内容过滤\n(ContentBase)",
     }
-    strategy_order = ["java_system", "hybrid", "user_cf", "item_cf", "content_cf"]
+    strategy_order = ["java_system", "hybrid", "user_cf", "item_cf", "content_base"]
     strategy_colors = {
         "java_system": "#E91E63",
         "hybrid": "#2196F3",
         "user_cf": "#4CAF50",
         "item_cf": "#FF9800",
-        "content_cf": "#9C27B0",
+        "content_base": "#9C27B0",
     }
 
     all_strategy_metrics = {"java_system": java_avg}
@@ -1117,138 +1244,90 @@ def _chart_tag_distribution(user_metrics, post_tag_map):
     sys_logger.info(f"图表已保存: {p}")
 
 
-def _chart_precision_at_k(user_metrics, group_labels, group_colors, groups, post_tag_map):
-    """图 4: 推荐质量 @K（仅 Group A 活跃用户, Leave-One-Out 评估）"""
+def _chart_precision_at_k(user_metrics, offline_results, group_labels, group_colors, groups, post_tag_map):
+    """图 4: 推荐质量 @K — Java 系统 vs Python 算法（公平对比：相同测试用户 + Ground Truth）"""
     import matplotlib.pyplot as plt
 
     k_values = [5, 10, 20]
-    eval_groups = ["A"]  # 只评估 Group A
+    metrics = ["precision", "recall", "hit_rate"]
+    metric_labels = ["Precision@K", "Recall@K", "Hit Rate@K"]
 
-    results = {}
-    for g in eval_groups:
-        results[g] = {}
-        g_users = [u for u in user_metrics if u.get("group") == g]
-        for k in k_values:
-            precisions, recalls, hit_flags = [], [], []
-            for user in g_users:
-                recs = user.get("recommendations", [])
-                if not recs or not user.get("test_relevant"):
-                    continue
-                relevant = user["test_relevant"]
-                rec_ids = [p.get("id") if isinstance(p, dict) else p for p in recs]
-                m = _compute_precision_recall(rec_ids, relevant, k)
-                precisions.append(m["precision"])
-                recalls.append(m["recall"])
-                hit_flags.append(1 if set(rec_ids[:k]) & relevant else 0)
+    # Java 系统指标 (Group A, Leave-One-Out, 端到端)
+    java_results = {}
+    g_users = [u for u in user_metrics if u.get("group") == "A"]
+    for k in k_values:
+        precisions, recalls, hit_flags = [], [], []
+        for user in g_users:
+            recs = user.get("recommendations", [])
+            if not recs or not user.get("test_relevant"):
+                continue
+            relevant = user["test_relevant"]
+            rec_ids = [p.get("id") if isinstance(p, dict) else p for p in recs]
+            m = _compute_precision_recall(rec_ids, relevant, k)
+            precisions.append(m["precision"])
+            recalls.append(m["recall"])
+            hit_flags.append(1 if set(rec_ids[:k]) & relevant else 0)
+        java_results[k] = {
+            "precision": np.mean(precisions) if precisions else 0,
+            "recall": np.mean(recalls) if recalls else 0,
+            "hit_rate": np.mean(hit_flags) if hit_flags else 0,
+        }
 
-            results[g][k] = {
-                "precision": np.mean(precisions) if precisions else 0,
-                "recall": np.mean(recalls) if recalls else 0,
-                "hit_rate": np.mean(hit_flags) if hit_flags else 0,
-            }
+    # Python 各算法指标（与 Java 系统使用相同测试用户和 Ground Truth）
+    strategy_labels = {
+        "java_system": "Java 推荐系统\n(端到端)",
+        "hybrid": "混合推荐\n(Hybrid)",
+        "user_cf": "用户协同过滤\n(UserCF)",
+        "item_cf": "物品协同过滤\n(ItemCF)",
+        "content_base": "内容过滤\n(ContentBase)",
+    }
+    strategy_order = ["java_system", "hybrid", "user_cf", "item_cf", "content_base"]
+    strategy_colors = {
+        "java_system": "#E91E63",
+        "hybrid": "#2196F3",
+        "user_cf": "#4CAF50",
+        "item_cf": "#FF9800",
+        "content_base": "#9C27B0",
+    }
 
-    fig, axes = plt.subplots(1, 4, figsize=(22, 6))
-    fig.suptitle("推荐质量指标 @K（Group A 活跃用户, Leave-One-Out）",
-                 fontsize=15, fontweight='bold')
+    fig, axes = plt.subplots(1, 3, figsize=(20, 7))
+    fig.suptitle("推荐质量对比 @K: Java 系统 vs Python 算法\n（相同测试用户 · 相同 Ground Truth · 相同训练数据）",
+                 fontsize=16, fontweight='bold')
 
-    for ax_idx, (metric, label) in enumerate(
-            zip(["precision", "recall", "hit_rate"],
-                ["Precision@K", "Recall@K", "Hit Rate@K"])):
+    x = np.arange(len(k_values))
+    width = 0.15
+    offsets = np.arange(len(strategy_order)) - (len(strategy_order) - 1) / 2
+
+    for ax_idx, (metric, label) in enumerate(zip(metrics, metric_labels)):
         ax = axes[ax_idx]
-        x = np.arange(len(k_values))
-        values = [results["A"].get(k, {}).get(metric, 0) for k in k_values]
-        bars = ax.bar(x, values, width=0.5,
-                      label="活跃用户 (Group A)",
-                      color="#2196F3", alpha=0.85)
-        for bar, val in zip(bars, values):
-            if val > 0:
-                ax.text(bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + 0.005,
-                        f"{val:.3f}", ha='center', va='bottom', fontsize=11, fontweight='bold')
+        for s_idx, strat in enumerate(strategy_order):
+            if strat == "java_system":
+                values = [java_results.get(k, {}).get(metric, 0) for k in k_values]
+            else:
+                values = [offline_results.get(strat, {}).get(k, {}).get(metric, 0) for k in k_values]
+            bars = ax.bar(x + offsets[s_idx] * width, values, width,
+                          label=strategy_labels.get(strat, strat).replace("\n", " "),
+                          color=strategy_colors.get(strat, "#999"), alpha=0.85)
+            for bar, val in zip(bars, values):
+                if val > 0.005:
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + 0.003,
+                            f"{val:.3f}", ha='center', va='bottom', fontsize=6, rotation=0)
 
         ax.set_xlabel("K 值", fontsize=12)
         ax.set_ylabel(label, fontsize=12)
         ax.set_title(label, fontsize=13, fontweight='bold')
         ax.set_xticks(x)
         ax.set_xticklabels([f"K={k}" for k in k_values])
-        ax.legend(fontsize=9, loc='upper left')
         ax.grid(axis='y', alpha=0.3)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    # 统一图例放在底部，避免遮挡数据
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=5, fontsize=9,
+               frameon=True, framealpha=0.9, bbox_to_anchor=(0.5, -0.02))
+
+    plt.tight_layout(rect=[0, 0.04, 1, 0.93])
     p = os.path.join(CHART_DIR, "precision_recall_@k.png")
-    plt.savefig(p, dpi=150, bbox_inches='tight')
-    plt.close()
-    sys_logger.info(f"图表已保存: {p}")
-
-
-def _chart_offline_radar(offline_results: dict):
-    """图 4: 离线评估算法雷达图 (K=10) + 柱状对比"""
-    import matplotlib.pyplot as plt
-
-    strategies = ["hybrid", "user_cf", "content_cf", "item_cf"]
-    strategy_labels = {
-        "hybrid": "混合推荐 (Hybrid)",
-        "user_cf": "用户协同过滤 (UserCF)",
-        "item_cf": "物品协同过滤 (ItemCF)",
-        "content_cf": "内容过滤 (ContentCF)",
-    }
-    colors = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63"]
-    k_target = 10
-
-    metrics = ["precision", "recall", "hit_rate", "coverage", "diversity"]
-    metric_labels = ["Precision", "Recall", "Hit Rate", "Coverage", "Diversity"]
-
-    fig = plt.figure(figsize=(18, 7))
-    fig.suptitle(f"推荐算法综合评估（K={k_target}）", fontsize=16, fontweight='bold')
-
-    # 左：雷达图
-    ax1 = fig.add_subplot(121, polar=True)
-    N = len(metrics)
-    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
-    angles += angles[:1]
-
-    for s_idx, strat in enumerate(strategies):
-        k_data = offline_results.get(strat, {}).get(k_target, {})
-        values = [k_data.get(m, 0) for m in metrics]
-        values += values[:1]
-        ax1.plot(angles, values, 'o-', linewidth=2,
-                 label=strategy_labels.get(strat, strat), color=colors[s_idx])
-        ax1.fill(angles, values, alpha=0.08, color=colors[s_idx])
-
-    ax1.set_xticks(angles[:-1])
-    ax1.set_xticklabels(metric_labels, fontsize=10)
-    ax1.legend(loc='upper right', bbox_to_anchor=(1.35, 1.12), fontsize=9)
-    ax1.set_ylim(0, 1)
-    ax1.grid(True, alpha=0.3)
-
-    # 右：柱状对比
-    ax2 = fig.add_subplot(122)
-    x = np.arange(len(metrics))
-    width = 0.18
-    offsets = np.arange(len(strategies)) - (len(strategies) - 1) / 2
-
-    for s_idx, strat in enumerate(strategies):
-        k_data = offline_results.get(strat, {}).get(k_target, {})
-        vals = [k_data.get(m, 0) for m in metrics]
-        bars = ax2.bar(x + offsets[s_idx] * width, vals, width,
-                       label=strategy_labels.get(strat, strat),
-                       color=colors[s_idx], alpha=0.85)
-        for bar, val in zip(bars, vals):
-            if val > 0.01:
-                ax2.text(bar.get_x() + bar.get_width() / 2,
-                         bar.get_height() + 0.005,
-                         f"{val:.2f}", ha='center', va='bottom', fontsize=7)
-
-    ax2.set_xlabel("指标", fontsize=12)
-    ax2.set_ylabel("得分", fontsize=12)
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(metric_labels, fontsize=10)
-    ax2.legend(fontsize=8, loc='upper right')
-    ax2.grid(axis='y', alpha=0.3)
-    ax2.set_ylim(0, 1.05)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    p = os.path.join(CHART_DIR, "offline_algorithm_comparison.png")
     plt.savefig(p, dpi=150, bbox_inches='tight')
     plt.close()
     sys_logger.info(f"图表已保存: {p}")
@@ -1265,7 +1344,6 @@ def _generate_system_summary_table(group_metrics, group_labels, group_colors):
         ("avg_diversity_ratio", "多样性 (标签比)"),
         ("avg_tag_consistency", "标签一致性 (Jaccard)"),
         ("avg_preference_match_rate", "偏好匹配率"),
-        ("avg_recommend_count", "平均推荐数"),
     ]
 
     col_labels = [group_labels[g].replace("\n", " ") for g in groups]
@@ -1332,9 +1410,9 @@ def _cleanup_test_data():
                 f"DELETE FROM post_likes WHERE user_id IN ({uid_list})",
                 f"DELETE FROM comments WHERE user_id IN ({uid_list})",
                 f"DELETE FROM favorites WHERE user_id IN ({uid_list})",
-                f"DELETE FROM notifications WHERE receiver_id IN ({uid_list})",
+                f"DELETE FROM notifications WHERE recipient_id IN ({uid_list})",
                 f"DELETE FROM messages WHERE sender_id IN ({uid_list}) OR receiver_id IN ({uid_list})",
-                f"DELETE FROM follows WHERE follower_id IN ({uid_list}) OR following_id IN ({uid_list})",
+                f"DELETE FROM follows WHERE follower_id IN ({uid_list}) OR followed_id IN ({uid_list})",
                 f"DELETE FROM user_tag_weights WHERE user_id IN ({uid_list})",
                 f"DELETE FROM post_tags WHERE post_id IN (SELECT id FROM posts WHERE user_id IN ({uid_list}))",
                 f"DELETE FROM posts WHERE user_id IN ({uid_list})",
@@ -1379,9 +1457,14 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     sys_logger.info("\n[Step 2] 获取基础数据...")
     all_tags_data = _fetch_all_tags(client)
     all_tags_names = set()
+    tag_name_to_id = {}  # 标签名 → 标签ID 映射（用于 user_tag_weights）
     for t in all_tags_data:
         if isinstance(t, dict):
-            all_tags_names.add(t.get("name", ""))
+            name = t.get("name", "")
+            tid = t.get("id")
+            all_tags_names.add(name)
+            if name and tid is not None:
+                tag_name_to_id[name] = int(tid)
         elif isinstance(t, str):
             all_tags_names.add(t)
 
@@ -1462,13 +1545,46 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     valid_users = [u for u in users if u.get("user_id")]
     sys_logger.info(f"  有效用户: {len(valid_users)} / {len(users)}")
 
-    # --- Step 5: 建立交互画像 ---
-    sys_logger.info("\n[Step 5] 建立交互画像...")
+    # --- Step 5: 建立 Phase 1 交互画像（不含 Phase 2，确保评估公平） ---
+    sys_logger.info("\n[Step 5] 建立 Phase 1 交互画像 (Phase 2 延迟到推荐后执行)...")
     active_and_light = [u for u in valid_users if u["group"] in ("A", "C")]
-    _build_user_profiles(client, active_and_light, tag_post_map, list(all_tags_names), rng)
-    sys_logger.info("  交互画像建立完成。")
+    active_users = [u for u in valid_users if u["group"] == "A"]
+    _build_user_profiles(client, active_and_light, tag_post_map, list(all_tags_names), rng,
+                         skip_phase2=True)
+    sys_logger.info("  Phase 1 交互画像建立完成。")
 
-    # --- Step 5.5: 回读交互记录（确保 liked/favorited 集合正确） ---
+    # --- Step 5.1: 插入标签权重数据（模拟用户在前端调整标签偏好） ---
+    # Java 端的 Global Weight Adjustment 依赖 user_tag_weights 表，
+    # 如果不插入数据，标签加分/减分和强惩罚逻辑完全不会执行
+    sys_logger.info("\n[Step 5.1] 插入标签权重数据 (user_tag_weights)...")
+    try:
+        from sqlalchemy import create_engine, text
+        DB_URL = os.getenv("DB_URL", "mysql+pymysql://root:123456@localhost:3306/goodshare")
+        db_engine_tw = create_engine(DB_URL, pool_pre_ping=True)
+        with db_engine_tw.begin() as conn:
+            for user in valid_users:
+                uid = user.get("user_id")
+                if uid is None:
+                    continue
+                preferred = user.get("preferred_tags", [])
+                for tag_name in tag_name_to_id:
+                    tag_id = tag_name_to_id[tag_name]
+                    if tag_name in preferred:
+                        # 偏好标签：权重 > 1.0（增强推荐），范围 1.1~1.7
+                        weight = round(rng.uniform(1.1, 1.7), 2)
+                    else:
+                        # 非偏好标签：权重 < 1.0（衰减），范围 0.3~0.8
+                        weight = round(rng.uniform(0.3, 0.8), 2)
+                    conn.execute(text("""
+                        INSERT INTO user_tag_weights (user_id, tag_id, weight)
+                        VALUES (:uid, :tid, :weight)
+                    """), {"uid": uid, "tid": tag_id, "weight": weight})
+        n_tags = len(tag_name_to_id)
+        sys_logger.info(f"  标签权重插入完成：{len(valid_users)} 用户 × {n_tags} 标签")
+    except Exception as e:
+        sys_logger.warning(f"  标签权重插入失败: {e}")
+
+    # --- Step 5.5: 回读 Phase 1 交互记录 ---
     sys_logger.info("\n[Step 5.5] 回读交互记录...")
     try:
         from sqlalchemy import create_engine, text
@@ -1495,9 +1611,16 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     except Exception as e:
         sys_logger.warning(f"  回读交互记录失败: {e}")
 
-    # --- Step 6: 等待推荐系统刷新 ---
-    sys_logger.info("\n[Step 6] 等待推荐系统刷新 (10 秒)...")
-    time.sleep(10)
+    # --- Step 6: 触发 Python 推荐模型重训 ---
+    sys_logger.info("\n[Step 6] 触发 Python 推荐模型重训...")
+    rec_service_url = os.getenv("REC_SERVICE_URL", "http://localhost:5000")
+    retrained = client.trigger_retrain(rec_service_url)
+    if not retrained:
+        sys_logger.warning("  重训失败，尝试等待 30 秒后继续...")
+        time.sleep(30)
+    else:
+        # 给 Java 服务一点时间同步
+        time.sleep(3)
 
     # --- Step 7: 获取推荐 ---
     sys_logger.info("\n[Step 7] 获取推荐结果...")
@@ -1506,6 +1629,13 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     for u in valid_users:
         rec_count = len(u.get("recommendations", []))
         sys_logger.info(f"  {u['username']} (Group {u['group']}): {rec_count} 条推荐")
+
+    # --- Step 7.5: 执行 Phase 2 交互（Ground Truth） ---
+    # 在获取推荐之后才创建 Phase 2 交互，确保 Python CF 模型
+    # 在训练时不知道 Phase 2 帖子，从而可以正确评估推荐准确性
+    sys_logger.info("\n[Step 7.5] 执行 Phase 2 交互 (Ground Truth)...")
+    _execute_phase2_interactions(client, active_users)
+    sys_logger.info("  Phase 2 交互执行完成。")
 
     # --- Step 8: 计算评估指标 ---
     sys_logger.info("\n[Step 8] 计算评估指标...")
@@ -1555,7 +1685,6 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
             "avg_diversity_ratio": np.mean([m["diversity_ratio"] for m in g_data]),
             "avg_tag_consistency": np.mean([m["tag_consistency"] for m in g_data]),
             "avg_preference_match_rate": np.mean([m["preference_match_rate"] for m in g_data]),
-            "avg_recommend_count": np.mean([m["recommend_count"] for m in g_data]),
         }
 
     # 打印报告
@@ -1569,6 +1698,34 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     k_values_eval = [5, 10, 20]
     g_users = [u for u in user_metrics if u.get("group") == "A"]
     sys_logger.info(f"  --- 活跃用户 ({len(g_users)} 人) ---")
+
+    # 输出 ground truth 统计信息（验证行为多样性）
+    gt_sizes = [len(u.get("test_relevant", set())) for u in g_users if u.get("test_relevant")]
+    if gt_sizes:
+        from collections import Counter as _Counter
+        gt_dist = _Counter(gt_sizes)
+        sys_logger.info(f"  Ground Truth 统计: 平均={np.mean(gt_sizes):.1f} 篇, "
+                        f"中位数={np.median(gt_sizes):.0f}, "
+                        f"范围=[{min(gt_sizes)}, {max(gt_sizes)}]")
+        sys_logger.info(f"  Ground Truth 分布: {dict(sorted(gt_dist.items()))}")
+
+    # 验证 Phase 2 行为多样性
+    phase2_view_sizes = [len(u.get("phase2_viewed", set())) for u in g_users if u.get("phase2_viewed")]
+    phase2_like_sizes = [len(u.get("phase2_liked", set())) for u in g_users if u.get("phase2_liked")]
+    phase2_fav_sizes = [len(u.get("phase2_favorited", set())) for u in g_users if u.get("phase2_favorited")]
+    if phase2_view_sizes:
+        sys_logger.info(f"  Phase2 浏览数分布: 范围=[{min(phase2_view_sizes)}, {max(phase2_view_sizes)}], "
+                        f"平均={np.mean(phase2_view_sizes):.1f}")
+        sys_logger.info(f"  Phase2 点赞数分布: 范围=[{min(phase2_like_sizes)}, {max(phase2_like_sizes)}], "
+                        f"平均={np.mean(phase2_like_sizes):.1f}")
+        sys_logger.info(f"  Phase2 收藏数分布: 范围=[{min(phase2_fav_sizes)}, {max(phase2_fav_sizes)}], "
+                        f"平均={np.mean(phase2_fav_sizes):.1f}")
+        # 点赞率分布
+        like_rates = [l / v for l, v in zip(phase2_like_sizes, phase2_view_sizes) if v > 0]
+        if like_rates:
+            sys_logger.info(f"  Phase2 点赞率分布: 范围=[{min(like_rates):.1%}, {max(like_rates):.1%}], "
+                            f"平均={np.mean(like_rates):.1%}")
+
     for k in k_values_eval:
         precisions, recalls, hit_flags = [], [], []
         for user in g_users:
@@ -1590,9 +1747,9 @@ def run_system_evaluation(host: str = "localhost", port: int = 8080, cleanup: bo
     sys_logger.info("\n[Step 8.5] Python 端算法对比...")
     python_comparison = _get_python_recommendations_for_real_users(sample_size=50)
 
-    # --- Step 8.6: 离线评估算法对比 ---
-    sys_logger.info("\n[Step 8.6] 离线评估算法对比...")
-    offline_results = _compute_offline_eval_results()
+    # --- Step 8.6: 离线评估算法对比（公平对比：相同测试用户 + 相同 Ground Truth） ---
+    sys_logger.info("\n[Step 8.6] 离线评估算法对比 (与 Group A 公平对比)...")
+    offline_results = _compute_offline_eval_results(user_metrics=user_metrics)
 
     # --- Step 9: 生成图表 ---
     sys_logger.info("\n[Step 9] 生成评估图表...")
@@ -1645,16 +1802,9 @@ def _print_system_report(group_metrics: dict, user_metrics: list):
         sys_logger.info(f"  多样性 (标签比)  : {gm['avg_diversity_ratio']:.4f}")
         sys_logger.info(f"  标签一致性       : {gm['avg_tag_consistency']:.4f}")
         sys_logger.info(f"  偏好匹配率       : {gm['avg_preference_match_rate']:.4f}")
-        sys_logger.info(f"  平均推荐数       : {gm['avg_recommend_count']:.1f}")
 
     # 冷启动总结
-    new_count = group_metrics.get("B", {}).get("avg_recommend_count", 0)
-    active_count = group_metrics.get("A", {}).get("avg_recommend_count", 0)
-    cold_start_rate = 1.0 if new_count > 0 else 0.0
-    sys_logger.info(f"\n--- 冷启动评估 ---")
-    sys_logger.info(f"  新用户推荐成功率  : {cold_start_rate:.1%} (推荐数 > 0)")
-    sys_logger.info(f"  新用户平均推荐数  : {new_count:.1f}")
-    sys_logger.info(f"  活跃用户平均推荐数: {active_count:.1f}")
+    sys_logger.info("")
 
     sys_logger.info("")
 

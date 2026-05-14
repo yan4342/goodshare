@@ -52,6 +52,9 @@ public class Post {
     @TableField(exist = false)
     private Boolean isFavorited = false;
 
+    @TableField(exist = false)
+    private Double recommendScore;
+
     @TableField("view_count")
     private Integer viewCount = 0;
 
@@ -120,6 +123,14 @@ public class Post {
 
     public void setIsFavorited(Boolean isFavorited) {
         this.isFavorited = isFavorited;
+    }
+
+    public Double getRecommendScore() {
+        return recommendScore;
+    }
+
+    public void setRecommendScore(Double recommendScore) {
+        this.recommendScore = recommendScore;
     }
 
     public Long getId() {

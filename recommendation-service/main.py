@@ -52,6 +52,18 @@ def get_recommendations(user_id: int, limit: int = 20):
         logger.error(f"生成推荐时发生错误: {e}")
         return []
 
+@app.get("/retrain")
+def retrain_model():
+    """手动触发模型重训（评估脚本调用）"""
+    try:
+        logger.info("手动触发模型重训...")
+        recommender.train()
+        logger.info("手动重训完成。")
+        return {"status": "ok", "message": "Model retrained successfully"}
+    except Exception as e:
+        logger.error(f"手动重训失败: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
