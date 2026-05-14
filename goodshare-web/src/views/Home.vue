@@ -53,11 +53,11 @@
                 v-for="(post, pIndex) in colPosts" 
                 :key="post.id" 
                 class="post-card animated-card" 
-                :class="{ 'no-image': !getCoverUrl(post) }" 
+                :class="{ 'no-image': !coverUrlMap.get(post.id) }" 
                 :style="{ animationDelay: `${pIndex * 0.05}s` }"
                 @click="openPost(post, $event)"
             >
-                <el-image v-if="getCoverUrl(post)" :src="getCoverUrl(post)" class="cover-image" lazy>
+                <el-image v-if="coverUrlMap.get(post.id)" :src="coverUrlMap.get(post.id)" class="cover-image" lazy>
                     <template #placeholder>
                         <img :src="placeholderImg" class="placeholder-image" />
                     </template>
@@ -205,6 +205,23 @@ const columns = computed(() => {
     return cols
 })
 
+const coverUrlMap = computed(() => {
+    const map = new Map()
+    posts.value.forEach(post => {
+        let url = null
+        if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
+            url = post.coverUrl
+        } else if (post.images) {
+            try {
+                const imgs = JSON.parse(post.images)
+                if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
+            } catch (e) {}
+        }
+        map.set(post.id, getThumbnailUrl(url))
+    })
+    return map
+})
+
 const handleScroll = ({ scrollTop }) => {
     homeStore.setScrollTop(scrollTop)
     
@@ -327,18 +344,7 @@ const closePost = () => {
     clickedRect.value = null
 }
 
-const getCoverUrl = (post) => {
-    let url = null
-    if (post.coverUrl && !post.coverUrl.includes('placehold.co')) {
-        url = post.coverUrl
-    } else if (post.images) {
-        try {
-            const imgs = JSON.parse(post.images)
-            if (Array.isArray(imgs) && imgs.length > 0) url = imgs[0]
-        } catch (e) {}
-    }
-    return getThumbnailUrl(url)
-}
+
 
 const handleDislike = async (post) => {
     if (!authStore.state.isAuthenticated) {

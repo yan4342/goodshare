@@ -6,3 +6,4 @@ sqlalchemy==2.0.25
 pymysql==1.1.0
 scikit-learn==1.4.0
 faker==24.9.0
+matplotlib>=3.8.0

@@ -17,6 +17,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.indices.AnalyzeRequest;
 
 @Service
 public class SearchService {
@@ -26,13 +28,38 @@ public class SearchService {
     private final SearchStatsService searchStatsService;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final ElasticsearchClient esClient;
 
-    public SearchService(PostSearchRepository postSearchRepository, ElasticsearchOperations elasticsearchOperations, SearchStatsService searchStatsService, PostMapper postMapper, UserMapper userMapper) {
+    public SearchService(PostSearchRepository postSearchRepository, ElasticsearchOperations elasticsearchOperations, SearchStatsService searchStatsService, PostMapper postMapper, UserMapper userMapper, ElasticsearchClient esClient) {
         this.postSearchRepository = postSearchRepository;
         this.elasticsearchOperations = elasticsearchOperations;
         this.searchStatsService = searchStatsService;
         this.postMapper = postMapper;
         this.userMapper = userMapper;
+        this.esClient = esClient;
+    }
+
+    /**
+     * 调用 ES IK 分词器对文本进行分词
+     */
+    public List<String> tokenize(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return List.of();
+        }
+        try {
+            AnalyzeRequest request = AnalyzeRequest.of(a -> a
+                .index("posts")
+                .text(text)
+                .analyzer("ik_max_word")
+            );
+            var response = esClient.indices().analyze(request);
+            return response.tokens().stream()
+                .map(t -> t.token())
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("ES tokenize failed: " + e.getMessage());
+            return List.of();
+        }
     }
 
     public List<User> searchUsers(String query) {

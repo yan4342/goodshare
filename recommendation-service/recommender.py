@@ -6,6 +6,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 from database import fetch_interactions, fetch_post_contents
 
+# 日志开关配置
+# 通过环境变量 LOG_ENABLED 控制日志输出，默认为 false（不打印日志）
+# 设置 LOG_ENABLED=true 或 LOG_ENABLED=1 开启日志
+# Docker 环境：在 docker-compose.yml 中添加：environment:
+#                                               - LOG_ENABLED=true
+LOG_ENABLED = os.environ.get('LOG_ENABLED', 'false').lower() in ('true', '1', 'yes')
+
 # 配置日志
 # 获取当前脚本所在的绝对路径，确保 logs 文件夹生成在 recommendation-service 目录下
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,15 +21,22 @@ log_dir = os.path.join(base_dir, "logs")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
+# 根据日志开关配置 handlers
+log_handlers = []
+if LOG_ENABLED:
+    log_handlers.append(logging.FileHandler(os.path.join(log_dir, "recommendation.log"), encoding='utf-8'))
+    log_handlers.append(logging.StreamHandler())
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO if LOG_ENABLED else logging.WARNING,
     format='%(asctime)s - [%(levelname)s] - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(log_dir, "recommendation.log"), encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers if log_handlers else [logging.NullHandler()]
 )
 logger = logging.getLogger("Recommender")
+
+# 如果日志关闭，设置更高阈值避免输出
+if not LOG_ENABLED:
+    logger.setLevel(logging.WARNING)
 
 class HybridRecommender:
     def __init__(self):
@@ -175,7 +189,7 @@ class HybridRecommender:
         sorted_recs = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
         return [{"post_id": item, "score": score} for item, score in sorted_recs[:top_k]]
     # 推荐帖子，结合用户协同过滤、内容过滤和物品协同过滤
-    def recommend(self, user_id, top_k=20, n_similar_users=10, user_cf_weight=0.4, content_cf_weight=0.3, item_cf_weight=0.3):
+    def recommend(self, user_id, top_k=20, n_similar_users=10, user_cf_weight=0.4, content_cf_weight=0.2, item_cf_weight=0.4):
         logger.info(f"开始为用户 {user_id} 生成推荐...")
         user_cf_recs = self._recommend_user_cf(user_id, top_k=top_k, n_similar_users=n_similar_users)
         content_cf_recs = self._recommend_content_based(user_id, top_k=top_k)

@@ -151,6 +151,16 @@ public interface PostMapper extends BaseMapper<Post> {
             "</script>")
     List<java.util.Map<String, Object>> selectCommentCountsByPostIds(@Param("postIds") List<Long> postIds);
 
+    @Select("<script>" +
+            "SELECT id as post_id, p.view_count " +
+            "FROM posts p " +
+            "WHERE p.id IN " +
+            "<foreach item='item' index='index' collection='postIds' open='(' separator=',' close=')'>" +
+            "#{item}" +
+            "</foreach>" +
+            "</script>")
+    List<java.util.Map<String, Object>> selectViewCountsByPostIds(@Param("postIds") List<Long> postIds);
+
     @Delete("DELETE FROM post_tags WHERE post_id = #{postId}")
     void deletePostTags(Long postId);
 

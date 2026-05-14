@@ -95,6 +95,7 @@ public class RecommendationService {
             weights.putIfAbsent("weight.comment", 2.0);
             weights.putIfAbsent("weight.content", 1.0);
             weights.putIfAbsent("weight.comment_count", 0.1);
+            weights.putIfAbsent("weight.view_count", 0.05);
         } catch (Exception e) {
             log.error("从数据库加载权重失败: {}", e.getMessage());
             // Fallback defaults
@@ -104,6 +105,7 @@ public class RecommendationService {
             weights.put("weight.comment", 2.0);
             weights.put("weight.content", 1.0);
             weights.put("weight.comment_count", 0.1);
+            weights.put("weight.view_count", 0.05);
         }
     }
 
@@ -369,29 +371,40 @@ public class RecommendationService {
             }
         }
 
-        // 5.5 Comment Count Boosting (Popularity)
-        log.info("开始应用评论热度加分策略...");
+        // 5.5 Popularity Boosting (View Count + Comment Count)
+        log.info("开始应用浏览量和评论热度加分策略...");
         if (!recommendedPosts.isEmpty()) {
             List<Long> candidateIds = new ArrayList<>(recommendedPosts.keySet());
-            // Batch fetch
             int batchSize = 100;
             double commentWeight = weights.getOrDefault("weight.comment_count", 0.1);
-            
-            if (commentWeight > 0.001) {
-                for (int i = 0; i < candidateIds.size(); i += batchSize) {
-                    int end = Math.min(candidateIds.size(), i + batchSize);
-                    List<Long> batchIds = candidateIds.subList(i, end);
-                    
+            double viewWeight = weights.getOrDefault("weight.view_count", 0.05);
+
+            for (int i = 0; i < candidateIds.size(); i += batchSize) {
+                int end = Math.min(candidateIds.size(), i + batchSize);
+                List<Long> batchIds = candidateIds.subList(i, end);
+
+                // 浏览量加分
+                if (viewWeight > 0.001) {
+                    List<Map<String, Object>> viewCounts = postMapper.selectViewCountsByPostIds(batchIds);
+                    for (Map<String, Object> row : viewCounts) {
+                        Long pId = ((Number) row.get("post_id")).longValue();
+                        Long count = ((Number) row.get("view_count")).longValue();
+                        if (count > 0) {
+                            double boost = Math.log1p(count) * viewWeight;//对数加分，防止爆炸
+                            recommendedPosts.merge(pId, boost, (a, b) -> a + b);
+                        }
+                    }
+                }
+
+                // 评论数加分
+                if (commentWeight > 0.001) {
                     List<Map<String, Object>> counts = postMapper.selectCommentCountsByPostIds(batchIds);
-                    
                     for (Map<String, Object> row : counts) {
                         Long pId = ((Number) row.get("post_id")).longValue();
                         Long count = ((Number) row.get("comment_count")).longValue();
-                        
                         if (count > 0) {
-                            // Logarithmic boost to prevent runaway scores for viral posts
                             double boost = Math.log1p(count) * commentWeight;
-                             recommendedPosts.merge(pId, boost, (a, b) -> a + b);
+                            recommendedPosts.merge(pId, boost, (a, b) -> a + b);
                         }
                     }
                 }
@@ -591,6 +604,7 @@ public class RecommendationService {
         return getRecommendations(userId, 1, RECOMMENDATION_COUNT);
     }
 
+    //已弃用
     private double calculateCosineSimilarity(Map<Long, Double> v1, Map<Long, Double> v2) {
         double dotProduct = 0.0;
         double normA = 0.0;

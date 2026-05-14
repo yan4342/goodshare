@@ -404,6 +404,8 @@ let previousContentImageUrls = new Set()
 const editorUploadedImageUrls = new Set()
 let previewCoverTimer = null
 let previewCoverRequestId = 0
+const esTokens = ref([])
+let tokenizeTimer = null
 
 const emojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -564,41 +566,38 @@ const getMiniPreviewStyle = (templateId) => {
     return {}
 }
 
-// Smart Scribble Highlight Logic
+// Smart Scribble Highlight Logic (ES IK 分词驱动)
 const processedScribbleTitle = computed(() => {
     const text = form.value.title || '这是标题啊'
-    // Simple heuristic: split by spaces or punctuation
-    // For Chinese, we might want to split by segmenter if supported, or just random
-    // Fallback: Split by non-word characters or treat each character as potential? 
-    // Let's assume standard space separation for English, and for Chinese we might just highlight random chunks if no spaces.
-    
-    // Heuristic:
-    // 1. If text has spaces, split by spaces.
-    // 2. If no spaces (likely Chinese/Japanese), try to split by punctuation.
-    // 3. If no punctuation, split into chunks of 2-4 chars.
     
     let parts = []
-    // 如果有空格（通常是英文），直接按空格分
-    if (text.includes(' ')) {
+    
+    // 优先使用 ES 分词结果
+    if (esTokens.value.length > 0) {
+        parts = esTokens.value.map(t => ({ text: t, highlight: false }))
+    } else if (text.includes(' ')) {
+        // 英文按空格分
         parts = text.split(' ').map(t => ({ text: t, highlight: false }))
     } else {
-        // 如果没有空格（通常是中文），模拟分词 Mock segmentation for demo: random split 2-3 chars
-        let remaining = text
-        while (remaining.length > 0) {
-            const len = Math.floor(Math.random() * 3) + 2 // 2 to 4 chars
-            const chunk = remaining.slice(0, len)
-            parts.push({ text: chunk, highlight: false })
-            remaining = remaining.slice(len)
+        // 无 ES 分词时回退：按标点拆分，再按 2-4 字切块
+        const segments = text.split(/([，。！？、；：""''《》【】（）\-,.!?;:]+)/g).filter(s => s.trim())
+        for (const seg of segments) {
+            if (/^[，。！？、；：""''《》【】（）\-,.!?;:]+$/.test(seg)) {
+                parts.push({ text: seg, highlight: false })
+                continue
+            }
+            let remaining = seg
+            while (remaining.length > 0) {
+                const len = Math.min(remaining.length, Math.floor(Math.random() * 3) + 2)
+                parts.push({ text: remaining.slice(0, len), highlight: false })
+                remaining = remaining.slice(len)
+            }
         }
     }
     
     // "Smart" Highlight: highlight longer words or every other word
-    // Let's highlight the last segment (punchline) and maybe one in the middle
     if (parts.length > 0) {
-        // Always highlight the last part if it's substantial
         parts[parts.length - 1].highlight = true
-        
-        // Randomly highlight others
         if (parts.length > 2) {
             const randomIndex = Math.floor(Math.random() * (parts.length - 1))
             parts[randomIndex].highlight = true
@@ -607,6 +606,27 @@ const processedScribbleTitle = computed(() => {
     
     return parts
 })
+
+// 调用 ES 分词接口
+const fetchEsTokens = async (text) => {
+    if (!text || text.trim().length === 0) {
+        esTokens.value = []
+        return
+    }
+    try {
+        const res = await request.get('/search/tokenize', { params: { text } })
+        esTokens.value = res.data || []
+    } catch (e) {
+        console.warn('ES tokenize failed, falling back to local splitting', e)
+        esTokens.value = []
+    }
+}
+
+// 监听标题变化，防抖调用 ES 分词
+watch(() => form.value.title, (newTitle) => {
+    clearTimeout(tokenizeTimer)
+    tokenizeTimer = setTimeout(() => fetchEsTokens(newTitle), 300)
+}, { immediate: true })
 
 // Update preview cover when color changes 发布笔记颜色主题切换时更新预览封面
 watch(selectedColorIndex, () => {

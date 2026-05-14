@@ -378,6 +378,10 @@
                       <el-input-number v-model="weights['weight.comment_count']" :step="0.05" :min="0" />
                       <span class="help-text">帖子评论总数的加权系数 (默认 0.1)</span>
                   </el-form-item>
+                  <el-form-item label="浏览量 (Views)">
+                      <el-input-number v-model="weights['weight.view_count']" :step="0.01" :min="0" />
+                      <span class="help-text">帖子浏览量的加权系数 (默认 0.05)</span>
+                  </el-form-item>
                   <el-form-item>
                       <el-button type="primary" @click="saveWeights">保存配置</el-button>
                   </el-form-item>
@@ -550,7 +554,9 @@ const weights = ref({
     'weight.view': 0.5,
     'weight.like': 1.0,
     'weight.favorite': 2.0,
-    'weight.comment': 3.0
+    'weight.comment': 3.0,
+    'weight.comment_count': 0.1,
+    'weight.view_count': 0.05
 })
 const weightsLoading = ref(false)
 

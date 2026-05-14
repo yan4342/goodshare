@@ -50,4 +50,9 @@ public class SearchController {
     public ResponseEntity<?> getHotKeywords() {
         return ResponseEntity.ok(searchService.getHotKeywords());
     }
+
+    @GetMapping("/tokenize")
+    public ResponseEntity<java.util.List<String>> tokenize(@RequestParam String text) {
+        return ResponseEntity.ok(searchService.tokenize(text));
+    }
 }
