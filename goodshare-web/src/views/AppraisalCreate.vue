@@ -80,7 +80,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import request from '../utils/request'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, ArrowLeft, Picture, Goods, Document } from '@element-plus/icons-vue'
@@ -93,7 +95,7 @@ const dialogVisible = ref(false)
 const submitting = ref(false)
 
 const uploadHeaders = computed(() => ({
-    'Authorization': `Bearer ${authStore.state.token}`
+    'Authorization': `Bearer ${authStore.token}`
 }))
 
 const form = ref({

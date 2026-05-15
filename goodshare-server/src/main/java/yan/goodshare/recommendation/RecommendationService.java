@@ -76,6 +76,16 @@ public class RecommendationService {
     @PostConstruct
     public void init() {
         refreshWeights();
+        // 启动时尝试将权重推送到 Python 微服务（异步，不阻塞启动）
+        new Thread(() -> {
+            try {
+                // 等待 Python 服务就绪
+                Thread.sleep(10000);
+                pushWeightsToPythonService();
+            } catch (Exception e) {
+                log.warn("启动时推送权重到 Python 微服务失败（将在下次权重更新时重试）: {}", e.getMessage());
+            }
+        }).start();
     }
 
     public void refreshWeights() {
@@ -132,6 +142,39 @@ public class RecommendationService {
             }
         }
         refreshWeights();
+        // 同步推送交互权重到 Python 协同过滤微服务
+        pushWeightsToPythonService();
+    }
+
+    /**
+     * 将当前交互权重推送到 Python 推荐微服务，使其在 CF 训练时使用相同的权重配置。
+     * Java 端 key 格式: weight.view / weight.like / weight.comment / weight.favorite
+     * Python 端 key 格式: view / like / comment / favorite
+     */
+    private void pushWeightsToPythonService() {
+        try {
+            Map<String, Double> pyWeights = new HashMap<>();
+            pyWeights.put("view", weights.getOrDefault("weight.view", 0.5));
+            pyWeights.put("like", weights.getOrDefault("weight.like", 1.0));
+            pyWeights.put("comment", weights.getOrDefault("weight.comment", 2.0));
+            pyWeights.put("favorite", weights.getOrDefault("weight.favorite", 3.0));
+
+            log.info("正在推送交互权重到 Python 微服务: {}", pyWeights);
+
+            String url;
+            try {
+                url = "http://recommendation-service:5000/update-weights";
+                restTemplate.postForObject(url, pyWeights, String.class);
+                log.info("权重已成功推送到 Python 微服务 (recommendation-service)。");
+            } catch (Exception innerE) {
+                log.warn("通过 recommendation-service 推送权重失败，尝试回退到 localhost:5000 : {}", innerE.getMessage());
+                url = "http://localhost:5000/update-weights";
+                restTemplate.postForObject(url, pyWeights, String.class);
+                log.info("权重已成功推送到 Python 微服务 (localhost)。");
+            }
+        } catch (Exception e) {
+            log.error("推送权重到 Python 微服务最终失败: {}", e.getMessage());
+        }
     }
 
     public List<Post> getRecommendations(Long userId, int page, int size) {

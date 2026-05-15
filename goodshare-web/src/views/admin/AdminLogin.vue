@@ -20,7 +20,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../../utils/request'
-import authStore from '../../stores/auth'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const loading = ref(false)

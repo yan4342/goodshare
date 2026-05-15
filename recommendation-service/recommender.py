@@ -46,10 +46,24 @@ class HybridRecommender:
         self.item_similarity_df = None
         self.item_cf_similarity_df = None
         self.last_train_time = None
+        # 交互权重，可通过 Java 端动态调整
+        # 默认值与 Java 端 refreshWeights() 保持一致：view=0.5, like=1.0, comment=2.0, favorite=3.0
+        self.interaction_weights = {"view": 0.5, "like": 1.0, "comment": 2.0, "favorite": 3.0}
+
+    def update_interaction_weights(self, new_weights):
+        """更新交互权重（由 Java 端通过 API 调用）"""
+        if new_weights:
+            self.interaction_weights.update(new_weights)
+            logger.info(f"交互权重已更新: {self.interaction_weights}")
+
+    def get_interaction_weights(self):
+        """获取当前交互权重"""
+        return dict(self.interaction_weights)
+
     # 训练用户协同过滤模型
     def train(self):
         logger.info("\n开始训练用户协同过滤模型...")
-        df = fetch_interactions()
+        df = fetch_interactions(weights=self.interaction_weights)
         # 检查数据是否为空
         if df.empty:
             logger.warning("未找到用户交互数据，跳过训练。")

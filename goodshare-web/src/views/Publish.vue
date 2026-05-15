@@ -169,8 +169,8 @@
                  <div class="info-section">
                      <!-- Author Header -->
                      <div class="author-header">
-                         <el-avatar :size="40" :src="authStore.state.user?.avatarUrl || defaultAvatar" />
-                         <span class="username">{{ authStore.state.user?.username || '用户' }}</span>
+                         <el-avatar :size="40" :src="authStore.user?.avatarUrl || defaultAvatar" />
+                         <span class="username">{{ authStore.user?.username || '用户' }}</span>
                          <el-button type="primary" round size="small" class="follow-btn">关注</el-button>
                      </div>
 
@@ -238,8 +238,8 @@
             <div class="preview-info-section">
                 <!-- Author Header -->
                 <div class="preview-author-header">
-                    <el-avatar :size="40" :src="authStore.state.user?.avatarUrl || defaultAvatar" />
-                    <span class="preview-username">{{ authStore.state.user?.username || '用户' }}</span>
+                    <el-avatar :size="40" :src="authStore.user?.avatarUrl || defaultAvatar" />
+                    <span class="preview-username">{{ authStore.user?.username || '用户' }}</span>
                     <el-button type="primary" round size="small" class="preview-follow-btn">关注</el-button>
                 </div>
 
@@ -383,7 +383,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import html2canvas from 'html2canvas'
 import { compressImage } from '../utils/compress'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 
 const router = useRouter()
 const loading = ref(false)
@@ -435,7 +437,7 @@ const addEmoji = (emoji) => {
 const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
 
 const form = ref({
-  username: authStore.state.user?.username || '用户',
+  username: authStore.user?.username || '用户',
   title: '',
   content: '',
   coverUrl: '',
@@ -443,7 +445,7 @@ const form = ref({
 })
 
 // Update form.username when auth user changes
-watch(() => authStore.state.user, (user) => {
+watch(() => authStore.user, (user) => {
   form.value.username = user?.username || '用户'
 }, { immediate: true })
 
@@ -867,7 +869,7 @@ const loadDraft = () => {
     if (draft) {
         try {
             const data = JSON.parse(draft)
-            if (data.userId !== authStore.state.user?.id) return // Don't load other user's draft
+            if (data.userId !== authStore.user?.id) return // Don't load other user's draft
 
             // Check if draft has meaningful content
             const hasTitle = data.title && data.title.trim()
@@ -905,7 +907,7 @@ const loadDraft = () => {
 }
 
 const saveDraft = () => {
-    if (!authStore.state.isAuthenticated) return
+    if (!authStore.isAuthenticated) return
     
     // Extract image URLs
     const images = fileList.value.map(file => {
@@ -920,7 +922,7 @@ const saveDraft = () => {
     }).filter(u => u && typeof u === 'string' && !u.startsWith('data:') && !u.startsWith('blob:'))
 
     const draftData = {
-        userId: authStore.state.user?.id,
+        userId: authStore.user?.id,
         title: form.value.title,
         content: form.value.content,
         tags: form.value.tags,

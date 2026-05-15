@@ -8,11 +8,17 @@ DB_URL = os.getenv("DB_URL", "mysql+pymysql://root:123456@localhost:3306/goodsha
 
 engine = create_engine(DB_URL)
 
-def fetch_interactions():
+def fetch_interactions(weights=None):
     """
     Fetch interactions from multiple tables and aggregate them into a single DataFrame.
-    Weights: View=1, Like=3, Comment=5, Favorite=5
+    Weights can be passed in as a dict, e.g. {"view": 1, "like": 3, "comment": 2, "favorite": 5}.
+    If None, uses default weights.
     """
+    # Default weights — aligned with Java-side RecommendationService.refreshWeights()
+    default_weights = {"view": 0.5, "like": 1.0, "comment": 2.0, "favorite": 3.0}
+    if weights is not None:
+        default_weights.update(weights)
+
     try:
         # Fetch data
         views = pd.read_sql("SELECT user_id, post_id FROM post_views", engine)
@@ -21,10 +27,10 @@ def fetch_interactions():
         favorites = pd.read_sql("SELECT user_id, post_id FROM favorites", engine)
 
         # Assign weights
-        views['score'] = 1
-        likes['score'] = 3
-        comments['score'] = 5
-        favorites['score'] = 5
+        views['score'] = default_weights["view"]
+        likes['score'] = default_weights["like"]
+        comments['score'] = default_weights["comment"]
+        favorites['score'] = default_weights["favorite"]
 
         # Concatenate
         df = pd.concat([views, likes, comments, favorites], ignore_index=True)

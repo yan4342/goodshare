@@ -59,15 +59,17 @@ import { ref, computed, onMounted } from 'vue'
 import { Search, UserFilled, Trophy } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import request from '../utils/request'
 
 const router = useRouter()
 const searchQuery = ref('')
-const isAuthenticated = computed(() => authStore.state.isAuthenticated)
-const userAvatar = computed(() => authStore.state.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
-const username = computed(() => authStore.state.user?.nickname || authStore.state.user?.username)
-const isAdmin = computed(() => authStore.state.user?.role?.includes('ADMIN') || false)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const userAvatar = computed(() => authStore.user?.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
+const username = computed(() => authStore.user?.nickname || authStore.user?.username)
+const isAdmin = computed(() => authStore.user?.role?.includes('ADMIN') || false)
 
 const hotKeywords = ref([])
 

@@ -10,7 +10,9 @@
 <script setup>
 import { onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import authStore from './stores/auth'
+import { useAuthStore } from './stores/auth'
+
+const authStore = useAuthStore()
 import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
@@ -20,11 +22,11 @@ const showSidebar = computed(() => {
   // Also check if the route explicitly hides sidebar (optional)
   const isGuestPage = ['Login', 'Register', 'AdminLogin'].includes(route.name)
   const isAdminPage = route.path.startsWith('/admin')
-  return authStore.state.isAuthenticated && !isGuestPage && !isAdminPage
+  return authStore.isAuthenticated && !isGuestPage && !isAdminPage
 })
 
 onMounted(() => {
-    if (authStore.state.isAuthenticated && !authStore.state.user) {
+    if (authStore.isAuthenticated && !authStore.user) {
         authStore.fetchUser()
     }
 })

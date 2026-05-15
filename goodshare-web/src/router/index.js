@@ -5,7 +5,7 @@ import Register from '../views/Register.vue'
 import Publish from '../views/Publish.vue'
 import Notification from '../views/Notification.vue'
 import PostDetail from '../views/PostDetail.vue'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
@@ -112,7 +112,8 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-    const isAuthenticated = authStore.state.isAuthenticated
+    const authStore = useAuthStore()
+    const isAuthenticated = authStore.isAuthenticated
     const isAdminAuthenticated = !!localStorage.getItem('admin_token')
     
     // 1. Admin Routes Protection

@@ -103,7 +103,9 @@
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { Loading, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import SockJS from 'sockjs-client/dist/sockjs.min.js'
@@ -117,7 +119,7 @@ const defaultAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e5
 const conversations = ref([])
 const messages = ref([])
 const currentChatUser = ref(null)
-const currentUser = computed(() => authStore.state.user)
+const currentUser = computed(() => authStore.user)
 const newMessage = ref('')
 const loadingConversations = ref(false)
 const loadingMessages = ref(false)
@@ -312,7 +314,7 @@ const connectWebSocket = () => {
     stompClient = Stomp.over(socket)
     stompClient.debug = null // Disable debug logs
 
-    const token = authStore.state.token
+    const token = authStore.token
     if (!token) return
 
     stompClient.connect({ 'Authorization': 'Bearer ' + token }, (frame) => {

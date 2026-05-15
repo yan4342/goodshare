@@ -425,8 +425,11 @@
 import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import request from '../utils/request'
-import authStore from '../stores/auth'
-import homeStore from '../stores/home'
+import { useAuthStore } from '../stores/auth'
+import { useHomeStore } from '../stores/home'
+
+const authStore = useAuthStore()
+const homeStore = useHomeStore()
 import { Camera, Setting, Star, Delete, ChatDotRound, Plus, Check, ArrowLeft, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { VueCropper } from 'vue-cropper'
@@ -490,7 +493,7 @@ const selectedPostId = ref(null)
 const clickedRect = ref(null)
 
 const isCurrentUser = computed(() => {
-    return !route.params.id || (authStore.state.user && route.params.id == authStore.state.user.id)
+    return !route.params.id || (authStore.user && route.params.id == authStore.user.id)
 })
 
 const cropperImg = ref('')
@@ -538,7 +541,7 @@ const editForm = reactive({
 })
 
 const uploadHeaders = computed(() => ({
-    'Authorization': `Bearer ${authStore.state.token}`
+    'Authorization': `Bearer ${authStore.token}`
 }))
 
 const fetchUserProfile = async () => {
@@ -547,10 +550,10 @@ const fetchUserProfile = async () => {
         const userId = route.params.id
         let res
         
-        if (userId && userId != authStore.state.user?.id) {
+        if (userId && userId != authStore.user?.id) {
              res = await request.get(`/users/${userId}`)
              // Check follow status if logged in
-             if (authStore.state.isAuthenticated) {
+             if (authStore.isAuthenticated) {
                  checkFollowStatus(userId)
              }
         } else {
@@ -586,7 +589,7 @@ const checkFollowStatus = async (userId) => {
 }
 
 const toggleFollow = async () => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         router.push('/login')
         return
     }
@@ -610,7 +613,7 @@ const toggleFollow = async () => {
 }
 
 const goToChat = () => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         router.push('/login')
         return
     }
@@ -655,7 +658,7 @@ const fetchFollowers = async () => {
 const goToUser = (id) => {
     showFollowingList.value = false
     showFollowerList.value = false
-    if (authStore.state.user && id == authStore.state.user.id) {
+    if (authStore.user && id == authStore.user.id) {
         router.push('/me')
     } else {
         router.push(`/user/${id}`)
@@ -1001,9 +1004,9 @@ const confirmCrop = () => {
         // Update local state
         userProfile.value.avatarUrl = localPreviewUrl
         // Update global store (Navbar will update immediately)
-        if (authStore.state.user) {
+        if (authStore.user) {
             authStore.setUser({
-                ...authStore.state.user,
+                ...authStore.user,
                 avatarUrl: localPreviewUrl
             })
         }
@@ -1047,9 +1050,9 @@ const confirmCrop = () => {
             })
             
             // Update auth store with real URL
-            if (authStore.state.user) {
+            if (authStore.user) {
                 authStore.setUser({
-                    ...authStore.state.user,
+                    ...authStore.user,
                     avatarUrl: url
                 })
             }
@@ -1072,9 +1075,9 @@ const confirmCrop = () => {
             
             // Revert on failure
             userProfile.value.avatarUrl = originalAvatarUrl
-            if (authStore.state.user) {
+            if (authStore.user) {
                 authStore.setUser({
-                    ...authStore.state.user,
+                    ...authStore.user,
                     avatarUrl: originalAvatarUrl
                 })
             }
@@ -1111,9 +1114,9 @@ const saveProfile = async () => {
         userProfile.value.nickname = editForm.nickname
         
         // Update auth store
-        if (authStore.state.user) {
+        if (authStore.user) {
             authStore.setUser({
-                ...authStore.state.user,
+                ...authStore.user,
                 nickname: editForm.nickname,
                 bio: editForm.bio
             })

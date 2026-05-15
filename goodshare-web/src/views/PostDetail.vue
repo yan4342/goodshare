@@ -48,7 +48,7 @@
             <span class="username clickable-username" :class="getNameClass(post.user?.activeStyle)" @click="goToUser">{{ post.user?.username || '用户' }}</span>
             <el-tag v-if="post.user?.level" :type="getLevelTagType(post.user?.level)" effect="dark" size="small" class="level-tag" style="margin-left: 8px; margin-right: 8px;">Lv.{{ post.user?.level }}</el-tag>
             <el-button 
-                v-if="(post.userId || post.user?.id) !== authStore.state.user?.id"
+                v-if="(post.userId || post.user?.id) !== authStore.user?.id"
                 :type="isFollowing ? 'default' : 'primary'"  
                 round 
                 size="small" 
@@ -230,7 +230,9 @@ import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
 import { Close, Star, StarFilled, Collection, ChatDotRound, CollectionTag, View } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { getAvatarClass, getNameClass, getLevelTagType } from '../utils/style'
 import { parseServerTime } from '../utils/time'
 
@@ -385,7 +387,7 @@ const goToUser = async () => {
             return
         }
         
-        if (authStore.state.user?.id === authorId) {
+        if (authStore.user?.id === authorId) {
             await router.push('/me')
         } else {
             await router.push(`/user/${authorId}`)
@@ -492,8 +494,8 @@ const fetchFavoriteStatus = async (id) => {
 }
 
 const checkFollowStatus = async (authorId) => {
-    if (!authStore.state.isAuthenticated || !authorId) return
-    if (authStore.state.user?.id === authorId) return // Don't check for self
+    if (!authStore.isAuthenticated || !authorId) return
+    if (authStore.user?.id === authorId) return // Don't check for self
 
     try {
         const res = await request.get(`/users/${authorId}/is-following`)
@@ -504,7 +506,7 @@ const checkFollowStatus = async (authorId) => {
 }
 
 const toggleFollow = async () => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         ElMessage.warning('请先登录')
         router.push('/login')
         return
@@ -599,7 +601,7 @@ const cancelReply = () => {
 }
 
 const toggleCommentLike = async (comment) => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         ElMessage.warning('请先登录')
         return
     }

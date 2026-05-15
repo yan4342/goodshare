@@ -243,7 +243,9 @@ import { getThumbnailUrl } from '../utils/image'
 import { Compass, StarFilled, UserFilled, Comment, Message, MoreFilled, Star, ChatDotRound, Collection, CollectionTag, Calendar } from '@element-plus/icons-vue'
 import PostDetail from './PostDetail.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { parseServerTime } from '../utils/time'
 
 const router = useRouter()
@@ -391,7 +393,7 @@ const handleUnfollow = async (post) => {
 }
 
 const handleLike = async (post) => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         ElMessage.warning('请先登录')
         return
     }
@@ -413,7 +415,7 @@ const handleLike = async (post) => {
 }
 
 const handleFavorite = async (post) => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         ElMessage.warning('请先登录')
         return
     }

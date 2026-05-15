@@ -162,20 +162,23 @@ import { getThumbnailUrl } from '../utils/image'
 import { Star, UserFilled, View, Refresh, CircleClose } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import authStore from '../stores/auth'
-import homeStore from '../stores/home'
+import { useAuthStore } from '../stores/auth'
+import { useHomeStore } from '../stores/home'
+
+const authStore = useAuthStore()
+const homeStore = useHomeStore()
 import placeholderImg from '../assets/placeholder.png'
 
 const router = useRouter()
 // Use store state for persistence
-const posts = computed(() => homeStore.state.posts)
+const posts = computed(() => homeStore.posts)
 const tags = ref([])
-const activeTag = computed(() => homeStore.state.activeTag)
-const isAuthenticated = computed(() => authStore.state.isAuthenticated)
-const page = computed(() => homeStore.state.page)
+const activeTag = computed(() => homeStore.activeTag)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const page = computed(() => homeStore.page)
 const pageSize = ref(10)
 const loading = ref(false)
-const hasMore = computed(() => homeStore.state.hasMore)
+const hasMore = computed(() => homeStore.hasMore)
 const showPostDetail = ref(false)
 const selectedPostId = ref(null)
 const scrollContent = ref(null)
@@ -275,9 +278,9 @@ const fetchPosts = async (tag = null, isLoadMore = false, force = false) => {
         }
 
         if (targetTag === '推荐') {
-            if (authStore.state.isAuthenticated && authStore.state.user?.id) {
+            if (authStore.isAuthenticated && authStore.user?.id) {
                 url = `/recommendations`
-                params.user_id = authStore.state.user.id
+                params.user_id = authStore.user.id
             }
         } else {
             url = `/posts`
@@ -347,7 +350,7 @@ const closePost = () => {
 
 
 const handleDislike = async (post) => {
-    if (!authStore.state.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
         ElMessage.warning('请先登录')
         router.push('/login')
         return
@@ -373,7 +376,7 @@ onMounted(async () => {
     } else {
         nextTick(() => {
             if (scrollbarRef.value) {
-                scrollbarRef.value.setScrollTop(homeStore.state.scrollTop)
+                scrollbarRef.value.setScrollTop(homeStore.scrollTop)
             }
         })
     }

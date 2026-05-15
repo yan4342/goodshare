@@ -75,7 +75,9 @@
 import { Compass, Plus, Bell, MoreFilled, User, Moon, SwitchButton, Goods, CircleCheck } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted } from 'vue'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 
 
 const router = useRouter()

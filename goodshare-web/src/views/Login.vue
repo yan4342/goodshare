@@ -63,7 +63,9 @@
 import { ref, reactive } from 'vue'
 import { User, Lock } from '@element-plus/icons-vue'
 import request from '../utils/request'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 

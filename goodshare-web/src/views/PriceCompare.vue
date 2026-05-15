@@ -105,11 +105,13 @@
 import { ref, computed, nextTick } from 'vue'
 import request from '../utils/request'
 import { Search, TrendCharts, Refresh } from '@element-plus/icons-vue'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 
-const isAuthenticated = computed(() => authStore.state.isAuthenticated)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 const searchKeyword = ref('')
 const results = ref([])
 const loading = ref(false)

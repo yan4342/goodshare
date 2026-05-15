@@ -502,7 +502,7 @@ import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import request from '../../utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import authStore from '../../stores/auth'
+import { useAuthStore } from '../../stores/auth'
 import { getThumbnailUrl } from '../../utils/image'
 import { parseServerTime } from '../../utils/time'
 

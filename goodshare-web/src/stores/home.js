@@ -1,65 +1,55 @@
-import { reactive, readonly } from 'vue'
+import { defineStore } from 'pinia'
 
-const state = reactive({
-  posts: [],
-  page: 1,
-  activeTag: '推荐',
-  scrollTop: 0,
-  hasMore: true
-})
+export const useHomeStore = defineStore('home', {
+  state: () => ({
+    posts: [],
+    page: 1,
+    activeTag: '推荐',
+    scrollTop: 0,
+    hasMore: true
+  }),
 
-const setPosts = (posts) => {
-  state.posts = posts
-}
+  actions: {
+    setPosts(posts) {
+      this.posts = posts
+    },
 
-const appendPosts = (newPosts) => {
-  state.posts = [...state.posts, ...newPosts]
-}
+    appendPosts(newPosts) {
+      this.posts = [...this.posts, ...newPosts]
+    },
 
-const setPage = (page) => {
-  state.page = page
-}
+    setPage(page) {
+      this.page = page
+    },
 
-const setActiveTag = (tag) => {
-  state.activeTag = tag
-}
+    setActiveTag(tag) {
+      this.activeTag = tag
+    },
 
-const setScrollTop = (top) => {
-  state.scrollTop = top
-}
+    setScrollTop(top) {
+      this.scrollTop = top
+    },
 
-const setHasMore = (val) => {
-  state.hasMore = val
-}
+    setHasMore(val) {
+      this.hasMore = val
+    },
 
-const updatePost = (updatedPost) => {
-    const index = state.posts.findIndex(p => p.id === updatedPost.id)
-    if (index !== -1) {
-        // Merge updates
-        state.posts[index] = { ...state.posts[index], ...updatedPost }
+    updatePost(updatedPost) {
+      const index = this.posts.findIndex(p => p.id === updatedPost.id)
+      if (index !== -1) {
+        this.posts[index] = { ...this.posts[index], ...updatedPost }
+      }
+    },
+
+    removePost(postId) {
+      this.posts = this.posts.filter(post => post.id !== postId)
+    },
+
+    reset() {
+      this.posts = []
+      this.page = 1
+      this.scrollTop = 0
+      this.hasMore = true
     }
-}
-
-const removePost = (postId) => {
-  state.posts = state.posts.filter(post => post.id !== postId)
-}
-
-const reset = () => {
-    state.posts = []
-    state.page = 1
-    state.scrollTop = 0
-    state.hasMore = true
-}
-
-export default {
-  state: readonly(state),
-  setPosts,
-  appendPosts,
-  setPage,
-  setActiveTag,
-  setScrollTop,
-  setHasMore,
-  updatePost,
-  removePost,
-  reset
-}
+  }
+})

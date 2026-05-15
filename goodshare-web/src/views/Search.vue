@@ -94,7 +94,9 @@ import { ref, onMounted, computed, watch } from 'vue'
 import request from '../utils/request'
 import { Star, UserFilled, Trophy } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
-import authStore from '../stores/auth'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
 import { getThumbnailUrl } from '../utils/image'
 
 const router = useRouter()
@@ -102,7 +104,7 @@ const route = useRoute()
 const posts = ref([])
 const users = ref([])
 const hotKeywords = ref([])
-const isAuthenticated = computed(() => authStore.state.isAuthenticated)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 const query = computed(() => route.query.q || '')
 const tag = computed(() => route.query.tag || '')
 const activeTab = ref('posts')

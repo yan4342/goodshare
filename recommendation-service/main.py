@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from recommender import recommender, logger
 import uvicorn
 import asyncio
@@ -63,6 +63,33 @@ def retrain_model():
     except Exception as e:
         logger.error(f"手动重训失败: {e}")
         return {"status": "error", "message": str(e)}
+
+@app.post("/update-weights")
+def update_weights(weights: dict = Body(...)):
+    """
+    接收 Java 端推送的交互权重并触发模型重训。
+    请求体示例: {"view": 1, "like": 3, "comment": 2, "favorite": 5}
+    """
+    try:
+        logger.info(f"接收到权重更新请求: {weights}")
+        recommender.update_interaction_weights(weights)
+        # 权重变更后触发重训
+        logger.info("权重已更新，开始重训模型...")
+        recommender.train()
+        logger.info("权重更新并重训完成。")
+        return {
+            "status": "ok",
+            "message": "Weights updated and model retrained",
+            "current_weights": recommender.get_interaction_weights()
+        }
+    except Exception as e:
+        logger.error(f"更新权重失败: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/weights")
+def get_weights():
+    """获取当前交互权重"""
+    return recommender.get_interaction_weights()
 
 @app.get("/health")
 def health():
